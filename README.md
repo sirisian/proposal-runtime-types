@@ -1,50 +1,75 @@
-# template-for-proposals
+# Runtime Types
 
-A repository template for ECMAScript proposals.
+An optional static type system for ECMAScript whose types are checked and enforced **at run time**.
 
-## Before creating a proposal
+You can browse the [rendered specification](https://sirisian.github.io/proposal-runtime-types/) or its [source](https://github.com/sirisian/proposal-runtime-types/blob/HEAD/spec.emu). The full design, including the rationale, the complete set of extensions, and worked examples, lives in the [design repository](https://github.com/sirisian/ecmascript-types).
 
-Please ensure the following:
-  1. You have read the [process document](https://tc39.github.io/process-document/)
-  1. You have reviewed the [existing proposals](https://github.com/tc39/proposals/)
-  1. You are aware that your proposal requires being a member of TC39, or locating a TC39 delegate to “champion” your proposal
+- **Stage:** 0
+- **Champion:** *seeking a TC39 delegate to champion this proposal*
+- **Author:** Sirisian
 
-## Create your proposal repo
+## Motivation
 
-Follow these steps:
-  1. Click the green [“use this template”](https://github.com/tc39/template-for-proposals/generate) button in the repo header. (Note: Do not fork this repo in GitHub's web interface, as that will later prevent transfer into the TC39 organization)
-  1. Update ecmarkup and the biblio to the latest version: `npm install --save-dev ecmarkup@latest && npm install --save-dev --save-exact @tc39/ecma262-biblio@latest`.
-  1. Go to your repo settings page:
-      1. Under “General”, under “Features”, ensure “Issues” is checked, and disable “Wiki”, and “Projects” (unless you intend to use Projects)
-      1. Under “Pull Requests”, check “Always suggest updating pull request branches” and “automatically delete head branches”
-      1. Under the “Pages” section on the left sidebar, and set the source to “deploy from a branch”, select “gh-pages” in the branch dropdown, and then ensure that “Enforce HTTPS” is checked.
-      1. Under the “Actions” section on the left sidebar, under “General”, select “Read and write permissions” under “Workflow permissions” and click “Save”
-  1. [“How to write a good explainer”][explainer] explains how to make a good first impression.
+This proposal adds an optional static type system to ECMAScript whose types are real at run time. A typed binding enforces its type on assignment, conversions between numeric types are written explicitly instead of happening silently, and a value's type is available through reflection. The annotations are optional and additive, so a program keeps its current meaning until it opts in.
 
-      > Each TC39 proposal should have a `README.md` file which explains the purpose
-      > of the proposal and its shape at a high level.
-      >
-      > ...
-      >
-      > The rest of this page can be used as a template ...
+The aim is the precision and performance a value-type discipline gives systems languages. Sized numerics that never silently widen, structs with a defined memory layout that pack into contiguous arrays, operator overloading, and generics specialized by monomorphization are all available where a program asks for them.
 
-      Your explainer can point readers to the `index.html` generated from `spec.emu`
-      via markdown like
+JavaScript already has a typing proposal before committee, [type annotations](https://github.com/tc39/proposal-type-annotations), which take the opposite approach: the annotations are erasable, ignored by the engine and checked only by external tools such as TypeScript. This proposal is the complementary direction. One keeps types out of the runtime, and this one brings them in. Both are optional, and a program can adopt either.
 
-      ```markdown
-      You can browse the [ecmarkup output](https://ACCOUNT.github.io/PROJECT/)
-      or browse the [source](https://github.com/ACCOUNT/PROJECT/blob/HEAD/spec.emu).
-      ```
+## A taste
 
-      where *ACCOUNT* and *PROJECT* are the first two path elements in your project's Github URL.
-      For example, for github.com/**tc39**/**template-for-proposals**, *ACCOUNT* is “tc39”
-      and *PROJECT* is “template-for-proposals”.
+Sized numerics do not implicitly widen, so conversions are explicit and checked:
 
+```js
+let a: uint32 = 1;
+let b: uint8 = a;        // TypeError: no implicit conversion from uint32 to uint8
+let c: uint8 = uint8(a); // explicit, and range-checked at run time
+```
 
-## Maintain your proposal repo
+Value-type classes have a defined layout, so an array of them is one contiguous buffer rather than a thousand heap objects:
 
-  1. Make your changes to `spec.emu` (ecmarkup uses HTML syntax, but is not HTML, so I strongly suggest not naming it “.html”)
-  1. Any commit that makes meaningful changes to the spec, should run `npm run build` to verify that the build will succeed and the output looks as expected.
-  1. Whenever you update `ecmarkup`, run `npm run build` to verify that the build will succeed and the output looks as expected.
+```js
+class Vector3 {
+  x: float32;
+  y: float32;
+  z: float32;
+}
+const points: [1000].<Vector3>; // 12000 contiguous bytes
+Vector3.byteLength;             // 12
+```
 
-  [explainer]: https://github.com/tc39/how-we-work/blob/HEAD/explainer.md
+Types are first-class, interned values, so equal types are the same value and a `Map` can be keyed on one:
+
+```js
+uint8 === uint8;             // true
+[].<uint8> === [].<uint8>;   // true
+const registry = new Map.<type, unknown>();
+registry.set(Vector3, descriptorFor(Vector3));
+```
+
+Operators can be overloaded on a class, and the arithmetic reads as arithmetic:
+
+```js
+class Vector3 {
+  x: float32; y: float32; z: float32;
+  operator+(rhs: Vector3): Vector3 {
+    return { x: this.x + rhs.x, y: this.y + rhs.y, z: this.z + rhs.z } := Vector3;
+  }
+}
+const c = a + b; // calls operator+
+```
+
+## What it includes
+
+The core type system covers typed bindings and destructuring, sized integer/float/decimal types (plus `rational`, `complex`, and arbitrary-width `int.<N>`), value-type and reference-type classes, interfaces, enums, function and operator overloading, union/intersection/tuple types, and types as reflectable values. A set of layered extensions covers SIMD, generics, decorators and reflection metadata, dimensioned primitives, ranges, structure-of-arrays storage, memory layout, references and borrowing, and more. Each is written up in full in the [design repository](https://github.com/sirisian/ecmascript-types).
+
+## Status
+
+This repository holds the formal specification, which is being written in phases against the design. The phased plan, which starts from this infrastructure and builds up the type-checking framework, the type universe, and the feature clauses in dependency order, is described in the design repository's specification plan. Feedback, issues, and prospective champions are welcome.
+
+The specification is authored in [ecmarkup](https://github.com/tc39/ecmarkup). To build it locally:
+
+```sh
+npm install
+npm run build   # produces build/index.html
+```

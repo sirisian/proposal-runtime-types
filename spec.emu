@@ -4,36 +4,27 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.4/styles/github.min.css">
 <script src="./spec.js"></script>
 <pre class="metadata">
-title: Proposal Title Goes Here
-stage: -1
-contributors: Your Name(s) Here
+title: Runtime Types
+stage: 0
+contributors: Sirisian
 </pre>
 
-<emu-clause id="sec-demo-clause">
-  <h1>This is an emu-clause</h1>
-  <p>This is an algorithm:</p>
-  <emu-alg>
-    1. Let _proposal_ be *undefined*.
-    1. If IsAccepted(_proposal_) is *true*, then
-      1. Let _stage_ be *0*<sub>ℤ</sub>.
-    1. Else,
-      1. Let _stage_ be *-1*<sub>ℤ</sub>.
-    1. Return ? ToString(_stage_).
-  </emu-alg>
-</emu-clause>
+<emu-intro id="sec-intro">
+  <h1>Introduction</h1>
+  <p>This proposal adds an optional static type system to ECMAScript. Its types are values at run time and are enforced there: a typed binding rejects a value outside its type, a conversion between numeric types is written explicitly rather than performed silently, and the type of a value is available through reflection. Annotations are optional and additive, so a program that does not use them keeps its current meaning.</p>
 
-<emu-clause id="sec-is-accepted" type="abstract operation">
-  <h1>
-      IsAccepted (
-        _proposal_: an ECMAScript language value
-      ): a Boolean
-  </h1>
-  <dl class="header">
-    <dt>description</dt>
-    <dd>Tells you if the proposal was accepted</dd>
-  </dl>
-  <emu-alg>
-    1. If _proposal_ is not a String, or is not accepted, return *false*.
-    1. Return *true*.
-  </emu-alg>
+  <p>The system is deliberately close to the value-type discipline of systems languages. It adds sized integers, floats, and decimals; value-type classes with a defined in-memory layout; operator overloading; generics specialized by monomorphization; and types as first-class, interned values that ordinary code can compute with and reflect on. None of this is visible to a program that does not opt in.</p>
+
+  <p>This document is the normative specification. It is written against the design, which, together with the rationale, the full set of extensions, and worked examples, is maintained in the <a href="https://github.com/sirisian/ecmascript-types">design repository</a>. Readers new to the proposal should start there; this document formalizes what that material describes.</p>
+
+  <emu-note>
+    <p>The specification is under active construction. The clauses below establish the shape of the document; normative text is added phase by phase, following the specification plan in the design repository. Until a section is filled in here, the corresponding behaviour is defined only by the design documents.</p>
+  </emu-note>
+</emu-intro>
+
+<emu-clause id="sec-runtime-types">
+  <h1>Runtime Types</h1>
+  <p>This clause and its subclauses define the runtime type system as a set of additions to and revisions of the ECMAScript specification. The work is organized into the phases described in the design repository's specification plan: the static type-checking framework; the grammar of type expressions; the type universe; conversions; runtime enforcement; typed declarations, operators, functions, and classes; the type-object and reflection API; and the numeric library. Extensions (SIMD, generics, decorators, primitive metadata, and the rest) are specified as independent additions layered on this core.</p>
+
+  <p>Each addition is expressed as an insertion into or revision of the referenced edition of ECMAScript, so that this document reads as a patch against that specification rather than a restatement of it. As clauses are written they will appear here in the order of the underlying ECMAScript specification, cross-referenced to the sections they modify.</p>
 </emu-clause>
