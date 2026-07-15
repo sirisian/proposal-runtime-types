@@ -392,18 +392,21 @@ contributors: Sirisian
         <h1>
           EvaluateToTypeObject (
             _expr_: a Parse Node,
-          ): either a normal completion containing a Type Object or a throw completion
+          ): either a Type Object or ~empty~
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It evaluates _expr_, which appears in type position, to the Type Object it denotes.</dd>
+          <dd>It evaluates _expr_, which appears in type position, to the Type Object it denotes, or ~empty~ if it does not evaluate to one.</dd>
         </dl>
         <emu-alg>
-          1. If IsCompileTimeEvaluable(_expr_) is *false*, it is a type error (<emu-xref href="#sec-type-errors"></emu-xref>).
-          1. Let _value_ be the result of evaluating _expr_ during type checking.
-          1. If _value_ is not a Type Object, it is a type error.
+          1. If IsCompileTimeEvaluable(_expr_) is *false*, return ~empty~.
+          1. Let _result_ be Completion(the evaluation of _expr_ during type checking).
+          1. If _result_ is an abrupt completion, return ~empty~.
+          1. Let _value_ be _result_.[[Value]].
+          1. If _value_ is not a Type Object, return ~empty~.
           1. Return _value_.
         </emu-alg>
+        <p>It is a type error if an expression appears in type position and EvaluateToTypeObject of it is ~empty~ (<emu-xref href="#sec-type-errors"></emu-xref>).</p>
         <emu-note>
           <p>Evaluation during type checking uses the ordinary evaluation semantics of the operators and calls involved, restricted to the compile-time-evaluable fragment, so no separate evaluator is defined. Because enum and sealed-class exhaustiveness is checked, a `switch` used to map a value to a type covers every case its argument can take and therefore yields a Type Object rather than *undefined*.</p>
         </emu-note>
@@ -1116,8 +1119,11 @@ contributors: Sirisian
           1. Let _conversion_ be the user-defined conversion from _from_ to _to_, if one is declared (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).
           1. If _conversion_ is not ~empty~, return ? the result of applying _conversion_ to _value_.
           1. If IsAssignable(_from_, _to_) is *true*, return _value_.
-          1. It is a type error.
+          1. Throw a *TypeError* exception.
         </emu-alg>
+        <emu-note>
+          <p>The final step is reached only where the operand types are related by no rule above. Where those types are known statically the conversion is rejected as a type error before evaluation (<emu-xref href="#sec-type-errors"></emu-xref>), so the exception is thrown only where a type reaches the conversion dynamically, as when a Type Object computed at run time is called as a function.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-numericconvert" type="abstract operation">
@@ -1405,7 +1411,7 @@ contributors: Sirisian
       <h1>Typed Storage</h1>
       <p>A class in which at least one public or private field is typed is automatically sealed, as if PreventExtensions had been performed on each of its instances, and its prototype is frozen. A field may be written, since a field's type is what constrains it, but a property may not be added or removed, and the prototype may not be modified.</p>
 
-      <p>A store to a typed field or a typed element checks the value against the field's or element's declared type, by <emu-xref href="#table-check-sites"></emu-xref>. Deleting a typed field, a typed element, or a member required by an implemented interface is a *TypeError*.</p>
+      <p>A store to a typed field or a typed element checks the value against the field's or element's declared type, by <emu-xref href="#table-check-sites"></emu-xref>. Deleting a typed field, a typed element, or a member required by an implemented interface throws a *TypeError* exception.</p>
 
       <p>A class whose fields are typed may opt out with the `dynamic` modifier, which leaves it unsealed. Such a class cannot be used for sequential data and cannot be a value type in a typed array.</p>
 
@@ -1415,8 +1421,8 @@ contributors: Sirisian
     </emu-clause>
 
     <emu-clause id="sec-instanceof-for-type-objects">
-      <h1>instanceof</h1>
-      <p>A Type Object has a `Symbol.hasInstance` method. When called with argument _v_, it returns ? IsOfType(_v_, the Type Object's [[TypeRecord]]).</p>
+      <h1>The instanceof Operator</h1>
+      <p>A Type Object has a %Symbol.hasInstance% method. When called with argument _v_, it returns ? IsOfType(_v_, the Type Object's [[TypeRecord]]).</p>
 
       <emu-note>
         <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is an instance of the corresponding dynamic-length array type, and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which <emu-xref href="#sec-narrowing"></emu-xref> specifies.</p>
@@ -1458,13 +1464,12 @@ contributors: Sirisian
 
       <p>A binding declared with a type and an |Initializer| is initialized to the value of the initializer, checked against the declared type by the rules of <emu-xref href="#sec-conversions"></emu-xref>: the check is static where the initializer's type is known, and is RequireType where the initializer has the `any` type. A binding declared with a type and no |Initializer| is initialized to the default value of that type (<emu-xref href="#sec-default-values"></emu-xref>) rather than to *undefined*.</p>
 
-      <p>A `const` declaration without an |Initializer| is a Syntax Error, except that a `const` with a |TypeAnnotation| may omit it, in which case it is initialized to the default value of its type and fixed immutably at that value.</p>
+      <p>A `const` declaration without an |Initializer| remains a Syntax Error, whether or not the binding carries a |TypeAnnotation|.</p>
 
       <p>Assignment to a binding of declared type _t_ checks the assigned value against _t_ by the same rules. The temporal dead zone is unchanged: a `let` or `const` binding is uninitialized until its declaration is evaluated, and accessing it before then is a *ReferenceError*. The default value applies at the declaration, not before it.</p>
 
       <emu-note>
         <p>That a typed binding takes its type's default rather than *undefined* is the point at which a type stops being a claim about a program and becomes a fact about storage. `let a: uint32;` holds a `uint32`, so every read of it yields a `uint32` and the engine may lay it out as four bytes; were it *undefined* until assigned, its type would be `uint32 | undefined` in all but name, and the layout would have to carry a bit saying which. This is the same reason a typed field takes its type's default, and the two rules are one rule.</p>
-        <p>A typed `const` without an initializer is unusual but follows: `const c: uint8;` is the immutable zero, which is what a typed field marked `readonly` and left uninitialized also is.</p>
       </emu-note>
     </emu-clause>
 
@@ -1551,11 +1556,11 @@ contributors: Sirisian
           NarrowTo (
             _s_: a Type Record,
             _t_: a Type Record,
-          ): a Type Record
+          ): either a Type Record or ~empty~
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It returns the type of a value known to be of the type _s_ and also of the type _t_.</dd>
+          <dd>It returns the type of a value known to be of the type _s_ and also of the type _t_, or ~empty~ if no value can be of both.</dd>
         </dl>
         <emu-alg>
           1. If _s_.[[Kind]] is ~any~, return _t_.
@@ -1564,15 +1569,15 @@ contributors: Sirisian
             1. For each element _m_ of _s_.[[Members]], do
               1. If IsSubtype(_m_, _t_, &laquo; &raquo;) is *true*, append _m_ to _kept_.
               1. Else if IsSubtype(_t_, _m_, &laquo; &raquo;) is *true*, append _t_ to _kept_.
-            1. If _kept_ is empty, it is a type error.
+            1. If _kept_ is empty, return ~empty~.
             1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
           1. If IsSubtype(_s_, _t_, &laquo; &raquo;) is *true*, return _s_.
           1. If IsSubtype(_t_, _s_, &laquo; &raquo;) is *true*, return _t_.
-          1. If _s_ and _t_ have no common values, it is a type error.
+          1. If _s_ and _t_ have no common values, return ~empty~.
           1. Return CanonicalizeType(the Type Record { [[Kind]]: ~intersection~, [[Members]]: &laquo; _s_, _t_ &raquo; }).
         </emu-alg>
         <emu-note>
-          <p>Two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that rejects `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
+          <p>Two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that yields ~empty~ for `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
         </emu-note>
       </emu-clause>
 
@@ -1581,25 +1586,25 @@ contributors: Sirisian
           NarrowFrom (
             _s_: a Type Record,
             _t_: a Type Record,
-          ): a Type Record
+          ): either a Type Record or ~empty~
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It returns the type of a value known to be of the type _s_ and not of the type _t_.</dd>
+          <dd>It returns the type of a value known to be of the type _s_ and not of the type _t_, or ~empty~ if there is no such value.</dd>
         </dl>
         <emu-alg>
           1. If _s_.[[Kind]] is ~union~, then
             1. Let _kept_ be a new empty List.
             1. For each element _m_ of _s_.[[Members]], do
               1. If IsSubtype(_m_, _t_, &laquo; &raquo;) is *false*, append _m_ to _kept_.
-            1. If _kept_ is empty, it is a type error.
+            1. If _kept_ is empty, return ~empty~.
             1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
-          1. If IsSubtype(_s_, _t_, &laquo; &raquo;) is *true*, it is a type error.
+          1. If IsSubtype(_s_, _t_, &laquo; &raquo;) is *true*, return ~empty~.
           1. Return _s_.
         </emu-alg>
       </emu-clause>
 
-      <p>It is a type error to apply a narrowing form where the test can never succeed or can never fail, since the branch it guards is then dead code the program did not intend.</p>
+      <p>It is a type error to apply a narrowing form where the test can never succeed or can never fail, since the branch it guards is then dead code the program did not intend. These are the branches for which NarrowTo or NarrowFrom returns ~empty~.</p>
 
       <emu-note>
         <p>This is why `d ?? 5` is rejected where `d` is a `uint8`: the left operand can never be nullish, so NarrowTo of `uint8` and `null | undefined` keeps no member and the test is a mistake rather than silent dead code. The same rule rejects `a instanceof string` where `a` is a `uint8`.</p>
@@ -1612,7 +1617,7 @@ contributors: Sirisian
 
   <emu-clause id="sec-operators">
     <h1>Operators</h1>
-    <p>This clause specifies what an operator does when its operands are typed. Very little is added, because the specification already has the mechanism: when BigInt was introduced, the operators were generalized from one numeric type to two, and an operator now reduces its operands to numeric values, rejects a pair whose types differ, and dispatches to an abstract operation belonging to the type. This proposal adds numeric types to that mechanism. It does not add a second one.</p>
+    <p>This clause specifies what an operator does when its operands are typed. Little new machinery is required, because the specification already has the mechanism: when BigInt was introduced, the operators were generalized from one numeric type to two, and an operator now reduces its operands to numeric values, rejects a pair whose types differ, and dispatches to an abstract operation belonging to the type. This proposal adds numeric types to that mechanism. It does not add a second one.</p>
 
     <emu-note>
       <p>The principle the design states is that typed code changes what a program checks and what its values can represent, and does not change what an operator means. Every rule below follows from it. Where an operator's result is forced by the type rather than chosen, as an integer quotient is, the type decides; everywhere else the operator means what it means today.</p>
@@ -1696,7 +1701,7 @@ contributors: Sirisian
         <p>Truncating toward zero and taking the remainder's sign from the dividend are one decision rather than two, because the identity `(a / b) * b + a % b = a` holds only when the quotient and the remainder round the same way. Truncated division pairs with a dividend-signed remainder and floored division with a divisor-signed one; mixing them produces an arithmetic that does not add back up whenever the dividend is negative and the remainder is not zero, which is two of the four sign combinations. The floored pair is available under its own name rather than by redefining the operators, as `Math.divFloor` and `Math.mod` in <emu-xref href="#sec-floored-division"></emu-xref>.</p>
         <p>That an integer quotient truncates is not a choice. An `int32` has nowhere to put 1.5, so the result type decides the answer, and this is the one operator whose meaning the type changes. A floored `%` would be a choice, since both answers fit the type, which is why the operator keeps the meaning it has for a Number.</p>
         <p>Division by zero throws because an integer type has no infinity and no NaN, so there is nothing to return. A float is unaffected and keeps the answer it has today: `float32(1) / 0` is an infinity and `float32(1) % 0` is a NaN, because a float has somewhere to put them.</p>
-        <p>The literal-zero rule matches the treatment of a literal that does not fit its type (<emu-xref href="#table-out-of-range-treatment"></emu-xref>): it is a mistake visible in the source text, so it does not compile, while a divisor whose value is not known until run time raises a *RangeError* there. It deliberately does not extend to `bigint`, where `1n / 0n` remains a run-time *RangeError*: that expression is legal today, and rejecting it earlier would break an existing program. The asymmetry is a compatibility constraint rather than a design view, and it is worth stating in the design document, which does not currently note that the rule stops at the new types.</p>
+        <p>The literal-zero rule matches the treatment of a literal that does not fit its type (<emu-xref href="#table-out-of-range-treatment"></emu-xref>): it is a mistake visible in the source text, so it does not compile, while a divisor whose value is not known until run time raises a *RangeError* there. It deliberately does not extend to `bigint`, where `1n / 0n` continues to throw a *RangeError* exception at run time: that expression is legal today, and rejecting it earlier would break an existing program. The asymmetry is a compatibility constraint rather than a design view, and it is worth stating in the design document, which does not currently note that the rule stops at the new types.</p>
       </emu-note>
     </emu-clause>
 
@@ -2060,7 +2065,7 @@ contributors: Sirisian
       <h1>Interfaces</h1>
       <p>An interface declares a contract. Its type is a ~nominal~ type whose [[Declaration]] is the interface declaration, and a class that implements it is a subtype of it by <emu-xref href="#sec-issubtype"></emu-xref>, which follows the declared hierarchy. An interface may also type an object, an array, or a function structurally.</p>
 
-      <p>A class that implements an interface cannot remove the contract: deleting a member the interface requires is a *TypeError*, and this holds through a subclass, a reference, and reflection.</p>
+      <p>A class that implements an interface cannot remove the contract: deleting a member the interface requires throws a *TypeError* exception, and this holds through a subclass, a reference, and reflection.</p>
 
       <emu-note>
         <p>An interface is nominal where a class declares that it implements one and structural where a value is checked against it, which are two questions rather than one contradiction: the first asks whether a declaration promised the contract, the second whether a value meets it. `IsOfType` decides the second by <emu-xref href="#sec-isoftype"></emu-xref>, so an object that has the members satisfies an interface-typed position whether or not any class declared it.</p>
@@ -2102,7 +2107,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-reflect-typeof">
       <h1>Reflect.typeOf ( _value_ )</h1>
-      <p>This function returns the Type Object denoting the type of _value_. It performs the following steps when called:</p>
+      <p>This function performs the following steps when called:</p>
       <emu-alg>
         1. Return GetTypeObject(RuntimeTypeOf(_value_)).
       </emu-alg>
@@ -2150,9 +2155,9 @@ contributors: Sirisian
 
     <emu-clause id="sec-reflection-and-declared-types">
       <h1>Reflection and Declared Types</h1>
-      <p>The existing reflective operations respect a declared type. `Reflect.set` on a property with a declared type _t_ performs RequireType(_value_, _t_) and throws where the value does not satisfy it. `Reflect.get` returns the property's value, which is of its declared type. `Reflect.defineProperty` accepts a `type` key in the property descriptor, whose value is a Type Object, and a descriptor with a `type` and no `value` gives the property the default value of that type (<emu-xref href="#sec-defaultvalueof"></emu-xref>). `Reflect.deleteProperty` on a property with a declared type, and on a member required by an implemented interface, is a *TypeError*.</p>
+      <p>The existing reflective operations respect a declared type. `Reflect.set` on a property with a declared type _t_ performs RequireType(_value_, _t_) and throws where the value does not satisfy it. `Reflect.get` returns the property's value, which is of its declared type. `Reflect.defineProperty` accepts a `type` key in the property descriptor, whose value is a Type Object, and a descriptor with a `type` and no `value` gives the property the default value of that type (<emu-xref href="#sec-defaultvalueof"></emu-xref>). `Reflect.deleteProperty` on a property with a declared type, and on a member required by an implemented interface, throws a *TypeError* exception.</p>
 
-      <p>A Proxy constructed with a type argument _T_ has a [[RuntimeType]] internal slot whose value is _T_'s Type Record, so `Reflect.typeOf` reports _T_ rather than the shape of its target, and its traps are checked against _T_. A Proxy constructed without one has no such slot and is of the `any` type.</p>
+      <p>A Proxy constructed with a type argument _T_ has a [[RuntimeType]] internal slot whose value is _T_'s Type Record, so `Reflect.typeOf` reports _T_ rather than the shape of its target, and its traps are checked against _T_. A Proxy constructed without one has no such slot and is of the `any` type. Each trap result for a property with a declared type, whether the type is declared by _T_ or carried by the target as a typed own property, is checked against that type at the trap boundary. Constructing a Proxy whose target is an instance of a typed class or a typed array throws a *TypeError* exception: such a value is backed by a layout rather than a property table, a field access does not consult a handler, and there is no point at which a trap could correctly run.</p>
 
       <emu-note>
         <p>Reflection is a boundary in the sense of <emu-xref href="#table-check-sites"></emu-xref>, not an exception to it. A value entering a typed position through `Reflect.set` is checked exactly as one entering through an assignment, which is what keeps a typed field's type a fact about its storage: were reflection able to write past the check, an engine could not lay the field out on the strength of its type, and the proposal's premise would not hold. That a typed property cannot be deleted is the same guarantee in the other direction, since a layout with a hole in it is not the layout the type described.</p>
@@ -2192,7 +2197,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>Silent wrapping is the wrong answer when the value is a count rather than a bit pattern, and the right answer when it is a bit pattern rather than a count. Neither is right always, so the operator takes the case that has to be cheap and the named forms take the rest: `a + 1` on a `uint8` holding 255 is 0, `Math.addChecked(a, 1)` is a *RangeError*, and `Math.addSaturating(a, 1)` is 255.</p>
+        <p>Silent wrapping is the wrong answer when the value is a count rather than a bit pattern, and the right answer when it is a bit pattern rather than a count. Neither is right always, so the operator takes the case that has to be cheap and the named forms take the rest: `a + 1` on a `uint8` holding 255 is 0, `Math.addChecked(a, 1)` throws a *RangeError* exception, and `Math.addSaturating(a, 1)` is 255.</p>
         <p>These forms exist for the integer types because only there is wrapping the default. A float already saturates, to an infinity, and a decimal already raises a *RangeError*, since a decimal's range is a property of the type rather than of the format (<emu-xref href="#table-numeric-conversions"></emu-xref>). A rational already raises a *RangeError* on an unrepresentable result. Each family's overflow behaviour is therefore the one its values make available, and the named forms give the integer types the two the others have built in.</p>
       </emu-note>
     </emu-clause>
@@ -2219,7 +2224,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>`parseInt` and `parseFloat` are unchanged and continue to consume a prefix and to return `NaN`. The new functions do neither, because neither is available to them: an integer type cannot represent `NaN` at all, so a failed parse has nothing to return and must throw. Doing the same for the float types is a choice rather than a necessity, and it is the right one, since a failed parse that becomes a `NaN` surfaces far from its cause. Refusing trailing text follows: a function that cannot signal failure with a value has no reason to be lenient about what it accepts.</p>
-        <p>Distinguishing the two errors is what makes the failure legible. `uint8.parse('12abc')` is a *SyntaxError*, since the string is not a `uint8` literal, while `uint8.parse('256')` is a *RangeError*, since it is a literal and the value is out of range. This is the same distinction <emu-xref href="#table-out-of-range-treatment"></emu-xref> draws between a value of the wrong type and a value of the right type out of range.</p>
+        <p>Distinguishing the two errors is what makes the failure legible. `uint8.parse('12abc')` throws a *SyntaxError* exception, since the string is not a `uint8` literal, while `uint8.parse('256')` throws a *RangeError* exception, since it is a literal and the value is out of range. This is the same distinction <emu-xref href="#table-out-of-range-treatment"></emu-xref> draws between a value of the wrong type and a value of the right type out of range.</p>
         <p>`tryParse` returning a nullable union rather than a sentinel is what lets the failure be handled by narrowing (<emu-xref href="#sec-narrowing"></emu-xref>): the result is a `uint8` in the branch that tests it against *null* and needs no cast there. A `string` is deliberately not a conversion source for a numeric type, so `let c: uint8 = '1';` is a type error and the parse is always written.</p>
       </emu-note>
     </emu-clause>
@@ -2245,7 +2250,7 @@ contributors: Sirisian
       <h1>Defaults and Stores</h1>
       <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]], the value of that element's |Initializer| where it has one and the default value of that element's type otherwise. It is ~none~ where an element has no initializer and its type has no default.</p>
 
-      <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is a `uint32`. Deleting an element of a typed array is a *TypeError*.</p>
+      <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is a `uint32`. Deleting an element of a typed array throws a *TypeError* exception.</p>
 
       <emu-note>
         <p>This reconciles the two rules <emu-xref href="#sec-default-values"></emu-xref> leaves in tension. A tuple defaults element-wise, but an element that carries a default already has a value for its position, so the initializer is used where there is one and the type's default only where there is not. `[uint8, uint32 = 10]` therefore defaults to `[0, 10]` rather than being rejected because the second position was already spoken for.</p>
