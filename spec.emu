@@ -944,7 +944,7 @@ contributors: Sirisian
       <h1>Numeric Types</h1>
       <p>The specification already treats a numeric type as a set of values together with a fixed table of abstract operations over them, and defines Number and BigInt that way in <emu-xref href="#sec-numeric-types"></emu-xref>. Each integer, binary floating-point, decimal floating-point, rational, complex, and vector type is a numeric type in that sense, and provides the operations of that table for which it is defined.</p>
 
-      <p>For a numeric type _T_, the operations are those named in <emu-xref href="#sec-numeric-types"></emu-xref>: _T_::unaryMinus, _T_::bitwiseNOT, _T_::exponentiate, _T_::multiply, _T_::divide, _T_::remainder, _T_::add, _T_::subtract, _T_::leftShift, _T_::signedRightShift, _T_::unsignedRightShift, _T_::lessThan, _T_::equal, _T_::sameValue, _T_::sameValueZero, _T_::bitwiseAND, _T_::bitwiseXOR, _T_::bitwiseOR, and _T_::toString. A numeric type need not define every operation; one it does not define is not applicable to its values, and an operator that would use it is a type error. The definitions are given by <emu-xref href="#sec-operators"></emu-xref> and the numeric library clause.</p>
+      <p>For a numeric type _T_, the operations are those named in <emu-xref href="#sec-numeric-types"></emu-xref>: _T_::unaryMinus, _T_::bitwiseNOT, _T_::exponentiate, _T_::multiply, _T_::divide, _T_::remainder, _T_::add, _T_::subtract, _T_::leftShift, _T_::signedRightShift, _T_::unsignedRightShift, _T_::lessThan, _T_::equal, _T_::sameValue, _T_::sameValueZero, _T_::bitwiseAND, _T_::bitwiseXOR, _T_::bitwiseOR, and _T_::toString. A numeric type need not define every operation; one it does not define is not applicable to its values, and an operator that would use it is a type error. The definitions are given by <emu-xref href="#sec-operators"></emu-xref> and <emu-xref href="#sec-numeric-library"></emu-xref>.</p>
 
       <emu-note>
         <p>Reusing this table rather than introducing a parallel one is what lets the existing operator semantics carry over unchanged. The specification generalized these operations from Number to two types when BigInt was added, and the shape it arrived at, an operator dispatching on the numeric type of its operands with no implicit conversion between types, is the shape this proposal needs. What this clause adds is more numeric types, not a new mechanism.</p>
@@ -1693,7 +1693,7 @@ contributors: Sirisian
       <p>It is a type error if the divisor of `/` or `%` is a literal zero and the operands are of an integer type of this proposal.</p>
 
       <emu-note>
-        <p>Truncating toward zero and taking the remainder's sign from the dividend are one decision rather than two, because the identity `(a / b) * b + a % b = a` holds only when the quotient and the remainder round the same way. Truncated division pairs with a dividend-signed remainder and floored division with a divisor-signed one; mixing them produces an arithmetic that does not add back up whenever the dividend is negative and the remainder is not zero, which is two of the four sign combinations. The floored pair is available under its own name rather than by redefining the operators, as `Math.divFloor` and `Math.mod` in the numeric library clause.</p>
+        <p>Truncating toward zero and taking the remainder's sign from the dividend are one decision rather than two, because the identity `(a / b) * b + a % b = a` holds only when the quotient and the remainder round the same way. Truncated division pairs with a dividend-signed remainder and floored division with a divisor-signed one; mixing them produces an arithmetic that does not add back up whenever the dividend is negative and the remainder is not zero, which is two of the four sign combinations. The floored pair is available under its own name rather than by redefining the operators, as `Math.divFloor` and `Math.mod` in <emu-xref href="#sec-floored-division"></emu-xref>.</p>
         <p>That an integer quotient truncates is not a choice. An `int32` has nowhere to put 1.5, so the result type decides the answer, and this is the one operator whose meaning the type changes. A floored `%` would be a choice, since both answers fit the type, which is why the operator keeps the meaning it has for a Number.</p>
         <p>Division by zero throws because an integer type has no infinity and no NaN, so there is nothing to return. A float is unaffected and keeps the answer it has today: `float32(1) / 0` is an infinity and `float32(1) % 0` is a NaN, because a float has somewhere to put them.</p>
         <p>The literal-zero rule matches the treatment of a literal that does not fit its type (<emu-xref href="#table-out-of-range-treatment"></emu-xref>): it is a mistake visible in the source text, so it does not compile, while a divisor whose value is not known until run time raises a *RangeError* there. It deliberately does not extend to `bigint`, where `1n / 0n` remains a run-time *RangeError*: that expression is legal today, and rejecting it earlier would break an existing program. The asymmetry is a compatibility constraint rather than a design view, and it is worth stating in the design document, which does not currently note that the rule stops at the new types.</p>
@@ -2157,6 +2157,70 @@ contributors: Sirisian
       <emu-note>
         <p>Reflection is a boundary in the sense of <emu-xref href="#table-check-sites"></emu-xref>, not an exception to it. A value entering a typed position through `Reflect.set` is checked exactly as one entering through an assignment, which is what keeps a typed field's type a fact about its storage: were reflection able to write past the check, an engine could not lay the field out on the strength of its type, and the proposal's premise would not hold. That a typed property cannot be deleted is the same guarantee in the other direction, since a layout with a hole in it is not the layout the type described.</p>
         <p>A Proxy reporting the type it was constructed with rather than its target's shape is what makes the trap checks meaningful: the contract a proxy enforces is the one it was given, and reporting anything else would describe a value the program never promised.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-numeric-library">
+    <h1>The Numeric Library</h1>
+    <p>This clause defines the library the numeric types need: the overloading of the existing functions so that they preserve the type they are given, the named arithmetic forms that check or saturate rather than wrap, the floored division pair, and the parsing of a string into a numeric type.</p>
+
+    <emu-clause id="sec-overloading-of-the-standard-library">
+      <h1>Overloading of the Existing Functions</h1>
+      <p>The functions of the Math object, and the other library functions that take or return a numeric value, are overloaded for the numeric types by <emu-xref href="#sec-overload-resolution"></emu-xref>. A signature taking a value of a numeric type _T_ returns a value of _T_ where its result is a number of the same kind, so no conversion is written at a call.</p>
+
+      <p>The `length` of an array is a `uint32`.</p>
+
+      <emu-note>
+        <p>This is what makes the conversion rule livable rather than merely strict. `Math.clz32` of a `uint32` is a `uint32`, `Math.min` of two `float32` values is a `float32`, and a `uint32` loop counter compares against `array.length` without a cast, because the library meets the program where it is. A library that returned a Number from every function would force a conversion at every call and would make typed code read worse than untyped code, which is the failure mode the design is avoiding.</p>
+        <p>The existing signatures are unchanged, so `Math.min` of two Numbers is a Number and every existing program means what it meant. The overloads are additions, and a call with untyped literal arguments selects among them by <emu-xref href="#table-literal-ranking"></emu-xref>, which ranks `number` first and so keeps an untyped call on the signature it selects today.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-checked-and-saturating-arithmetic">
+      <h1>Checked and Saturating Arithmetic</h1>
+      <p>The operators wrap on overflow (<emu-xref href="#sec-integer-operations"></emu-xref>). Where wrapping is not wanted, the named forms of <emu-xref href="#table-checked-and-saturating"></emu-xref> are used. Each is overloaded for every integer type and returns a value of its operands' type.</p>
+
+      <emu-table id="table-checked-and-saturating" caption="Checked and Saturating Forms">
+        <table>
+          <thead><tr><th>Form</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>`Math.addChecked`, `Math.subChecked`, `Math.mulChecked`, `Math.divChecked`</td><td>The exact result where the type can represent it. Otherwise a *RangeError*.</td></tr>
+            <tr><td>`Math.addSaturating`, `Math.subSaturating`, `Math.mulSaturating`, `Math.divSaturating`</td><td>The exact result where the type can represent it. Otherwise the nearest value of the type, which is its greatest value when the exact result exceeds it and its least when the exact result falls below it.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>Silent wrapping is the wrong answer when the value is a count rather than a bit pattern, and the right answer when it is a bit pattern rather than a count. Neither is right always, so the operator takes the case that has to be cheap and the named forms take the rest: `a + 1` on a `uint8` holding 255 is 0, `Math.addChecked(a, 1)` is a *RangeError*, and `Math.addSaturating(a, 1)` is 255.</p>
+        <p>These forms exist for the integer types because only there is wrapping the default. A float already saturates, to an infinity, and a decimal already raises a *RangeError*, since a decimal's range is a property of the type rather than of the format (<emu-xref href="#table-numeric-conversions"></emu-xref>). A rational already raises a *RangeError* on an unrepresentable result. Each family's overflow behaviour is therefore the one its values make available, and the named forms give the integer types the two the others have built in.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-floored-division">
+      <h1>Floored Division</h1>
+      <p>`Math.divFloor(_a_, _b_)` returns the exact quotient of _a_ and _b_ rounded toward negative infinity. `Math.mod(_a_, _b_)` returns the remainder whose sign follows the divisor. Both are overloaded for every integer type, and both throw a *RangeError* when _b_ is zero.</p>
+
+      <emu-note>
+        <p>These are the other half of the pair <emu-xref href="#sec-integer-operations"></emu-xref> describes: `Math.divFloor(_a_, _b_) * _b_ + Math.mod(_a_, _b_) = _a_` holds for the same reason the operators' identity holds, because the quotient and the remainder round the same way. They are named rather than assumed so that a program picks the pair it wants instead of receiving one by default.</p>
+        <p>`Math.mod` is the `%` of Python, the `mod` of Kotlin, and the `mod` of Haskell. For a positive divisor, which is every case in which an index is being wrapped, its result equals the Euclidean remainder and is never negative, so `array[Math.mod(i, array.length)]` is always in range. Where the divisor may be negative and a non-negative result is still wanted, `Math.mod(_a_, Math.abs(_b_))` gives it, which is why no separate Euclidean pair is provided.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-parsing">
+      <h1>Parsing</h1>
+      <p>Each numeric type has a `parse` function. For an integer type and for `bigint` its signature is `parse(_string_, _radix_ = 10)`; for the binary floating-point, decimal, rational, and complex types it is `parse(_string_)`. It returns a value of the type the function belongs to.</p>
+
+      <p>The accepted input is the grammar of a literal of that type, with optional leading and trailing white space and an optional sign. Numeric separators are accepted, and the form taking a radix accepts the prefix matching that radix. The entire string must be a literal of the type: no trailing text is consumed.</p>
+
+      <p>`parse` throws a *SyntaxError* when the string is not a literal of the type, and a *RangeError* when it is a literal whose value the type cannot represent.</p>
+
+      <p>Each type also has a `tryParse` function with the same parameters, returning a value of the type where `parse` would return one and *null* where `parse` would throw. Its return type is the union of the type and the null type.</p>
+
+      <emu-note>
+        <p>`parseInt` and `parseFloat` are unchanged and continue to consume a prefix and to return `NaN`. The new functions do neither, because neither is available to them: an integer type cannot represent `NaN` at all, so a failed parse has nothing to return and must throw. Doing the same for the float types is a choice rather than a necessity, and it is the right one, since a failed parse that becomes a `NaN` surfaces far from its cause. Refusing trailing text follows: a function that cannot signal failure with a value has no reason to be lenient about what it accepts.</p>
+        <p>Distinguishing the two errors is what makes the failure legible. `uint8.parse('12abc')` is a *SyntaxError*, since the string is not a `uint8` literal, while `uint8.parse('256')` is a *RangeError*, since it is a literal and the value is out of range. This is the same distinction <emu-xref href="#table-out-of-range-treatment"></emu-xref> draws between a value of the wrong type and a value of the right type out of range.</p>
+        <p>`tryParse` returning a nullable union rather than a sentinel is what lets the failure be handled by narrowing (<emu-xref href="#sec-narrowing"></emu-xref>): the result is a `uint8` in the branch that tests it against *null* and needs no cast there. A `string` is deliberately not a conversion source for a numeric type, so `let c: uint8 = '1';` is a type error and the parse is always written.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
