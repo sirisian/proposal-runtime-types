@@ -44,7 +44,7 @@ contributors: Sirisian
         <table>
           <thead><tr><th>[[Kind]]</th><th>Additional Fields</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td>~any~</td><td>(none)</td><td>The dynamic type. Any value is assignable to it, and a value of the ~any~ type is assignable to any type subject to a run-time check.</td></tr>
+            <tr><td>~any~</td><td>(none)</td><td>The dynamic type. Any value is assignable to it, and a value of the ~any~ type is assignable to any type subject to a run-time check (<emu-xref href="#sec-requiretype"></emu-xref>).</td></tr>
             <tr><td>~void~</td><td>(none)</td><td>The type of the absence of a value.</td></tr>
             <tr><td>~primitive~</td><td>[[Name]] (a String), [[Arguments]] (a List of Type Records and other values)</td><td>A built-in value type such as `uint8` or `float64`, together with any type or value arguments, for example the width of `int.&lt;N&gt;`. The primitive types are enumerated in the type universe clause.</td></tr>
             <tr><td>~nominal~</td><td>[[Declaration]] (a Parse Node)</td><td>A class, interface, or enum type, identified by the declaration that introduced it.</td></tr>
@@ -239,7 +239,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-subtyping-and-assignability">
       <h1>Subtyping and Assignability</h1>
-      <p><dfn id="subtyping">Subtyping</dfn> relates a more specific type to a more general one. <dfn id="assignability">Assignability</dfn> is the relation the type checker applies at an assignment, an argument, or a return: it is subtyping, widened at the boundary with the ~any~ type. Because this proposal performs no implicit numeric widening, a ~primitive~ type is a subtype only of itself and of the ~any~ type.</p>
+      <p><dfn id="subtyping">Subtyping</dfn> relates a more specific type to a more general one. <dfn id="assignability">Assignability</dfn> is the relation the type checker applies at an assignment, an argument, or a return: it is subtyping, widened at the boundary with the ~any~ type. Because this proposal performs no implicit numeric widening, a ~primitive~ type is a subtype of no other numeric type. It is a subtype of itself, of the ~any~ type, and of the same primitive bearing fewer metadata arguments, since a metadata parameterization refines the type it parameterizes rather than being a different type: `Meter` is a `float32.&lt;{ m: 1 }&gt;` and is a subtype of `float32`, which is what makes `m instanceof float32` *true*.</p>
 
       <emu-clause id="sec-issubtype" type="abstract operation">
         <h1>
@@ -275,6 +275,10 @@ contributors: Sirisian
               1. If IsSubtype(_m_, _t_, _assumptions_) is *true*, return *true*.
             1. Return *false*.
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
+          1. If _s_.[[Kind]] is ~primitive~, then
+            1. If _s_.[[Name]] is not _t_.[[Name]], return *false*.
+            1. If _s_.[[Arguments]] is a metadata parameterization of _t_.[[Arguments]], as the primitive metadata extension defines, return *true*.
+            1. Return *false*.
           1. If _s_.[[Kind]] is ~nominal~, then
             1. If _t_.[[Declaration]] is _s_.[[Declaration]], return *true*.
             1. If _t_.[[Declaration]] is an ancestor of _s_.[[Declaration]] in the class and interface hierarchy, return *true*.
@@ -314,7 +318,7 @@ contributors: Sirisian
           1. Return IsSubtype(_s_, _t_, &laquo; &raquo;).
         </emu-alg>
         <emu-note>
-          <p>When _s_ is the ~any~ type and _t_ is not, assignability holds but the value's membership in _t_ is not known statically; the runtime-enforcement clause inserts a check at the boundary that throws a *TypeError* if the value is not of the type _t_. When _t_ is the ~any~ type, no check is required. This two-part treatment, static where the types are known and a run-time check at the ~any~ boundary, is the gradual character of the system: it is why an untyped program keeps its behaviour while a typed one is checked.</p>
+          <p>When _s_ is the ~any~ type and _t_ is not, assignability holds but the value's membership in _t_ is not known statically; a check is inserted at the boundary (<emu-xref href="#sec-requiretype"></emu-xref>) that throws a *TypeError* if the value is not of the type _t_. When _t_ is the ~any~ type, no check is required. This two-part treatment, static where the types are known and a run-time check at the ~any~ boundary, is the gradual character of the system: it is why an untyped program keeps its behaviour while a typed one is checked.</p>
         </emu-note>
       </emu-clause>
     </emu-clause>
@@ -406,7 +410,7 @@ contributors: Sirisian
 
       <p>A type error that is determinable statically, from the types of a construct alone, is an Early Error. Like other Early Errors it is detected before the containing code is evaluated, and a source text that contains one is rejected rather than evaluated. This is how the type system composes with the existing static semantics: type checking is an additional body of static semantic rules over the same Parse Nodes, applied at the same time as Early Error checking.</p>
 
-      <p>A check that cannot be resolved statically, because a value reaches a typed position only as the ~any~ type, is deferred to run time. The runtime-enforcement clause specifies where these deferred checks are inserted and what they throw: a *TypeError* when a value is not of the required type, and a *RangeError* when a numeric value is outside the range of its type.</p>
+      <p>A check that cannot be resolved statically, because a value reaches a typed position only as the ~any~ type, is deferred to run time. <emu-xref href="#sec-runtime-enforcement"></emu-xref> specifies where these deferred checks are inserted and what they throw: a *TypeError* when a value is not of the required type, and a *RangeError* when a numeric value is outside the range of its type.</p>
 
       <emu-note>
         <p>The design documents sometimes describe a statically-determinable violation, such as assigning a `uint32` to a `uint8` binding, as a &ldquo;*TypeError*&rdquo;. This specification realizes such a violation as an Early Error, and reserves a thrown *TypeError* for the ~any~ boundary and other genuinely dynamic checks. The distinction is observable: an Early Error rejects the source text before any of it runs, whereas a thrown *TypeError* occurs during evaluation. Treating a statically-determinable type violation as a whole-source rejection matches a strict, check-before-run type system; whether some violations should instead be deferred to a thrown error at the offending operation is a decision to be settled as the feature clauses are written.</p>
@@ -799,6 +803,8 @@ contributors: Sirisian
       <h1>Value Types</h1>
       <p>A <dfn id="value-type">value type</dfn> is a type whose values are ECMAScript language values that are not Objects. A value of a value type has no identity: two values of the same value type that are the same value are indistinguishable, and nothing observable distinguishes one occurrence of such a value from another. The existing primitive types are value types in this sense, and every type this clause adds is one.</p>
 
+      <p>The values of distinct value types are distinct. Where two types are described below as containing the same mathematical values, each contains its own values representing them: the `uint8` representing 0 and the `uint16` representing 0 are different values of different types, as the Number 1 and the BigInt 1 are today. Every value therefore belongs to exactly one type, which is what lets <emu-xref href="#sec-runtimetypeof"></emu-xref> report it.</p>
+
       <p>Every type added here is described by a Type Record whose [[Kind]] is ~primitive~, whose [[Name]] is the String naming the type, and whose [[Arguments]] is the List of its type and value arguments. `uint8` is described by the Type Record { [[Kind]]: ~primitive~, [[Name]]: *"uint"*, [[Arguments]]: &laquo; 8 &raquo; }, and `vector.&lt;float32, 4&gt;` by { [[Kind]]: ~primitive~, [[Name]]: *"vector"*, [[Arguments]]: &laquo; the Type Record for `float32`, 4 &raquo; }.</p>
 
       <emu-note>
@@ -967,6 +973,447 @@ contributors: Sirisian
         <p>How these names are bound is not settled by the design and is not settled here. Every other part of this proposal is gated by syntax that is an error today, which is the argument that no existing program changes meaning. Type names are not: they are ordinary identifiers, and `number`, `string`, `object`, `boolean`, `symbol`, and `any` are among the most common identifiers in existing code. The available answers each cost something.</p>
         <p>Binding them as properties of the global object is what the language does for every constructor it has added, and it keeps `var string = "x"` working, since a `var` at global scope reuses an existing property. But the design also asks that these names cannot be reassigned, and a non-writable global property would make that same assignment throw in strict mode and fail silently outside it, so the two requirements cannot both hold. Binding them as immutable lexical declarations of the global scope satisfies the design but makes `var string` at the top level of an existing script a *SyntaxError*, which is not acceptable. Requiring them to be imported, which earlier drafts of the design assumed, has no compatibility cost at all and gives up the ambient spelling the rest of the document uses. Resolving them in type position only, as a language with separate type and value namespaces would, is compatible but contradicts types being values, since the same name must denote the type in expression position for reflection to work.</p>
         <p>This is the one place where the proposal's compatibility argument does not reach, and it deserves a decision and a web-compatibility analysis before Stage 2.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-conversions">
+    <h1>Conversions</h1>
+    <p>This clause defines when a value of one type becomes a value of another. The governing rule is that it does not: a value of one value type never implicitly becomes a value of another, and every conversion between two distinct value types is written in the source text. This clause states that rule, defines the four things that remain implicit and are not conversions between two typed values, and specifies the explicit conversion that a program writes when it wants one.</p>
+
+    <emu-note>
+      <p>The rule exists because no widening is lossless for every pair. `int64` to `float64` loses precision above 2**53, and a language that admits the easy cases has to enumerate the hard ones anyway. Refusing all of them is the rule Rust, Swift, and Go use. It is livable here for the same reason it is livable there: the initializers and arguments that would want a conversion are usually literals, and a literal never needs one (<emu-xref href="#sec-literal-propagation"></emu-xref>).</p>
+    </emu-note>
+
+    <emu-clause id="sec-the-conversion-rule">
+      <h1>The Conversion Rule</h1>
+      <p>At an assignment, an argument, or a return, the source value's type must be assignable to the target type (<emu-xref href="#sec-isassignable"></emu-xref>). Since a ~primitive~ type is a subtype only of itself and of the `any` type, no numeric value type is assignable to another, and a program that requires one to become another states the conversion.</p>
+
+      <p>Four things remain implicit. None is a conversion between two typed values.</p>
+
+      <emu-table id="table-implicit-conversions" caption="What Remains Implicit">
+        <table>
+          <thead><tr><th>Case</th><th>Treatment</th></tr></thead>
+          <tbody>
+            <tr><td>A literal in a typed position</td><td>The literal has no type of its own and takes the type its position requires (<emu-xref href="#sec-literal-propagation"></emu-xref>). This is not a conversion; nothing is converted from anything.</td></tr>
+            <tr><td>A value of the `any` type in a typed position</td><td>The value is checked at the boundary and, if it is a numeric value the target represents exactly, converted; a value the target cannot represent raises a *RangeError*, and one of the wrong type a *TypeError* (<emu-xref href="#sec-requiretype"></emu-xref>). An untyped program has no typed boundaries and so behaves as it does today.</td></tr>
+            <tr><td>Two parameterizations of one primitive that differ only in their metadata</td><td>They convert by the meta protocol of the primitive metadata extension, whose hooks apply at the same boundaries. `Kilometer` and `Meter` are both `float32`, so this is a conversion within a type rather than between two.</td></tr>
+            <tr><td>A type that declares a conversion</td><td>The conversion applies at the boundary, because the declaring type opted in (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+    </emu-clause>
+
+    <emu-clause id="sec-contextual-types">
+      <h1>Contextual Types</h1>
+      <p>The <dfn id="contextual-type">contextual type</dfn> of an expression is the type its position requires, or ~none~ where its position requires nothing. It is determined by the position rather than by the expression, and it is what a literal consults.</p>
+
+      <emu-table id="table-contextual-types" caption="Contextual Types by Position">
+        <table>
+          <thead><tr><th>Position</th><th>Contextual type</th></tr></thead>
+          <tbody>
+            <tr><td>The |Initializer| of a binding with a |TypeAnnotation|</td><td>The annotated type.</td></tr>
+            <tr><td>An argument of a call whose callee has a single applicable signature</td><td>The declared type of the corresponding parameter.</td></tr>
+            <tr><td>The operand of a `return` in a function with a return annotation</td><td>The annotated return type.</td></tr>
+            <tr><td>The right operand of an assignment to a target of a known type</td><td>The type of the target.</td></tr>
+            <tr><td>An operand of a binary operator whose other operand has a known value type</td><td>The type of the other operand.</td></tr>
+            <tr><td>An element of an array or tuple literal in a position of a known array or tuple type</td><td>The element type of that position.</td></tr>
+            <tr><td>The operand of an explicit conversion to _T_</td><td>~none~. A conversion converts a value, so its operand is typed on its own.</td></tr>
+            <tr><td>Any other position</td><td>~none~.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>An argument of an overloaded call has no single contextual type until an overload is chosen, and the choice depends on the argument. The literal ranking of <emu-xref href="#sec-literal-overload-ranking"></emu-xref> is what resolves that circularity for a literal argument. The functions clause specifies the rest of overload resolution.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-literal-propagation">
+      <h1>Literal Propagation</h1>
+      <p>A numeric literal has no type of its own. In a position whose contextual type is a numeric value type, the literal takes that type, and a literal whose value that type cannot represent is a type error rather than a silent truncation. This refines the Static Type given for a numeric literal in <emu-xref href="#table-static-type-base"></emu-xref>, which is the type of a literal whose contextual type is ~none~.</p>
+
+      <emu-clause id="sec-literalvalueintype" type="abstract operation">
+        <h1>
+          LiteralValueInType (
+            _literal_: a Parse Node,
+            _t_: a Type Record,
+          ): either a value of the type _t_ or ~unrepresentable~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the value of the type _t_ that _literal_ denotes, or ~unrepresentable~ if _t_ cannot represent it.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _mv_ be the mathematical value denoted by _literal_, as defined by the numeric literal grammar, before any rounding.
+          1. If _t_ is an integer type, then
+            1. If _mv_ is not an integer, return ~unrepresentable~.
+            1. If _t_ has a value representing _mv_ (<emu-xref href="#sec-integer-types"></emu-xref>), return that value.
+            1. Return ~unrepresentable~.
+          1. If _t_ is a binary floating-point type or the Number type, then
+            1. Let _v_ be the result of rounding _mv_ to the nearest value of _t_, with ties to even.
+            1. If _v_ is an infinity and _mv_ is finite, return ~unrepresentable~.
+            1. Return _v_.
+          1. If _t_ is a decimal floating-point type, then
+            1. Let _q_ be the number of digits _literal_ writes after its decimal point, negated, adjusted by any exponent _literal_ writes.
+            1. Let _c_ be the integer such that _mv_ = _c_ &times; 10**_q_.
+            1. If _c_ is outside the coefficient range of _t_, return ~unrepresentable~.
+            1. If _q_ is outside the exponent range of _t_, return ~unrepresentable~.
+            1. Return the value of _t_ with coefficient _c_ and exponent _q_.
+          1. If _t_ is a rational type, then
+            1. Let _n_ be the numerator of _mv_ expressed in lowest terms with a positive denominator.
+            1. Let _d_ be the denominator of _mv_ expressed in lowest terms with a positive denominator.
+            1. Let _ct_ be the integer type of the components of _t_.
+            1. If _n_ is a value of _ct_ and _d_ is a value of _ct_, return the value of _t_ with numerator _n_ and denominator _d_.
+            1. Return ~unrepresentable~.
+          1. Return ~unrepresentable~.
+        </emu-alg>
+        <emu-note>
+          <p>The mathematical value of a literal is exact. `0.1` denotes one tenth, not the Number nearest to one tenth, so `0.1` in a `decimal64` position is the decimal one tenth and in a `rational` position is 1/10, while in a `float32` position it rounds. This falls out of the specification already defining a literal's mathematical value and rounding it only when producing a Number.</p>
+          <p>A decimal type reads its cohort member from the source text rather than from the mathematical value, since `1.0` and `1.00` have the same mathematical value and are different values of the type (<emu-xref href="#sec-decimal-floating-point-types"></emu-xref>). A literal therefore carries its significance into the type, which is what makes a price written to two places a value with two places.</p>
+          <p>Representability is exact for an integer, a decimal, and a rational, and is range membership for a float, which rounds. A float is the one family where a literal that is not representable exactly is still accepted, because requiring exactness would reject `0.1` in a `float32` position and no useful program could be written.</p>
+        </emu-note>
+      </emu-clause>
+
+      <p>The Static Type of a numeric literal whose contextual type is a numeric value type _t_ is _t_. It is a type error if LiteralValueInType(_literal_, _t_) is ~unrepresentable~.</p>
+
+      <emu-note>
+        <p>The error is an Early Error (<emu-xref href="#sec-type-errors"></emu-xref>), so `f(256)` where `f` takes a `uint8` does not compile, and neither does `let a: uint8 = 200; a + 300;`, where the literal takes the type of the other operand. This is the difference between a literal and a cast: a cast is an instruction to discard information and truncates, while a literal that does not fit its type is a mistake.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>One case in the design does not follow this rule. A store to an element of a typed array, as in `array[0] = 300` where `array` is a `[].&lt;uint8&gt;`, is specified to wrap to 44 rather than to be rejected, on the grounds that it is unchanged from what a `Uint8Array` does today. But `[].&lt;uint8&gt;` is new syntax, so no existing program writes that store, and the compatibility argument does not apply to it; meanwhile the literal rule says the same literal in a `uint8` binding does not compile. The two cannot both be right for a literal element. Either the store rejects an out-of-range literal like every other typed position, or the literal rule has an exception for element stores that should be stated. This needs a decision.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-explicit-conversion">
+      <h1>Explicit Conversion</h1>
+      <p>An explicit conversion is written as a call on the type, `uint8(v)`, or with the conversion operator after the value, `v := uint8` (<emu-xref href="#sec-types-in-expression-position"></emu-xref>). The two are the same operation. A conversion is an instruction to discard information: it truncates, wraps, or rounds as the target requires, and does not fail merely because information is lost.</p>
+
+      <emu-clause id="sec-convertvalue" type="abstract operation">
+        <h1>
+          ConvertValue (
+            _value_: an ECMAScript language value,
+            _from_: a Type Record,
+            _to_: a Type Record,
+          ): either a normal completion containing an ECMAScript language value or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It converts _value_, of the type _from_, to the type _to_.</dd>
+        </dl>
+        <emu-alg>
+          1. If SameType(_from_, _to_) is *true*, return _value_.
+          1. If _from_.[[Kind]] is ~any~, return ? RequireType(_value_, _to_).
+          1. If _to_.[[Kind]] is ~any~, return _value_.
+          1. If _from_ is a numeric type and _to_ is a numeric type, return ? NumericConvert(_value_, _from_, _to_).
+          1. Let _conversion_ be the user-defined conversion from _from_ to _to_, if one is declared (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).
+          1. If _conversion_ is not ~empty~, return ? the result of applying _conversion_ to _value_.
+          1. If IsAssignable(_from_, _to_) is *true*, return _value_.
+          1. It is a type error.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-numericconvert" type="abstract operation">
+        <h1>
+          NumericConvert (
+            _value_: a value of a numeric type,
+            _from_: a numeric Type Record,
+            _to_: a numeric Type Record,
+          ): either a normal completion containing a value of the type _to_ or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It converts _value_ between two numeric types according to <emu-xref href="#table-numeric-conversions"></emu-xref>.</dd>
+        </dl>
+        <emu-alg>
+          1. If <emu-xref href="#table-numeric-conversions"></emu-xref> specifies a *RangeError* for _value_ converted from _from_ to _to_, throw a *RangeError* exception.
+          1. Let _result_ be the value given by <emu-xref href="#table-numeric-conversions"></emu-xref> for the families of _from_ and _to_.
+          1. Assert: _result_ is a value of the type _to_.
+          1. Return _result_.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-table id="table-numeric-conversions" caption="Numeric Conversions">
+        <table>
+          <thead><tr><th>From</th><th>To</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>integer</td><td>integer of width _M_</td><td>The mathematical value of the source modulo 2**_M_, interpreted as a value of the target. Signed targets wrap in two's complement.</td></tr>
+            <tr><td>integer</td><td>binary float</td><td>The source rounded to the nearest value of the target, with ties to even.</td></tr>
+            <tr><td>binary float</td><td>integer of width _M_</td><td>If the source is NaN or an infinity, 0. Otherwise the source truncated toward zero, modulo 2**_M_, interpreted as a value of the target.</td></tr>
+            <tr><td>binary float</td><td>binary float</td><td>The source rounded to the nearest value of the target, with ties to even. A finite source outside the target's range becomes an infinity of the same sign.</td></tr>
+            <tr><td>the Number type</td><td>`float64`, and the reverse</td><td>The source unchanged. The two types have the same values (<emu-xref href="#sec-binary-floating-point-types"></emu-xref>), so the conversion is exact and total.</td></tr>
+            <tr><td>rational</td><td>binary float or the Number type</td><td>The exact quotient rounded to the nearest value of the target, with ties to even.</td></tr>
+            <tr><td>binary float or the Number type</td><td>rational</td><td>The source's exact value, which is a dyadic rational, in lowest terms. A *RangeError* if its numerator or denominator is not representable, or if the source is NaN or an infinity.</td></tr>
+            <tr><td>any numeric type</td><td>decimal</td><td>The source's exact value if it is representable, otherwise rounded to the target's precision. A *RangeError* if the source's exponent is outside the target's range, since a decimal's range is a property of the type rather than of the format.</td></tr>
+            <tr><td>decimal</td><td>binary float or integer</td><td>Open. See the note below.</td></tr>
+            <tr><td>complex or vector</td><td>any other family, and the reverse</td><td>Not defined by this clause. The complex numbers and SIMD extensions define the conversions of their types.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The design leaves the conversions between the decimal types and the binary types open, noting only that they would need to be clear. They are the hard ones, and the difficulty is not arithmetic but which cohort member results. A `float64` converted to a `decimal128` has an exact decimal expansion, since every binary float is a terminating decimal, but that expansion for 0.1 is a 55-digit value that no `decimal128` can hold, so the result must be rounded and its exponent chosen. Choosing the exponent that preserves the most significance, choosing the shortest expansion that round-trips, and choosing a fixed quantum are all defensible and produce different values. This clause specifies the direction that is exact and leaves the other open deliberately.</p>
+        <p>Integer wrapping is the same operation the language already performs when storing to a `Uint8Array`, and the float to integer rule is the shape of the existing ToInt32 and ToUint8 operations: truncate, then reduce modulo the width, with a non-finite source becoming zero. Reusing that shape means a typed array store and an explicit cast agree.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-user-defined-conversions">
+      <h1>User-Defined Conversions</h1>
+      <p>A type may declare a conversion to or from another type, and a declared conversion applies at an assignment, an argument, and a return, because the type that declares it has opted in. Three forms declare one.</p>
+
+      <emu-table id="table-user-defined-conversions" caption="Declared Conversions">
+        <table>
+          <thead><tr><th>Form</th><th>Declared on</th><th>Converts</th></tr></thead>
+          <tbody>
+            <tr><td>A constructor taking one parameter of type _S_</td><td>The target class _T_</td><td>_S_ to _T_. A converting constructor, so `let t: MyType = 1;` is legal when `MyType`'s constructor takes a `float32`.</td></tr>
+            <tr><td>`operator` _T_`()`, a parameterless member</td><td>The source class _S_</td><td>_S_ to _T_, by converting the receiver.</td></tr>
+            <tr><td>`operator` _T_`(value: ` _S_`)`, a member taking one parameter</td><td>The target _T_</td><td>_S_ to _T_, running with no receiver. This is the form a type declares when its constructor is already spoken for, as `Temporal.Instant`'s is by epoch nanoseconds.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>When both a converting constructor and a declared conversion could apply to the same pair, the constructor is preferred. It is a type error if two conversions of the same form apply and neither is more specific.</p>
+
+      <emu-note>
+        <p>A conversion to a tuple type is what makes a class destructurable: a class declaring `operator [number, number, string]()` may be destructured into three bindings, because the destructuring position has a tuple contextual type and the conversion supplies it. The operator overloading extension specifies the declaration syntax; this clause specifies only when a declared conversion is consulted.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-literal-overload-ranking">
+      <h1>Literal Overload Ranking</h1>
+      <p>A literal argument may satisfy more than one signature of an overloaded function, since it has no type of its own and several parameter types could represent it. The signatures are ranked by the parameter type in the order of <emu-xref href="#table-literal-ranking"></emu-xref>, and the first that can represent the literal is chosen. This ranks literals. An argument that is a typed value is not ranked; it selects the signature its type is assignable to.</p>
+
+      <emu-table id="table-literal-ranking" caption="Literal Ranking of Numeric Types">
+        <table>
+          <thead><tr><th>Rank</th><th>Types, in order</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>`float64`</td></tr>
+            <tr><td>2</td><td>`float128`, `float80`, `float32`, `float16`</td></tr>
+            <tr><td>3</td><td>`decimal128`, `decimal64`, `decimal32`</td></tr>
+            <tr><td>4</td><td>`uint128`, `uint64`, `uint32`, `uint16`, `uint8`</td></tr>
+            <tr><td>5</td><td>`int128`, `int64`, `int32`, `int16`, `int8`</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The ranking is the only place the order of the numeric types matters, and it matters only for a literal. Given `f(a: float32)` and `f(a: uint32)`, the call `f(1)` selects the `float32` signature by the ranking, while `f(uint32(1))` selects the `uint32` one because its argument is typed.</p>
+        <p>The ranking as the design gives it does not include `number`, and it should. `number` is the type a numeric literal takes with no contextual type, the type an untyped program computes with, and the type the design's own justification for ranking `float64` first appeals to. Given `f(a: number)` and `f(a: float32)`, the call `f(1)` has no answer above. The natural repair is to rank `number` first, ahead of `float64`, on the same reasoning that ranks `float64` ahead of the rest. It is recorded here rather than assumed because it changes which function a call selects.</p>
+        <p>The ranking also omits the rational types and the parameterized widths `int.&lt;N&gt;` and `uint.&lt;N&gt;` for an _N_ that is not a named shorthand, both of which can represent a literal. The functions clause has to say where they fall.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-existing-abstract-conversion-operations">
+      <h1>The Existing Abstract Conversion Operations</h1>
+      <p>The abstract operations of <emu-xref href="#sec-type-conversion"></emu-xref>, including ToNumber, ToString, ToPrimitive, and ToBoolean, continue to apply to the values of the existing language types unchanged. A value of a type added by this proposal is not an Object, so ToPrimitive returns it unchanged, and ToBoolean of a numeric value is *false* exactly when the value is a zero or a NaN of its type.</p>
+
+      <emu-note>
+        <p>ToNumber is where the conversion rule and the existing semantics meet, and the meeting needs care. ToNumber of a `uint8` would produce a Number, which is a conversion between two value types that the rule forbids, so an operator specified in terms of ToNumber cannot simply be applied to a typed operand. The resolution is that an operator on typed operands dispatches through the numeric type protocol (<emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref>) rather than through ToNumber, so `+a` on a `uint8` is a `uint8` and never a Number. ToNumber retains its meaning for the `any` type, where the operand's type is not known statically and the existing dynamic semantics apply. The operators clause specifies the dispatch; this note records why ToNumber is not the mechanism.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-runtime-enforcement">
+    <h1>Runtime Enforcement</h1>
+    <p>A type violation is reported where it is found: at compile time where the types are known, and at run time otherwise. This clause specifies the second half. It defines the runtime type of a value, the test that decides whether a value belongs to a type, the check that enforces a type at a boundary, the boundaries at which that check is inserted, and the circumstances under which it is not needed at all.</p>
+
+    <emu-note>
+      <p>The checks exist because of the `any` type. A value reaches a typed position with its type unknown only when it passes through `any`, which is the type of every binding an untyped program declares. Everything else is settled statically. This is what makes the system gradual rather than merely optional: the guarantee a typed program has is not that its author annotated carefully, but that the boundary with untyped code is checked.</p>
+    </emu-note>
+
+    <emu-clause id="sec-runtime-type-of-a-value">
+      <h1>The Runtime Type of a Value</h1>
+
+      <emu-clause id="sec-runtimetypeof" type="abstract operation">
+        <h1>
+          RuntimeTypeOf (
+            _value_: an ECMAScript language value,
+          ): a Type Record
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the Type Record describing the type of which _value_ is a value.</dd>
+        </dl>
+        <emu-alg>
+          1. If _value_ is a value of one of the types added by <emu-xref href="#sec-type-universe"></emu-xref>, return that type's Type Record.
+          1. If _value_ is *undefined*, return the Type Record { [[Kind]]: ~primitive~, [[Name]]: *"undefined"*, [[Arguments]]: &laquo; &raquo; }.
+          1. If _value_ is *null*, return the Type Record { [[Kind]]: ~primitive~, [[Name]]: *"null"*, [[Arguments]]: &laquo; &raquo; }.
+          1. If _value_ is a Boolean, a String, a Symbol, a Number, or a BigInt, return the Type Record of the corresponding type named in <emu-xref href="#sec-existing-language-types"></emu-xref>.
+          1. If _value_ is a Type Object, return the Type Record for `type`.
+          1. Assert: _value_ is an Object.
+          1. If _value_ has a [[RuntimeType]] internal slot, return _value_.[[RuntimeType]].
+          1. If _value_ is an instance of a class, return the ~nominal~ Type Record of that class.
+          1. Return the ~object~ Type Record whose [[Properties]] describes the own properties of _value_ and their declared types, where a property with no declared type has the `any` type.
+        </emu-alg>
+        <emu-note>
+          <p>Every value has exactly one runtime type, because the values of distinct value types are distinct (<emu-xref href="#sec-value-types"></emu-xref>). The `uint8` representing 0 and the `uint16` representing 0 are different values, so `a instanceof uint16` is *false* for a `uint8` binding `a` even though `typeof a` reports *"number"* for both. `typeof` is unchanged by this proposal: it reports the underlying language type, and RuntimeTypeOf is what reports the type of this proposal. The reflection clause exposes the latter as `Reflect.typeOf`.</p>
+          <p>The [[RuntimeType]] slot is what a Proxy constructed with a type argument carries, so that it reports the type its trap checks enforce rather than the shape of its target. A Proxy constructed without one has no slot and is an ordinary Object.</p>
+          <p>The types named *"undefined"* and *"null"* are used here but are not among the types of <emu-xref href="#sec-type-universe"></emu-xref>, and `undefined` is not admitted in type position by <emu-xref href="#sec-type-expressions"></emu-xref>, which reaches `null` only through |PredefinedType|. The design nonetheless writes `undefined` as a type, since the reject type of a typed promise is `undefined` by convention when the promise never rejects. The type universe should name both, and the grammar should admit `undefined`.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-type-membership">
+      <h1>Type Membership</h1>
+
+      <emu-clause id="sec-isoftype" type="abstract operation">
+        <h1>
+          IsOfType (
+            _value_: an ECMAScript language value,
+            _t_: a Type Record,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether _value_ is a value of the type _t_. It may call user code, since deciding a structural type reads the value's properties.</dd>
+        </dl>
+        <emu-alg>
+          1. If _t_.[[Kind]] is ~any~, return *true*.
+          1. If _t_.[[Kind]] is ~void~, return *false*.
+          1. If _t_.[[Kind]] is ~union~, then
+            1. For each element _m_ of _t_.[[Members]], do
+              1. If ? IsOfType(_value_, _m_) is *true*, return *true*.
+            1. Return *false*.
+          1. If _t_.[[Kind]] is ~intersection~, then
+            1. For each element _m_ of _t_.[[Members]], do
+              1. If ? IsOfType(_value_, _m_) is *false*, return *false*.
+            1. Return *true*.
+          1. If _t_.[[Kind]] is ~object~, then
+            1. If _value_ is not an Object, return *false*.
+            1. For each Property Type Record _p_ of _t_.[[Properties]], do
+              1. Let _present_ be ? HasProperty(_value_, _p_'s key).
+              1. If _present_ is *false*, then
+                1. If _p_ is not optional, return *false*.
+              1. Else,
+                1. Let _pv_ be ? Get(_value_, _p_'s key).
+                1. If ? IsOfType(_pv_, _p_'s type) is *false*, return *false*.
+            1. Return *true*.
+          1. If _t_.[[Kind]] is ~array~ or _t_.[[Kind]] is ~tuple~, then
+            1. If _value_ is not an Object, return *false*.
+            1. Return ? the result of checking _value_'s length and elements against _t_, as the arrays clause defines.
+          1. If _t_.[[Kind]] is ~function~, then
+            1. If IsCallable(_value_) is *false*, return *false*.
+            1. Return IsAssignable(RuntimeTypeOf(_value_), _t_).
+          1. Return IsSubtype(RuntimeTypeOf(_value_), _t_, &laquo; &raquo;).
+        </emu-alg>
+
+        <emu-note>
+          <p>Deciding a structural type reads the value's properties, so the check calls user code: a property backed by a getter runs it, which may throw, may have side effects, and may return a different value each time it is read. A check is therefore not a passive observation, and this is why the operation returns a completion. A getter that returns a value of the required type once and a different value afterwards defeats the check, which is the same aliasing exposure noted below. Whether a boundary check should read through accessors at all, or inspect only own data properties, is a question for the objects clause; reading them is assumed here because a property's type is a claim about what the property yields.</p>
+          <p>The final step is the general case: the value's runtime type is compared against the target with the subtype relation of <emu-xref href="#sec-issubtype"></emu-xref>, so the runtime test and the static one agree by construction. The earlier steps exist because a structural type cannot be decided by comparing two Type Records: an ordinary Object's runtime type is a description of the properties it happens to have, and the question is whether it has the ones the target requires.</p>
+        </emu-note>
+
+        <emu-note>
+          <p>The ~function~ case is checked shallowly and is unsound, and this is the one place where the specification knowingly permits a type violation to go unreported. A function's signature cannot be verified without calling it, so the check confirms only that the value is callable and that the signature it declares is assignable to the target, which admits `any`. An untyped function reaching a `(uint8) =&gt; uint8` position therefore passes, and if it returns a String the caller receives one where its static type promised a `uint8`.</p>
+          <p>This is the higher-order problem every gradual type system meets, and the design does not address it. The available answers are the known ones. The value can be wrapped so that each call checks its arguments and its result, which is sound and is what a contract system does, at the cost of an allocation per boundary crossing, a change to object identity, and a blame mechanism to say which side broke the contract. The check can stay shallow and the unsoundness be accepted, as an optional type system does, at the cost of the guarantee. Or a check can be inserted at each call through a binding whose runtime signature has an `any` where its static type does not, which is a wrapper by another name but pays only where the imprecision is. This clause specifies the shallow check so that the rest of the system is defined, and records that the choice is open. It bears on the proposal's central claim, since a type the engine cannot rely on is a type the engine cannot optimize against.</p>
+          <p>The ~object~ case is checked at the boundary but not afterwards, and has the same shape of problem. A plain Object's properties are untyped unless declared with the `{ (a: uint8): 1 }` form of the object typing section, so an aliased write through an untyped reference can invalidate a check that has already passed. The interfaces and objects clauses have to say whether a boundary imposes the target's property types on the object it accepts.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-the-boundary-check">
+      <h1>The Boundary Check</h1>
+      <p>At a boundary where a value of the `any` type reaches a position of a known type, the value is checked and, if it is a numeric value that the target can represent exactly, converted. A value the target cannot represent raises an error.</p>
+
+      <emu-clause id="sec-requiretype" type="abstract operation">
+        <h1>
+          RequireType (
+            _value_: an ECMAScript language value,
+            _t_: a Type Record,
+          ): either a normal completion containing an ECMAScript language value or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It enforces the type _t_ on _value_ at a boundary, returning the value of the type _t_ to be used.</dd>
+        </dl>
+        <emu-alg>
+          1. If ? IsOfType(_value_, _t_) is *true*, return _value_.
+          1. If _t_ is a numeric type and RuntimeTypeOf(_value_) is a numeric type, then
+            1. Let _r_ be the result of converting _value_ to _t_ by <emu-xref href="#table-numeric-conversions"></emu-xref>, except that a conversion that would wrap, truncate toward zero, or round a finite value to an infinity instead yields ~unrepresentable~.
+            1. If _r_ is ~unrepresentable~, throw a *RangeError* exception.
+            1. Return _r_.
+          1. Throw a *TypeError* exception.
+        </emu-alg>
+      </emu-clause>
+
+      <p>The three ways a numeric value may fail to fit a type are distinguished, and each is treated according to what the program said.</p>
+
+      <emu-table id="table-out-of-range-treatment" caption="Treatment of a Value That Does Not Fit">
+        <table>
+          <thead><tr><th>The program writes</th><th>Example</th><th>Treatment</th><th>Because</th></tr></thead>
+          <tbody>
+            <tr><td>A literal in a typed position</td><td>`let u: uint8 = 300;`</td><td>An Early Error. The source text does not compile.</td><td>A literal that does not fit its type is a mistake, and it is visible in the source text.</td></tr>
+            <tr><td>An explicit conversion</td><td>`uint8(300)`</td><td>The value wraps, to 44.</td><td>A cast is an instruction to discard information. The program asked.</td></tr>
+            <tr><td>A value of the `any` type at a typed boundary</td><td>`let u: uint8 = anyValue;`</td><td>A *RangeError* at run time.</td><td>Nothing in the source text says to discard information, and the value is not known until it arrives.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The boundary converts rather than merely checking, which is what makes untyped data usable: a Number parsed from JSON reaching a `uint8` field is a Number, not a `uint8`, and a check that demanded it already be a `uint8` would reject every value that ever crossed the boundary. Converting only where the target can represent the value exactly, and raising a *RangeError* otherwise, keeps the loss from being silent. This is the same distinction the checked arithmetic of `Math.addChecked` draws against the wrapping of `+`.</p>
+        <p>The rule above permits a float target to round, since it treats only wrapping, truncation, and overflow to an infinity as unrepresentable, so a Number 0.1 reaching a `float32` boundary becomes the nearest `float32`. The alternative, demanding exactness, would reject almost every float that crossed a boundary and is not usable. This matches the treatment of a literal, which also rounds into a float and errors only outside the range, and it is recorded here because it is a choice rather than a consequence.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-check-insertion">
+      <h1>Where Checks Are Inserted</h1>
+      <p>A check is inserted where a value whose static type is `any` reaches a position whose type is not, and nowhere else. <emu-xref href="#table-check-sites"></emu-xref> lists the positions.</p>
+
+      <emu-table id="table-check-sites" caption="Boundaries">
+        <table>
+          <thead><tr><th>Position</th><th>Check</th></tr></thead>
+          <tbody>
+            <tr><td>The initializer or assigned value of a binding with a declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>An argument passed to a parameter of declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>The operand of a `return` in a function with a declared return type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>A value stored to a property or field of declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>A value stored to an element of an array of element type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>A value read from a position of the `any` type into an operator whose operands are typed</td><td>RequireType(_value_, _t_) for the operand type _t_ the operator requires</td></tr>
+            <tr><td>A value crossing into a typed position through reflection, including `Reflect.set` and `Reflect.defineProperty`</td><td>RequireType(_value_, _t_)</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The list is the same list of boundaries at which a user-defined conversion is consulted (<emu-xref href="#sec-user-defined-conversions"></emu-xref>) and at which the metadata protocol of the primitive metadata extension applies, and at which a `where` clause that cannot be decided statically is evaluated. This is not a coincidence: a boundary is where a value acquires a type it did not have, and every mechanism that has something to say about that acquisition says it there.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-check-elision">
+      <h1>Elision of Checks</h1>
+      <p>A check is required only where the static types do not already establish the result. It is not inserted, and an implementation need not perform one, in the following circumstances.</p>
+
+      <ul>
+        <li>The static type of the value is not `any` and is assignable to the target. The result is established statically, and any violation was an Early Error.</li>
+        <li>The target is the `any` type. Every value is a value of it.</li>
+        <li>The value's static type and the target are the same type.</li>
+        <li>The index of a read or write of a fixed-length `[N].&lt;T&gt;` is known to be below _N_, because _N_ is a compile-time constant and the index is a value generic, a `where`-constrained parameter, or the counter of a `for` over a range with that bound. The bound is proven statically and no check is performed.</li>
+      </ul>
+
+      <emu-note>
+        <p>In a fully typed program every check above is elided, and what remains at the boundaries of a partly typed one reduces to a tag test on a sealed typed class. This is the property the proposal's premise rests on: a check the engine can discharge statically is not a cost, and the type is available to the engine as a fact rather than a hint. A program that is entirely untyped inserts no checks either, since it has no typed positions. The cost falls where the boundary is, in proportion to how mixed the program is.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-typed-storage">
+      <h1>Typed Storage</h1>
+      <p>A class in which at least one public or private field is typed is automatically sealed, as if PreventExtensions had been performed on each of its instances, and its prototype is frozen. A field may be written, since a field's type is what constrains it, but a property may not be added or removed, and the prototype may not be modified.</p>
+
+      <p>A store to a typed field or a typed element checks the value against the field's or element's declared type, by <emu-xref href="#table-check-sites"></emu-xref>. Deleting a typed field, a typed element, or a member required by an implemented interface is a *TypeError*.</p>
+
+      <p>A class whose fields are typed may opt out with the `dynamic` modifier, which leaves it unsealed. Such a class cannot be used for sequential data and cannot be a value type in a typed array.</p>
+
+      <emu-note>
+        <p>Sealing is what makes a typed field's type a fact about the layout rather than a claim about the initializer. Without it a typed class would be a class whose fields happen to have been assigned values of the right type so far, which is not something an engine can lay out contiguously or an offset can be computed from. The memory layout extension depends on this, and it is the reason sealing is automatic rather than requested: a field's type and a reallocatable object are not compatible, so the type implies the seal.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-instanceof-for-type-objects">
+      <h1>instanceof</h1>
+      <p>A Type Object has a `Symbol.hasInstance` method. When called with argument _v_, it returns ? IsOfType(_v_, the Type Object's [[TypeRecord]]).</p>
+
+      <emu-note>
+        <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is an instance of the corresponding dynamic-length array type, and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which the narrowing rules of the declarations clause specify.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
