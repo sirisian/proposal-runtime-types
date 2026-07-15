@@ -122,8 +122,9 @@ contributors: Sirisian
             1. If _s_.[[Extent]] is not _t_.[[Extent]], return *false*.
             1. Return SameTypeWithAssumptions(_s_.[[Element]], _t_.[[Element]], _assumptions_).
           1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
-          1. Assert: _s_.[[Kind]] is either ~object~ or ~function~.
-          1. Return the result of comparing _s_ and _t_ as the same object type or function type, as defined by the clause that introduces that kind.
+          1. If _s_.[[Kind]] is ~function~, return SameFunctionType(_s_, _t_, _assumptions_).
+          1. Assert: _s_.[[Kind]] is ~object~.
+          1. Return the result of comparing _s_ and _t_ as the same object type, as defined by the clause that introduces that kind.
         </emu-alg>
         <emu-note>
           <p>SameTypeList holds when two Lists of Type Records have the same length and are position-wise the same under _assumptions_. SameArgumentList is SameTypeList extended to compare non-type arguments, such as an array extent, with SameValue. SameObjectType and SameFunctionType compare the members of an ~object~ or ~function~ type and are defined alongside those types. Because a canonical ~union~ or ~intersection~ has its members in a fixed order (<emu-xref href="#sec-canonicalizetype"></emu-xref>), position-wise comparison of members is sufficient.</p>
@@ -294,7 +295,8 @@ contributors: Sirisian
               1. If IsSubtype(_si_, _ti_, _assumptions_) is *false*, return *false*.
             1. Return *true*.
           1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
-          1. If _s_.[[Kind]] is ~object~ or _s_.[[Kind]] is ~function~, return the result of the subtype comparison defined for that kind by the clause that introduces it.
+          1. If _s_.[[Kind]] is ~function~, return IsFunctionSubtype(_s_, _t_, _assumptions_).
+          1. If _s_.[[Kind]] is ~object~, return the result of the subtype comparison defined for that kind by the clause that introduces it.
           1. Return *false*.
         </emu-alg>
         <emu-note>
@@ -746,7 +748,7 @@ contributors: Sirisian
       </emu-grammar>
 
       <emu-note>
-        <p>The positions above are representative rather than exhaustive: the remaining function forms, including methods, arrow functions, generators, and class constructors, take the same annotations and are patched by the clauses that specify them. An arrow function's parameter list and return annotation interact with the arrow cover grammar and are deferred to the functions clause with the rest of the arrow syntax.</p>
+        <p>The positions above are representative rather than exhaustive: the remaining function forms, including methods, arrow functions, generators, and class constructors, take the same annotations and are patched by the clauses that specify them. An arrow function's parameter list and return annotation interact with the arrow cover grammar and are given by <emu-xref href="#sec-typed-arrow-functions"></emu-xref>.</p>
         <p>`ref` before a parameter is a contextual keyword. A parameter named `ref` remains valid, since an identifier that is not followed by a token that can begin a binding element is a parameter name; `function f(ref)` therefore continues to declare a parameter named `ref`, while `function f(ref a: int32)` declares a reference parameter named `a`.</p>
       </emu-note>
     </emu-clause>
@@ -938,11 +940,11 @@ contributors: Sirisian
       <h1>Numeric Types</h1>
       <p>The specification already treats a numeric type as a set of values together with a fixed table of abstract operations over them, and defines Number and BigInt that way in <emu-xref href="#sec-numeric-types"></emu-xref>. Each integer, binary floating-point, decimal floating-point, rational, complex, and vector type is a numeric type in that sense, and provides the operations of that table for which it is defined.</p>
 
-      <p>For a numeric type _T_, the operations are those named in <emu-xref href="#sec-numeric-types"></emu-xref>: _T_::unaryMinus, _T_::bitwiseNOT, _T_::exponentiate, _T_::multiply, _T_::divide, _T_::remainder, _T_::add, _T_::subtract, _T_::leftShift, _T_::signedRightShift, _T_::unsignedRightShift, _T_::lessThan, _T_::equal, _T_::sameValue, _T_::sameValueZero, _T_::bitwiseAND, _T_::bitwiseXOR, _T_::bitwiseOR, and _T_::toString. A numeric type need not define every operation; one it does not define is not applicable to its values, and an operator that would use it is a type error. The definitions are given by the operators clause and the numeric library clause.</p>
+      <p>For a numeric type _T_, the operations are those named in <emu-xref href="#sec-numeric-types"></emu-xref>: _T_::unaryMinus, _T_::bitwiseNOT, _T_::exponentiate, _T_::multiply, _T_::divide, _T_::remainder, _T_::add, _T_::subtract, _T_::leftShift, _T_::signedRightShift, _T_::unsignedRightShift, _T_::lessThan, _T_::equal, _T_::sameValue, _T_::sameValueZero, _T_::bitwiseAND, _T_::bitwiseXOR, _T_::bitwiseOR, and _T_::toString. A numeric type need not define every operation; one it does not define is not applicable to its values, and an operator that would use it is a type error. The definitions are given by <emu-xref href="#sec-operators"></emu-xref> and the numeric library clause.</p>
 
       <emu-note>
         <p>Reusing this table rather than introducing a parallel one is what lets the existing operator semantics carry over unchanged. The specification generalized these operations from Number to two types when BigInt was added, and the shape it arrived at, an operator dispatching on the numeric type of its operands with no implicit conversion between types, is the shape this proposal needs. What this clause adds is more numeric types, not a new mechanism.</p>
-        <p>The table was written for types that are closed under their operations and totally ordered, and not every type here is either. A complex type has no `lessThan`, since the complex numbers are not ordered. A vector type's comparisons return a vector of lane results rather than a Boolean, which is why the SIMD extension gives them their own return type rather than reusing `lessThan`. A rational type's operations can fail where a float's would round. These are the cases the operators clause has to settle, and they are the reason the table above is a list of what may be defined rather than what must be.</p>
+        <p>The table was written for types that are closed under their operations and totally ordered, and not every type here is either. A complex type has no `lessThan`, since the complex numbers are not ordered. A vector type's comparisons return a vector of lane results rather than a Boolean, which is why the SIMD extension gives them their own return type rather than reusing `lessThan`. A rational type's operations can fail where a float's would round. These are the cases <emu-xref href="#sec-which-operations-each-family-defines"></emu-xref> settles, and they are the reason the table above is a list of what may be defined rather than what must be.</p>
       </emu-note>
     </emu-clause>
 
@@ -1025,7 +1027,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>An argument of an overloaded call has no single contextual type until an overload is chosen, and the choice depends on the argument. The literal ranking of <emu-xref href="#sec-literal-overload-ranking"></emu-xref> is what resolves that circularity for a literal argument. The functions clause specifies the rest of overload resolution.</p>
+        <p>An argument of an overloaded call has no single contextual type until an overload is chosen, and the choice depends on the argument. The literal ranking of <emu-xref href="#sec-literal-overload-ranking"></emu-xref> is what resolves that circularity for a literal argument. <emu-xref href="#sec-overload-resolution"></emu-xref> specifies the rest of overload resolution.</p>
       </emu-note>
     </emu-clause>
 
@@ -1200,7 +1202,7 @@ contributors: Sirisian
       <emu-note>
         <p>The ranking is the only place the order of the numeric types matters, and it matters only for a literal. Given `f(a: float32)` and `f(a: uint32)`, the call `f(1)` selects the `float32` signature by the ranking, while `f(uint32(1))` selects the `uint32` one because its argument is typed.</p>
         <p>The ranking as the design gives it does not include `number`, and it should. `number` is the type a numeric literal takes with no contextual type, the type an untyped program computes with, and the type the design's own justification for ranking `float64` first appeals to. Given `f(a: number)` and `f(a: float32)`, the call `f(1)` has no answer above. The natural repair is to rank `number` first, ahead of `float64`, on the same reasoning that ranks `float64` ahead of the rest. It is recorded here rather than assumed because it changes which function a call selects.</p>
-        <p>The ranking also omits the rational types and the parameterized widths `int.&lt;N&gt;` and `uint.&lt;N&gt;` for an _N_ that is not a named shorthand, both of which can represent a literal. The functions clause has to say where they fall.</p>
+        <p>The ranking also omits the rational types and the parameterized widths `int.&lt;N&gt;` and `uint.&lt;N&gt;` for an _N_ that is not a named shorthand, both of which can represent a literal. <emu-xref href="#sec-completing-the-literal-ranking"></emu-xref> says where they fall.</p>
       </emu-note>
     </emu-clause>
 
@@ -1209,7 +1211,7 @@ contributors: Sirisian
       <p>The abstract operations of <emu-xref href="#sec-type-conversion"></emu-xref>, including ToNumber, ToString, ToPrimitive, and ToBoolean, continue to apply to the values of the existing language types unchanged. A value of a type added by this proposal is not an Object, so ToPrimitive returns it unchanged, and ToBoolean of a numeric value is *false* exactly when the value is a zero or a NaN of its type.</p>
 
       <emu-note>
-        <p>ToNumber is where the conversion rule and the existing semantics meet, and the meeting needs care. ToNumber of a `uint8` would produce a Number, which is a conversion between two value types that the rule forbids, so an operator specified in terms of ToNumber cannot simply be applied to a typed operand. The resolution is that an operator on typed operands dispatches through the numeric type protocol (<emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref>) rather than through ToNumber, so `+a` on a `uint8` is a `uint8` and never a Number. ToNumber retains its meaning for the `any` type, where the operand's type is not known statically and the existing dynamic semantics apply. The operators clause specifies the dispatch; this note records why ToNumber is not the mechanism.</p>
+        <p>ToNumber is where the conversion rule and the existing semantics meet, and the meeting needs care. ToNumber of a `uint8` would produce a Number, which is a conversion between two value types that the rule forbids, so an operator specified in terms of ToNumber cannot simply be applied to a typed operand. The resolution is that an operator on typed operands dispatches through the numeric type protocol (<emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref>) rather than through ToNumber, so `+a` on a `uint8` is a `uint8` and never a Number. ToNumber retains its meaning for the `any` type, where the operand's type is not known statically and the existing dynamic semantics apply. <emu-xref href="#sec-operator-dispatch"></emu-xref> specifies the dispatch; this note records why ToNumber is not the mechanism.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
@@ -1600,6 +1602,362 @@ contributors: Sirisian
         <p>Narrowing on `typeof` is weaker here than in a type system layered over the language, and deliberately so, because `typeof` is unchanged: it reports *"number"* for every numeric type, so `typeof v === "number"` narrows `uint8 | string` to `uint8` but cannot separate `uint8` from `uint16`, and reports *"object"* for the SIMD, rational, and complex types. `Reflect.typeOf` and `instanceof` are what distinguish those, and `instanceof` is the form that narrows. A program discriminating a union of numeric types therefore writes `instanceof`, not `typeof`.</p>
         <p>Narrowing a binding rather than an expression is sound here only because a narrowed binding is invalidated by an assignment that leaves the narrowed type, which the last sentence above states. The design's `a ??= 5;` narrowing `a` to `uint8` "until a nullable reassignment" is that rule. It is worth noting what this clause does not give: a narrowing of a property or an element, `if (o.f instanceof T)`, is not stated by the design and is not specified here, and it cannot be sound without knowing that `o.f` is not reassigned in between, which for a sealed typed class of a `readonly` field is knowable and otherwise is not. The objects clause has to settle it.</p>
         <p>The `switch` row covers the exhaustiveness the design reserves to enums and sealed classes. A union of literal types deliberately does not drive exhaustiveness, so it narrows in each case but its `default` is not proven unreachable.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-operators">
+    <h1>Operators</h1>
+    <p>This clause specifies what an operator does when its operands are typed. Very little is added, because the specification already has the mechanism: when BigInt was introduced, the operators were generalized from one numeric type to two, and an operator now reduces its operands to numeric values, rejects a pair whose types differ, and dispatches to an abstract operation belonging to the type. This proposal adds numeric types to that mechanism. It does not add a second one.</p>
+
+    <emu-note>
+      <p>The principle the design states is that typed code changes what a program checks and what its values can represent, and does not change what an operator means. Every rule below follows from it. Where an operator's result is forced by the type rather than chosen, as an integer quotient is, the type decides; everywhere else the operator means what it means today.</p>
+    </emu-note>
+
+    <emu-clause id="sec-operator-dispatch">
+      <h1>Dispatch</h1>
+      <p>ToNumeric is revised so that a value of a numeric type of this proposal reaches an operator as itself rather than as a Number.</p>
+
+      <emu-clause id="sec-tonumeric-revised" type="abstract operation">
+        <h1>
+          ToNumeric (
+            _value_: an ECMAScript language value,
+          ): either a normal completion containing either a Number, a BigInt, or a value of a numeric type of this proposal, or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns _value_ converted to a numeric value, preserving the numeric type it already has.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _primValue_ be ? ToPrimitive(_value_, ~number~).
+          1. <ins>If _primValue_ is a value of a numeric type of <emu-xref href="#sec-type-universe"></emu-xref>, return _primValue_.</ins>
+          1. If _primValue_ is a BigInt, return _primValue_.
+          1. Return ? ToNumber(_primValue_).
+        </emu-alg>
+      </emu-clause>
+
+      <p>The remaining machinery is unchanged and generalizes as written. In <emu-xref href="#sec-applystringornumericbinaryoperator"></emu-xref>, the step that throws a *TypeError* when the two operands are not of the same numeric type applies to every numeric type, and the table associating an operator with an abstract operation is read as associating it with _T_::op for the numeric type _T_ of the operands. The operations are those of <emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref>.</p>
+
+      <emu-note>
+        <p>This is the whole of the dispatch. `1n + 1` already throws a *TypeError* today because the two operands are of different numeric types and neither converts to the other, and `uint8(1) + uint16(1)` throws for exactly the same reason, by the same step, with no rule specific to it. The shape the committee arrived at for BigInt, an operator that dispatches on the numeric type of its operands and refuses to mix them, is the shape this proposal needs, which is why adding sixteen numeric types costs one inserted step.</p>
+        <p>ToNumber is not reached for a typed operand and so is never the vehicle for an implicit conversion, which is what <emu-xref href="#sec-existing-abstract-conversion-operations"></emu-xref> anticipated. ToNumber keeps its meaning for a value of the `any` type, whose numeric type is not known statically: the operand arrives as whatever it is, and the same steps apply to it dynamically.</p>
+        <p>The string behaviour of `+` is unchanged and applies before any of this: if either operand is a String after ToPrimitive, the result is the concatenation. `uint8(1) + "x"` is therefore *"1x"*. This is not an implicit conversion between value types in the sense <emu-xref href="#sec-the-conversion-rule"></emu-xref> forbids, since no `uint8` becomes a value of another numeric type; it is the meaning `+` has always had, and changing it for typed operands would violate the principle above.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-arithmetic-never-promotes">
+      <h1>Arithmetic Never Promotes</h1>
+      <p>Two operands of the same value type produce a result of that type. Two operands of different value types are a type error, since neither is assignable to the other. Where one operand is a literal it takes the type of the other (<emu-xref href="#sec-literal-propagation"></emu-xref>), so a literal never forces a conversion.</p>
+
+      <p>It is a type error if the Static Types of the operands of an arithmetic, bitwise, shift, or relational operator are numeric types that are not the same type. Where either operand has the `any` type the check is deferred, and the *TypeError* of <emu-xref href="#sec-operator-dispatch"></emu-xref> is thrown at run time if the types then differ.</p>
+
+      <emu-note>
+        <p>`float32` arithmetic is `float32` arithmetic: `x * x` for a `float32` `x` is computed in `float32` and rounds once, rather than widening to `float64` and rounding twice. C promotes `float` to `double` in many contexts, so the same source can produce different results depending on where a value is used, and the reproducibility this proposal offers across engines depends on refusing that.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-which-operations-each-family-defines">
+      <h1>The Operations Each Family Defines</h1>
+      <p>A numeric type defines the operations of <emu-xref href="#table-family-operations"></emu-xref>. An operator whose operation the operand's type does not define is a type error.</p>
+
+      <emu-table id="table-family-operations" caption="Operations by Family">
+        <table>
+          <thead><tr><th>Family</th><th>Defines</th><th>Does not define</th></tr></thead>
+          <tbody>
+            <tr><td>integer</td><td>Every operation of <emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref>.</td><td>None.</td></tr>
+            <tr><td>binary floating-point, and the Number type</td><td>unaryMinus, exponentiate, multiply, divide, remainder, add, subtract, lessThan, equal, sameValue, sameValueZero, toString.</td><td>For a binary floating-point type of this proposal: bitwiseNOT, the shifts, and the bitwise operations, since each would require converting the operand to an integer type.</td></tr>
+            <tr><td>decimal floating-point</td><td>unaryMinus, exponentiate, multiply, divide, remainder, add, subtract, lessThan, equal, sameValue, sameValueZero, toString.</td><td>bitwiseNOT, the shifts, and the bitwise operations.</td></tr>
+            <tr><td>rational</td><td>unaryMinus, multiply, divide, add, subtract, lessThan, equal, sameValue, sameValueZero, toString.</td><td>bitwiseNOT, the shifts, the bitwise operations, and remainder. exponentiate is defined only for an integer exponent.</td></tr>
+            <tr><td>complex</td><td>unaryMinus, exponentiate, multiply, divide, add, subtract, equal, sameValue, sameValueZero, toString.</td><td>lessThan, since the complex numbers are not ordered; remainder; and the bitwise and shift operations.</td></tr>
+            <tr><td>vector</td><td>unaryMinus, multiply, divide, add, subtract, equal, sameValue, sameValueZero, toString, applied lane-wise; and the bitwise and shift operations where the lane type is an integer type.</td><td>lessThan, whose result for a vector is a vector of lane results rather than a Boolean. The SIMD extension declares the comparison operators on the vector types instead, overloaded on their return type, so they dispatch by <emu-xref href="#sec-user-defined-operators"></emu-xref> rather than through the protocol.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The Number type continues to define the bitwise and shift operations, which convert their operand with ToInt32 as they do today, and no existing program changes. A `float32` does not, because the same conversion applied to it would be an implicit conversion between two value types: `~x` for a `float32` `x` is a type error rather than a silent trip through `int32`. This is the one place where an operator that works on a Number does not work on the corresponding typed value, and it follows from the conversion rule rather than from a decision about bitwise operators.</p>
+        <p>The table is the answer to the three cases <emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref> left open. Two of them are absences, complex having no order and a rational having no remainder. The third, a vector comparison returning a vector, is not an absence but a signature the protocol cannot express, since lessThan is required to return a Boolean. Rather than widening the protocol for one family, the vector comparisons are declared operators, which is a path the specification already provides and which admits the return-type overloading they need (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>).</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-integer-operations">
+      <h1>Integer Operations</h1>
+      <p>For an integer type _T_ of width _N_, each operation computes the exact mathematical result and then reduces it to a value of _T_ as <emu-xref href="#table-numeric-conversions"></emu-xref> specifies for an integer target: the result is taken modulo 2**_N_ and interpreted as a value of _T_. Overflow therefore wraps, in two's complement for a signed type, and discards the bits that do not fit.</p>
+
+      <p>_T_::divide returns the exact quotient truncated toward zero. _T_::remainder returns the remainder whose sign follows the dividend, unchanged in meaning from the Number type. If the divisor is zero, both throw a *RangeError* exception.</p>
+
+      <p>It is a type error if the divisor of `/` or `%` is a literal zero and the operands are of an integer type of this proposal.</p>
+
+      <emu-note>
+        <p>Truncating toward zero and taking the remainder's sign from the dividend are one decision rather than two, because the identity `(a / b) * b + a % b = a` holds only when the quotient and the remainder round the same way. Truncated division pairs with a dividend-signed remainder and floored division with a divisor-signed one; mixing them produces an arithmetic that does not add back up whenever the dividend is negative and the remainder is not zero, which is two of the four sign combinations. The floored pair is available under its own name rather than by redefining the operators, as `Math.divFloor` and `Math.mod` in the numeric library clause.</p>
+        <p>That an integer quotient truncates is not a choice. An `int32` has nowhere to put 1.5, so the result type decides the answer, and this is the one operator whose meaning the type changes. A floored `%` would be a choice, since both answers fit the type, which is why the operator keeps the meaning it has for a Number.</p>
+        <p>Division by zero throws because an integer type has no infinity and no NaN, so there is nothing to return. A float is unaffected and keeps the answer it has today: `float32(1) / 0` is an infinity and `float32(1) % 0` is a NaN, because a float has somewhere to put them.</p>
+        <p>The literal-zero rule matches the treatment of a literal that does not fit its type (<emu-xref href="#table-out-of-range-treatment"></emu-xref>): it is a mistake visible in the source text, so it does not compile, while a divisor whose value is not known until run time raises a *RangeError* there. It deliberately does not extend to `bigint`, where `1n / 0n` remains a run-time *RangeError*: that expression is legal today, and rejecting it earlier would break an existing program. The asymmetry is a compatibility constraint rather than a design view, and it is worth stating in the design document, which does not currently note that the rule stops at the new types.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-unary-operators-for-typed-values">
+      <h1>Unary Operators</h1>
+      <p>Unary `-` applies _T_::unaryMinus for the numeric type _T_ of its operand. For an unsigned integer type of width _N_, the result is 2**_N_ minus the operand, modulo 2**_N_, so unary minus on an unsigned value wraps rather than raising an error.</p>
+
+      <p>Unary `+` returns its operand unchanged when the operand is a value of a numeric type of this proposal. It continues to throw a *TypeError* for a BigInt, and continues to apply ToNumber otherwise.</p>
+
+      <emu-note>
+        <p>Unary minus on an unsigned value is defined rather than rejected because the alternative is worse: an unsigned type is a bit pattern as much as a count, and `-x` on it is the two's complement negation the hardware computes. Casting to the signed type first is usually clearer, and a program that wants the error uses the checked form.</p>
+        <p>Unary `+` is a decision, and it is recorded here because it splits from BigInt. `+x` throws for a BigInt because `+x` is the idiom for coercing to a Number, and returning a BigInt from it would silently defeat that idiom. The same argument applies to a `uint8`, and would say `+x` should throw for every type this proposal adds. Against it: `operator+()` is an overloadable unary operator on a class in the design, so unary `+` already means more than ToNumber, and an earlier clause of this specification states that `+a` on a `uint8` is a `uint8`. This clause follows the design. If the committee prefers consistency with BigInt, the change is to this step alone, and it would make `+x` a *TypeError* for every numeric type of this proposal.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-equality-and-comparison">
+      <h1>Equality and Comparison</h1>
+      <p>`===` and `!==` are not overloadable and retain their identity semantics. What identity means follows from the type. The identity of a reference type is the reference, so two distinct objects are never `===`. The identity of a value type is its value, as it already is for a `uint8` and a String, so two instances of a value type class are `===` exactly when their fields are, compared field by field.</p>
+
+      <p>`==` between two values of the same numeric type applies _T_::equal. Between two values of different numeric types it is *false* rather than a type error, as it is today between a Number and a BigInt of unequal value, and IsLooselyEqual continues to compare their mathematical values where both are numeric. A decimal compares by numerical value, so a value with trailing zeros equals one without them (<emu-xref href="#sec-decimal-floating-point-types"></emu-xref>).</p>
+
+      <p>The relational operators apply _T_::lessThan through IsLessThan, unchanged.</p>
+
+      <emu-note>
+        <p>That `===` compares a value type class field by field rather than by reference is what makes a value type a value: two `Vector2` instances holding the same coordinates are the same value, and a `Map` keyed on them has one entry. This is the existing rule for a `uint8` and a String applied to an aggregate, not a new one.</p>
+        <p>`==` returning *false* across numeric types rather than throwing is the existing treatment of a Number against a BigInt, and it is deliberately not aligned with the arithmetic operators, which do throw. The design does not state a rule for `==` between two typed values, so this follows the existing behaviour, but it is a place where the specification and the design should be reconciled: a proposal that rejects `uint8(1) + uint16(1)` at compile time and quietly answers `uint8(1) == uint16(1)` with a comparison of mathematical values is defensible, since equality asks a question rather than producing a value of some type, but it should be a stated position rather than an inherited one.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-user-defined-operators">
+      <h1>User-Defined Operators</h1>
+      <p>A class may declare an operator, in which case the receiver is the left operand and the declaration's parameter is the right. Where an operator's operands are of a type that declares it, the declaration is applied in place of the steps above. The overloadable operators are the arithmetic, bitwise, shift, relational, and logical operators, their compound assignment forms, the increment and decrement operators in prefix and postfix form, the unary operators, the index accessors, and the conversion operator of <emu-xref href="#sec-user-defined-conversions"></emu-xref>.</p>
+
+      <p>`===` and `!==` are not overloadable. An operator that the operand's type already defines through <emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref> may not be redeclared for that type, so a program cannot redefine `uint8` addition. An operator a built-in type does not define may be declared for it, which is how the SIMD extension gives the vector types their comparisons and how the primitive metadata extension declares operators on a parameterized primitive.</p>
+
+      <emu-note>
+        <p>Resolution among several declarations of one operator is overload resolution on the operand types, specified in <emu-xref href="#sec-overload-resolution"></emu-xref>. The operator overloading extension works the rules through a case where the receiver is not the left operand, a scalar multiplying a vector, and states what an engine must guarantee for the result to compile as well as the equivalent C++ would.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-functions">
+    <h1>Functions and Overloading</h1>
+    <p>This clause defines the structure of a function type, the identity and subtyping of one, and the resolution of a call among several signatures declared for one name.</p>
+
+    <emu-clause id="sec-signature-records">
+      <h1>Signature Records</h1>
+      <p>A <dfn id="signature-record">Signature Record</dfn> describes one callable signature. It has the fields of <emu-xref href="#table-signature-record"></emu-xref>. A ~function~ Type Record's [[Signatures]] is a List of them, with more than one element when the function is overloaded.</p>
+
+      <emu-table id="table-signature-record" caption="Signature Record Fields">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>[[Parameters]]</td><td>a List of Parameter Records</td><td>The parameters, in order.</td></tr>
+            <tr><td>[[Return]]</td><td>a Type Record</td><td>The declared return type, or the `any` type where none is declared.</td></tr>
+            <tr><td>[[TypeParameters]]</td><td>a List of Parse Nodes</td><td>The type parameters the signature declares, empty when it is not generic.</td></tr>
+            <tr><td>[[Untyped]]</td><td>a Boolean</td><td>*true* when the signature declares no parameter type and no return type, in which case it is a catch-all.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), and a [[Reference]] field (a Boolean, *true* when the parameter is declared `ref`).</p>
+
+      <emu-note>
+        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-function-type-identity-and-subtyping">
+      <h1>Identity and Subtyping of Function Types</h1>
+      <p>These operations complete the cases <emu-xref href="#sec-sametypewithassumptions"></emu-xref> and <emu-xref href="#sec-issubtype"></emu-xref> defer for the ~function~ kind.</p>
+
+      <emu-clause id="sec-samefunctiontype" type="abstract operation">
+        <h1>
+          SameFunctionType (
+            _s_: a ~function~ Type Record,
+            _t_: a ~function~ Type Record,
+            _assumptions_: a List of Records that have [[First]] and [[Second]] fields,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether _s_ and _t_ are the same function type.</dd>
+        </dl>
+        <emu-alg>
+          1. If _s_.[[Signatures]] and _t_.[[Signatures]] do not have the same number of elements, return *false*.
+          1. For each integer _i_ such that 0 &le; _i_ and _i_ &lt; the number of elements of _s_.[[Signatures]], do
+            1. Let _a_ be _s_.[[Signatures]][_i_].
+            1. Let _b_ be _t_.[[Signatures]][_i_].
+            1. If _a_.[[Parameters]] and _b_.[[Parameters]] do not have the same number of elements, return *false*.
+            1. For each integer _j_ such that 0 &le; _j_ and _j_ &lt; the number of elements of _a_.[[Parameters]], do
+              1. Let _p_ be _a_.[[Parameters]][_j_].
+              1. Let _q_ be _b_.[[Parameters]][_j_].
+              1. If _p_.[[Optional]] is not _q_.[[Optional]], return *false*.
+              1. If _p_.[[Rest]] is not _q_.[[Rest]], return *false*.
+              1. If _p_.[[Reference]] is not _q_.[[Reference]], return *false*.
+              1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+            1. If SameTypeWithAssumptions(_a_.[[Return]], _b_.[[Return]], _assumptions_) is *false*, return *false*.
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>Signatures are compared position-wise, so the order in which a name's overloads are declared is part of the function type. Canonicalization does not reorder them, because there is no order over signatures that is both total and meaningful, and because the declaration order is already observable through the reflected `signatures` list.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-issignaturesubtype" type="abstract operation">
+        <h1>
+          IsSignatureSubtype (
+            _a_: a Signature Record,
+            _b_: a Signature Record,
+            _assumptions_: a List of Records that have [[First]] and [[Second]] fields,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether a function with the signature _a_ may be used where the signature _b_ is required.</dd>
+        </dl>
+        <emu-alg>
+          1. If _a_.[[Untyped]] is *true*, return *true*.
+          1. If _a_ requires more arguments than _b_ may supply, return *false*.
+          1. For each integer _j_ such that 0 &le; _j_ and _j_ &lt; the number of elements of _b_.[[Parameters]], do
+            1. Let _q_ be _b_.[[Parameters]][_j_].
+            1. If _a_.[[Parameters]] has no element at index _j_ and no element of _a_.[[Parameters]] has [[Rest]] *true*, return *false*.
+            1. Let _p_ be the element of _a_.[[Parameters]] that receives the argument at index _j_.
+            1. If _p_.[[Reference]] is not _q_.[[Reference]], return *false*.
+            1. If IsSubtype(_q_.[[Type]], _p_.[[Type]], _assumptions_) is *false*, return *false*.
+          1. If _b_.[[Return]].[[Kind]] is ~void~, return *true*.
+          1. Return IsSubtype(_a_.[[Return]], _b_.[[Return]], _assumptions_).
+        </emu-alg>
+        <emu-note>
+          <p>Parameters are contravariant and the return is covariant, which is the standard rule and the only one that is sound: a function used where `(uint8) =&gt; uint8` is required will be handed a `uint8`, so it must accept at least every `uint8`, and its result will be used as a `uint8`, so it must produce only `uint8` values. A `ref` parameter is invariant because it is a location that is both read and written, so a mismatch in either direction is unsound; this is the parameter-level counterpart of the ~reference~ rule in <emu-xref href="#sec-issubtype"></emu-xref>.</p>
+          <p>A function that accepts fewer arguments than the target supplies is admitted, since ECMAScript already ignores extra arguments and rejecting it would make every callback that omits an unused parameter unusable. A `void` return is required of nothing, since a caller that has declared it will not use the result.</p>
+          <p>This admission does not agree with the arity rule of <emu-xref href="#sec-resolveoverload"></emu-xref>, and the disagreement is worth stating. A call of `f` declared as `function f(a: uint8) {}` with two arguments selects no signature and is an error, because a signature is viable only for an argument list its arity accepts. But `f` is assignable to `(uint8, string) =&gt; void` by the rule above, and a call through a binding of that type reaches `f` with the second argument present and is not an error. The same call is therefore rejected when written directly and permitted through a function type. Either extra arguments are acceptable, in which case overload resolution should admit them and prefer the signature that uses the most, or they are not, in which case a function that ignores a parameter should not satisfy a type that supplies it and every such callback needs its parameter list widened. The design states the first rule and not the second, and this specification supplies the second in the shape ECMAScript's existing tolerance of extra arguments suggests. The committee should settle which of the two governs.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-isfunctionsubtype" type="abstract operation">
+        <h1>
+          IsFunctionSubtype (
+            _s_: a ~function~ Type Record,
+            _t_: a ~function~ Type Record,
+            _assumptions_: a List of Records that have [[First]] and [[Second]] fields,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether every value of the function type _s_ is a value of the function type _t_.</dd>
+        </dl>
+        <emu-alg>
+          1. For each element _b_ of _t_.[[Signatures]], do
+            1. If there is no element _a_ of _s_.[[Signatures]] such that IsSignatureSubtype(_a_, _b_, _assumptions_) is *true*, return *false*.
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>An overloaded function type is the conjunction of its signatures, so a function satisfies it by satisfying each one, possibly with a different signature for each. This is why the quantifiers run this way round: every signature the target promises must be met by some signature the source provides, and a source may provide more.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-overload-resolution">
+      <h1>Overload Resolution</h1>
+      <p>An overloaded name evaluates to a single function object that resolves at the call site. Its `name` is the shared name, its `length` is the smallest parameter count among its signatures, and `call`, `apply`, and `bind` resolve by the same rules. Individual signatures are not addressable as properties; they are exposed by the function reflection of the decorators extension.</p>
+
+      <emu-clause id="sec-resolveoverload" type="abstract operation">
+        <h1>
+          ResolveOverload (
+            _signatures_: a List of Signature Records,
+            _args_: a List of Parse Nodes,
+            _contextualType_: a Type Record or ~none~,
+          ): either a Signature Record, ~none~, or ~ambiguous~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It selects the signature a call invokes.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _viable_ be a new empty List.
+          1. For each element _sig_ of _signatures_, do
+            1. If _args_ does not satisfy the arity of _sig_.[[Parameters]], accounting for optional parameters, defaults, and a rest parameter, then
+              1. Continue.
+            1. If some element of _args_ is not assignable to the type of the parameter that receives it, then
+              1. Continue.
+            1. If _contextualType_ is not ~none~ and IsAssignable(_sig_.[[Return]], _contextualType_) is *false*, then
+              1. Continue.
+            1. Append _sig_ to _viable_.
+          1. If _viable_ is empty, return ~none~.
+          1. For each element _sig_ of _viable_, do
+            1. Let _rank_ be the greatest rank in <emu-xref href="#table-argument-match-ranks"></emu-xref> required by any element of _args_ to match its parameter in _sig_.
+            1. Let _sig_'s worst rank be _rank_.
+          1. Let _best_ be the elements of _viable_ whose worst rank is least.
+          1. If _best_ has exactly one element, return that element.
+          1. Return ~ambiguous~.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-table id="table-argument-match-ranks" caption="Argument Match Ranks">
+        <table>
+          <thead><tr><th>Rank</th><th>The argument matches its parameter by</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Being of exactly the parameter's type.</td></tr>
+            <tr><td>2</td><td>Being an untyped literal that takes the parameter's type, ordered among competing parameter types by <emu-xref href="#table-literal-ranking"></emu-xref>.</td></tr>
+            <tr><td>3</td><td>A user-defined conversion (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).</td></tr>
+            <tr><td>4</td><td>Binding to a signature whose [[Untyped]] is *true*.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>It is a type error if ResolveOverload returns ~none~, and it is a type error if it returns ~ambiguous~. Where an argument has the `any` type the resolution is performed at run time on the argument's runtime type, and the same errors are thrown as a *TypeError* there.</p>
+
+      <p>Two signatures declared for one name must not be ambiguous for any argument list. It is a type error to declare a signature that is viable for the same argument list as an existing one at the same rank.</p>
+
+      <emu-note>
+        <p>Ranking by the worst match rather than by a sum keeps the rule from trading a bad match on one argument against a good one on another, which is where the ranking rules of C++ become hard to predict. A typed argument never ranks below 1: a typed argument of the wrong type is not viable at all, so it is never a question of how well it matches.</p>
+        <p>An untyped function is a catch-all because its signature has [[Untyped]] *true*, which ranks last. Given `function f() {}` and `function f(a: uint8) {}`, the call `f(1)` selects the typed signature, since the literal ranks 2 against the catch-all's 4, while `f(1, 2)` selects the untyped one, since the typed signature's arity does not accept two arguments and it is not viable. A function that takes no arguments and is nonetheless typed is written by declaring the return type, as `function f(): void {}`, which makes [[Untyped]] *false* and so makes `f(1)` an error.</p>
+        <p>The ambiguity rule reaches further than duplicate parameter lists. `function f(a: uint8) {}` and `function f(a: uint8, b: string = 'b') {}` are ambiguous, because the default makes the second viable for a single `uint8` argument at the same rank; so are `function f(a: float32): void {}` and `function f(...a: [].&lt;float32&gt;): void {}`, because the rest parameter covers the one-argument call. A default or a rest parameter expands a signature into a family of arities, and it is the family that must not collide.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-overloading-on-return-type">
+      <h1>Overloading on Return Type</h1>
+      <p>Because a signature is identified by its return type as well as its parameter types, two signatures may differ only in their return. The return type does not participate in ranking; it participates in viability, through the contextual type of the call (<emu-xref href="#sec-contextual-types"></emu-xref>).</p>
+
+      <p>The contextual type of a call is the type its position requires. Where a call has no contextual type and more than one signature remains viable, the call is ~ambiguous~ and it is a type error.</p>
+
+      <emu-note>
+        <p>Given `function f(): uint32` and `function f(): string`, the call `f()` alone is an error, `const a: string = f();` selects the second, and `g(f())` selects the first where `g` takes a `uint32`, because the parameter supplies the contextual type. `h(f())` is an error where `h` is itself overloaded on `uint8` and `string`, since an argument of a call with more than one applicable signature has no contextual type. The circularity is real and is resolved by rejecting the call rather than by guessing.</p>
+        <p>Return-type overloading exists for the operators. A SIMD comparison returns either a vector of lane results or a compact mask, which Intel's intrinsics distinguish by name and which real types cannot: `operator&lt;(v: int32x4): int32x4` and `operator&lt;(v: int32x4): boolean8` are the same signature but for the return. `const a: int32x4 = x == y;` and `const b: boolean8 = x == y;` select between them, and the comparison written with no contextual type is an error rather than a default.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-completing-the-literal-ranking">
+      <h1>The Literal Ranking Completed</h1>
+      <p><emu-xref href="#table-literal-ranking"></emu-xref> orders the numeric types a literal may take. It is completed here for the types it omits, which are the ones a call may nonetheless select.</p>
+
+      <emu-table id="table-literal-ranking-completion" caption="Literal Ranking of the Remaining Numeric Types">
+        <table>
+          <thead><tr><th>Type</th><th>Rank</th></tr></thead>
+          <tbody>
+            <tr><td>`number`</td><td>Ahead of `float64`, and so ahead of every other numeric type.</td></tr>
+            <tr><td>`int.&lt;N&gt;` and `uint.&lt;N&gt;` for an _N_ that is not a named shorthand</td><td>Among the widths of their family, in the same order: a narrower width after a wider one. `uint.&lt;24&gt;` ranks after `uint32` and before `uint16`.</td></tr>
+            <tr><td>`rational.&lt;N&gt;`</td><td>After every integer type. A wider _N_ before a narrower one.</td></tr>
+            <tr><td>`complex.&lt;T&gt;` and `vector.&lt;T, N&gt;`</td><td>Not ranked. A literal does not take either type, so no signature is selected for a literal argument by them.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>Ranking `number` first is the repair <emu-xref href="#sec-literal-overload-ranking"></emu-xref> records. The design's ranking begins at `float64` and justifies it on the ground that Number is a `float64` and the conversion is exact, which is the argument for ranking `number` itself first: it is the type a literal takes with no contextual type, and the type an untyped program computes with. Without it, `f(a: number)` against `f(a: float32)` has no answer for `f(1)`. This changes which function a call selects and so is a decision for the committee rather than an editorial repair, but leaving it out leaves a common case undefined.</p>
+        <p>Placing the rationals after the integers keeps a literal that is an integer selecting an integer signature, which is what a program that declares both would expect. Within a family a wider width ranks first, following the design's own order, which prefers the type that can represent the most.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-typed-arrow-functions">
+      <h1>Arrow Functions</h1>
+      <p>An arrow function's parameters may carry annotations and its body may carry a return annotation. The annotations occupy the positions <emu-xref href="#sec-type-annotations"></emu-xref> gives them, within the cover grammar the arrow syntax already uses.</p>
+
+      <emu-grammar type="definition">
+        ArrowFunction[In, Yield, Await] :
+          ArrowParameters[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins> [no LineTerminator here] `=>` ConciseBody[?In]
+      </emu-grammar>
+
+      <p>When the production <emu-grammar>ArrowParameters : CoverParenthesizedExpressionAndArrowParameterList</emu-grammar> is refined using |ArrowFormalParameters|, a parameter may carry the annotations of <emu-xref href="#sec-type-annotations"></emu-xref>.</p>
+
+      <emu-note>
+        <p>`(x: uint8): uint8 =&gt; x * x` is therefore an arrow function of one `uint8` parameter returning a `uint8`. The return annotation sits between the parameters and the `=&gt;`, which is the only position available, and it is what distinguishes an annotated arrow from a function type: `(uint8) =&gt; uint8` in a type position is a type, while `(x: uint8): uint8 =&gt; x * x` in an expression position is a function. An arrow function is not overloadable, since it has no name to overload.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
