@@ -1413,7 +1413,193 @@ contributors: Sirisian
       <p>A Type Object has a `Symbol.hasInstance` method. When called with argument _v_, it returns ? IsOfType(_v_, the Type Object's [[TypeRecord]]).</p>
 
       <emu-note>
-        <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is an instance of the corresponding dynamic-length array type, and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which the narrowing rules of the declarations clause specify.</p>
+        <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is an instance of the corresponding dynamic-length array type, and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which <emu-xref href="#sec-narrowing"></emu-xref> specifies.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-declarations">
+    <h1>Declarations</h1>
+    <p>This clause gives meaning to the annotations the grammar attached to bindings in <emu-xref href="#sec-type-annotations"></emu-xref>. It specifies what a typed binding holds before it is assigned, what a typed initializer infers, what an assignment to a typed binding does, the declaration that names a type, and the narrowing by which a test refines the type of a binding in the branch it guards.</p>
+
+    <emu-clause id="sec-type-alias-declarations">
+      <h1>Type Alias Declarations</h1>
+      <p>A type alias declaration names a type. It is added to the declaration forms.</p>
+
+      <emu-grammar type="definition">
+        Declaration[Yield, Await] :
+          HoistableDeclaration[?Yield, ?Await, ~Default]
+          ClassDeclaration[?Yield, ?Await, ~Default]
+          LexicalDeclaration[+In, ?Yield, ?Await]
+          <ins>TypeAliasDeclaration[?Yield, ?Await]</ins>
+
+        <ins>TypeAliasDeclaration[Yield, Await] :
+          `type` [no LineTerminator here] BindingIdentifier[?Yield, ?Await] TypeParameters[?Yield, ?Await]? `=` Type[?Yield, ?Await] `;`</ins>
+      </emu-grammar>
+
+      <p>A type alias declaration with no |TypeParameters| creates an immutable binding for its |BindingIdentifier|, initialized to GetTypeObject of the Type Record its |Type| denotes. The name is therefore usable in expression position, where it evaluates to that Type Object, and in type position, where it denotes the type. A declaration with |TypeParameters| creates no binding and is usable only in type position, since a generic alias denotes a type for each list of arguments rather than one type.</p>
+
+      <emu-note>
+        <p>`type Point = { x: float32, y: float32 };` is therefore close to a `const` whose value is a type object, and the two spellings agree: `Point === type { x: float32, y: float32 }` is *true*, because Type Objects are interned (<emu-xref href="#sec-gettypeobject"></emu-xref>). What the declaration adds over the `const` is that the name is also usable where a type is expected. An alias is transparent: it introduces no new type, so `Point` and its expansion are the same type and are mutually assignable, and a nominal type is created only by a class, an interface, or an enum.</p>
+        <p>The `[no LineTerminator here]` restriction is what keeps `type` a contextual keyword. `type` followed by a line terminator and then an identifier is two statements today, an expression statement naming `type` and another naming the identifier, and it continues to be. This is the same device the design relies on throughout, and it is why `type X = 1;` on one line is unambiguous: it is a syntax error today.</p>
+        <p>Whether a generic alias may be exported, and how `export type Point = ...` interacts with the module's binding namespace, is left to the modules clause. A generic alias creating no binding is a decision worth revisiting: it means `Grown` in `type Grown&lt;T&gt; = [...Row, T];` cannot be reflected on, while a non-generic alias can be.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-typed-bindings">
+      <h1>Typed Bindings</h1>
+      <p>`var`, `let`, and `const` accept the same annotations. A binding declared with a |TypeAnnotation| has the annotated type; a binding declared without one has the `any` type. The type of a binding is fixed at its declaration and does not change with what is assigned to it.</p>
+
+      <p>A binding declared with a type and an |Initializer| is initialized to the value of the initializer, checked against the declared type by the rules of <emu-xref href="#sec-conversions"></emu-xref>: the check is static where the initializer's type is known, and is RequireType where the initializer has the `any` type. A binding declared with a type and no |Initializer| is initialized to the default value of that type (<emu-xref href="#sec-default-values"></emu-xref>) rather than to *undefined*.</p>
+
+      <p>A `const` declaration without an |Initializer| is a Syntax Error, except that a `const` with a |TypeAnnotation| may omit it, in which case it is initialized to the default value of its type and fixed immutably at that value.</p>
+
+      <p>Assignment to a binding of declared type _t_ checks the assigned value against _t_ by the same rules. The temporal dead zone is unchanged: a `let` or `const` binding is uninitialized until its declaration is evaluated, and accessing it before then is a *ReferenceError*. The default value applies at the declaration, not before it.</p>
+
+      <emu-note>
+        <p>That a typed binding takes its type's default rather than *undefined* is the point at which a type stops being a claim about a program and becomes a fact about storage. `let a: uint32;` holds a `uint32`, so every read of it yields a `uint32` and the engine may lay it out as four bytes; were it *undefined* until assigned, its type would be `uint32 | undefined` in all but name, and the layout would have to carry a bit saying which. This is the same reason a typed field takes its type's default, and the two rules are one rule.</p>
+        <p>A typed `const` without an initializer is unusual but follows: `const c: uint8;` is the immutable zero, which is what a typed field marked `readonly` and left uninitialized also is.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-default-values">
+      <h1>Default Values</h1>
+
+      <emu-clause id="sec-defaultvalueof" type="abstract operation">
+        <h1>
+          DefaultValueOf (
+            _t_: a Type Record,
+          ): either a value of the type _t_ or ~none~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the value a binding or field of the type _t_ holds before it is assigned, or ~none~ if _t_ has no default.</dd>
+        </dl>
+        <emu-alg>
+          1. If _t_.[[Kind]] is ~any~, return *undefined*.
+          1. If _t_ is a numeric type, return the value of _t_ representing 0.
+          1. If _t_ is the String type, return the empty String.
+          1. If _t_ is the Boolean type, return *false*.
+          1. If _t_ is the type named *"undefined"*, return *undefined*.
+          1. If _t_ is the type named *"null"*, return *null*.
+          1. If _t_.[[Kind]] is ~union~, then
+            1. If _t_.[[Members]] contains the type named *"null"*, return *null*.
+            1. If _t_.[[Members]] contains the type named *"undefined"*, return *undefined*.
+            1. Return ~none~.
+          1. If _t_.[[Kind]] is ~array~, then
+            1. If _t_.[[Extent]] is ~dynamic~, return a new empty array of the type _t_.
+            1. Let _d_ be DefaultValueOf(_t_.[[Element]]).
+            1. If _d_ is ~none~, return ~none~.
+            1. Return a new array of the type _t_ whose _t_.[[Extent]] elements are each _d_.
+          1. If _t_.[[Kind]] is ~tuple~, then
+            1. If DefaultValueOf(_e_) is ~none~ for any element _e_ of _t_.[[Elements]], return ~none~.
+            1. Return a new tuple of the type _t_ whose elements are the defaults of _t_.[[Elements]].
+          1. If _t_.[[Kind]] is ~nominal~ and _t_ denotes a value type class, return the instance of _t_ each of whose fields holds the default of the field's type, or ~none~ if any field's type has no default.
+          1. Return ~none~.
+        </emu-alg>
+      </emu-clause>
+
+      <p>It is a type error to declare a binding or a field with a type _t_ and no initializer when DefaultValueOf(_t_) is ~none~.</p>
+
+      <p>Every default above is a zero: the numeric zero, the empty String, *false*, *null*, and an array or an aggregate whose storage is zero-filled. Zero-filling is part of the semantics and not an optimization a program may opt out of, and no form of this proposal allocates without it.</p>
+
+      <emu-note>
+        <p>The reason is security rather than convenience. An allocation that exposed the bytes of a previously freed one would leak whatever had been there: another script's data, a former secret, or a heap pointer that defeats address space layout randomization. A fresh page from the operating system is already zero, so the fill costs nothing on a large new allocation, and reused memory must be cleared regardless, so there is nothing to gain by exposing it. The one pattern an uninitialized form would serve, allocate and then fill from input, is served by placement `new` over an existing buffer and by array views.</p>
+        <p>A type with no default is one for which no zero is meaningful, and the operation reports that rather than inventing one. A union of two non-nullable types is the ordinary case: `let x: uint8 | string;` has two candidate zeros and no reason to prefer either, so it requires an initializer. `symbol`, `object`, a function type, and a class whose construction must run are the others.</p>
+        <p>The design states the defaults for the numeric, SIMD, String, Boolean, nullable, and array types and does not reach the rest, so the boundaries above are supplied here and need review. Three deserve attention. A `bigint` is given the zero `0n` on the same reasoning as the other numeric types. A tuple defaults element-wise, which follows from a tuple of value types being laid out contiguously, but a tuple with a defaulted trailing position already has an initializer for that position and the two rules should be reconciled by the arrays clause. A value type class defaults field-wise, which is what makes `let d: [10].&lt;A&gt;;` hold ten zero-filled instances as the memory layout extension requires, but it means a class can be brought into existence without its constructor running, which the classes clause has to either endorse or forbid.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-typed-initializers-semantics">
+      <h1>Typed Initializers</h1>
+      <p>A binding declared with a |TypedInitializer| takes the type of its initializer rather than the `any` type. Its declared type is the Static Type of the |AssignmentExpression|, and it is initialized to that expression's value.</p>
+
+      <emu-note>
+        <p>`let a := new MyType();` declares `a` of type `MyType`, where `let a = new MyType();` would declare it of the `any` type. The two spellings differ in what may be assigned afterwards, not in what is stored: the first rejects `a = 5`, the second permits it. `:=` therefore removes the redundancy of `let a: MyType = new MyType();` without introducing inference anywhere the program did not ask for it, which is why it is a distinct operator rather than a rule that an initialized binding infers its type. An unannotated binding remaining `any` is what keeps an untyped program untyped.</p>
+        <p>It is a type error if the Static Type of the initializer is the `any` type, since `let a := f();` where `f` is untyped would declare a binding of the `any` type through a syntax that asks for a type.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-narrowing">
+      <h1>Narrowing</h1>
+      <p>A test that establishes something about a value's type refines the Static Type of that value in the branch the test guards. The Static Type of a reference to a binding at a given point is its declared type refined by the narrowing facts that hold there.</p>
+
+      <emu-table id="table-narrowing-forms" caption="Narrowing Forms">
+        <table>
+          <thead><tr><th>Form</th><th>Where true</th><th>Where false</th></tr></thead>
+          <tbody>
+            <tr><td>`v instanceof T`</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
+            <tr><td>`#f in v`, a brand check</td><td>NarrowTo(_s_, the class declaring `#f`)</td><td>NarrowFrom(_s_, the class declaring `#f`)</td></tr>
+            <tr><td>`v is T`, the structural test of the dependent record types extension</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
+            <tr><td>`typeof v === ` a String literal _k_</td><td>NarrowTo(_s_, the union of the types whose `typeof` is _k_)</td><td>NarrowFrom(_s_, that union)</td></tr>
+            <tr><td>`v == null` or `v != null`, and the nullish operators `??`, `??=`, and `?.`</td><td>The nullish branch: NarrowTo(_s_, `null | undefined`)</td><td>The present branch: NarrowFrom(_s_, `null | undefined`)</td></tr>
+            <tr><td>A `switch` on a value of an enum type or a sealed class hierarchy</td><td>In each case, NarrowTo(_s_, the case's type)</td><td>In the default, _s_ with every case's type removed</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>_s_ above is the Static Type of `v` where the test occurs. A narrowing fact holds in any position the test governs, not only in the body of an `if`: the two branches of a conditional expression are narrowed by its condition, the right operand of `&amp;&amp;` is narrowed by the truth of its left operand, and the right operand of `||` by the falsity of its left. A fact about a binding holds until the binding is assigned a value whose type is not within the narrowed type.</p>
+
+      <emu-clause id="sec-narrowto" type="abstract operation">
+        <h1>
+          NarrowTo (
+            _s_: a Type Record,
+            _t_: a Type Record,
+          ): a Type Record
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the type of a value known to be of the type _s_ and also of the type _t_.</dd>
+        </dl>
+        <emu-alg>
+          1. If _s_.[[Kind]] is ~any~, return _t_.
+          1. If _s_.[[Kind]] is ~union~, then
+            1. Let _kept_ be a new empty List.
+            1. For each element _m_ of _s_.[[Members]], do
+              1. If IsSubtype(_m_, _t_, &laquo; &raquo;) is *true*, append _m_ to _kept_.
+              1. Else if IsSubtype(_t_, _m_, &laquo; &raquo;) is *true*, append _t_ to _kept_.
+            1. If _kept_ is empty, it is a type error.
+            1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
+          1. If IsSubtype(_s_, _t_, &laquo; &raquo;) is *true*, return _s_.
+          1. If IsSubtype(_t_, _s_, &laquo; &raquo;) is *true*, return _t_.
+          1. If _s_ and _t_ have no common values, it is a type error.
+          1. Return CanonicalizeType(the Type Record { [[Kind]]: ~intersection~, [[Members]]: &laquo; _s_, _t_ &raquo; }).
+        </emu-alg>
+        <emu-note>
+          <p>Two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that rejects `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-narrowfrom" type="abstract operation">
+        <h1>
+          NarrowFrom (
+            _s_: a Type Record,
+            _t_: a Type Record,
+          ): a Type Record
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the type of a value known to be of the type _s_ and not of the type _t_.</dd>
+        </dl>
+        <emu-alg>
+          1. If _s_.[[Kind]] is ~union~, then
+            1. Let _kept_ be a new empty List.
+            1. For each element _m_ of _s_.[[Members]], do
+              1. If IsSubtype(_m_, _t_, &laquo; &raquo;) is *false*, append _m_ to _kept_.
+            1. If _kept_ is empty, it is a type error.
+            1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
+          1. If IsSubtype(_s_, _t_, &laquo; &raquo;) is *true*, it is a type error.
+          1. Return _s_.
+        </emu-alg>
+      </emu-clause>
+
+      <p>It is a type error to apply a narrowing form where the test can never succeed or can never fail, since the branch it guards is then dead code the program did not intend.</p>
+
+      <emu-note>
+        <p>This is why `d ?? 5` is rejected where `d` is a `uint8`: the left operand can never be nullish, so NarrowTo of `uint8` and `null | undefined` keeps no member and the test is a mistake rather than silent dead code. The same rule rejects `a instanceof string` where `a` is a `uint8`.</p>
+        <p>Narrowing on `typeof` is weaker here than in a type system layered over the language, and deliberately so, because `typeof` is unchanged: it reports *"number"* for every numeric type, so `typeof v === "number"` narrows `uint8 | string` to `uint8` but cannot separate `uint8` from `uint16`, and reports *"object"* for the SIMD, rational, and complex types. `Reflect.typeOf` and `instanceof` are what distinguish those, and `instanceof` is the form that narrows. A program discriminating a union of numeric types therefore writes `instanceof`, not `typeof`.</p>
+        <p>Narrowing a binding rather than an expression is sound here only because a narrowed binding is invalidated by an assignment that leaves the narrowed type, which the last sentence above states. The design's `a ??= 5;` narrowing `a` to `uint8` "until a nullable reassignment" is that rule. It is worth noting what this clause does not give: a narrowing of a property or an element, `if (o.f instanceof T)`, is not stated by the design and is not specified here, and it cannot be sound without knowing that `o.f` is not reassigned in between, which for a sealed typed class of a `readonly` field is knowable and otherwise is not. The objects clause has to settle it.</p>
+        <p>The `switch` row covers the exhaustiveness the design reserves to enums and sealed classes. A union of literal types deliberately does not drive exhaustiveness, so it narrows in each case but its `default` is not proven unreachable.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
