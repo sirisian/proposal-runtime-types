@@ -1297,7 +1297,7 @@ contributors: Sirisian
             1. Return *true*.
           1. If _t_.[[Kind]] is ~array~ or _t_.[[Kind]] is ~tuple~, then
             1. If _value_ is not an Object, return *false*.
-            1. Return ? the result of checking _value_'s length and elements against _t_, as the arrays clause defines.
+            1. Return ? the result of checking _value_'s length and elements against _t_ (<emu-xref href="#sec-array-membership"></emu-xref>).
           1. If _t_.[[Kind]] is ~function~, then
             1. If IsCallable(_value_) is *false*, return *false*.
             1. Return IsAssignable(RuntimeTypeOf(_value_), _t_).
@@ -1512,7 +1512,7 @@ contributors: Sirisian
       <emu-note>
         <p>The reason is security rather than convenience. An allocation that exposed the bytes of a previously freed one would leak whatever had been there: another script's data, a former secret, or a heap pointer that defeats address space layout randomization. A fresh page from the operating system is already zero, so the fill costs nothing on a large new allocation, and reused memory must be cleared regardless, so there is nothing to gain by exposing it. The one pattern an uninitialized form would serve, allocate and then fill from input, is served by placement `new` over an existing buffer and by array views.</p>
         <p>A type with no default is one for which no zero is meaningful, and the operation reports that rather than inventing one. A union of two non-nullable types is the ordinary case: `let x: uint8 | string;` has two candidate zeros and no reason to prefer either, so it requires an initializer. `symbol`, `object`, a function type, and a class whose construction must run are the others.</p>
-        <p>The design states the defaults for the numeric, SIMD, String, Boolean, nullable, and array types and does not reach the rest, so the boundaries above are supplied here and need review. Three deserve attention. A `bigint` is given the zero `0n` on the same reasoning as the other numeric types. A tuple defaults element-wise, which follows from a tuple of value types being laid out contiguously, but a tuple with a defaulted trailing position already has an initializer for that position and the two rules should be reconciled by the arrays clause. A value type class defaults field-wise, which is what makes `let d: [10].&lt;A&gt;;` hold ten zero-filled instances as the memory layout extension requires, but it means a class can be brought into existence without its constructor running, which <emu-xref href="#sec-typed-classes"></emu-xref> endorses.</p>
+        <p>The design states the defaults for the numeric, SIMD, String, Boolean, nullable, and array types and does not reach the rest, so the boundaries above are supplied here and need review. Three deserve attention. A `bigint` is given the zero `0n` on the same reasoning as the other numeric types. A tuple defaults element-wise, which follows from a tuple of value types being laid out contiguously, but a tuple with a defaulted trailing position already has an initializer for that position, which <emu-xref href="#sec-array-defaults-and-stores"></emu-xref> reconciles. A value type class defaults field-wise, which is what makes `let d: [10].&lt;A&gt;;` hold ten zero-filled instances as the memory layout extension requires, but it means a class can be brought into existence without its constructor running, which <emu-xref href="#sec-typed-classes"></emu-xref> endorses.</p>
       </emu-note>
     </emu-clause>
 
@@ -2221,6 +2221,79 @@ contributors: Sirisian
         <p>`parseInt` and `parseFloat` are unchanged and continue to consume a prefix and to return `NaN`. The new functions do neither, because neither is available to them: an integer type cannot represent `NaN` at all, so a failed parse has nothing to return and must throw. Doing the same for the float types is a choice rather than a necessity, and it is the right one, since a failed parse that becomes a `NaN` surfaces far from its cause. Refusing trailing text follows: a function that cannot signal failure with a value has no reason to be lenient about what it accepts.</p>
         <p>Distinguishing the two errors is what makes the failure legible. `uint8.parse('12abc')` is a *SyntaxError*, since the string is not a `uint8` literal, while `uint8.parse('256')` is a *RangeError*, since it is a literal and the value is out of range. This is the same distinction <emu-xref href="#table-out-of-range-treatment"></emu-xref> draws between a value of the wrong type and a value of the right type out of range.</p>
         <p>`tryParse` returning a nullable union rather than a sentinel is what lets the failure be handled by narrowing (<emu-xref href="#sec-narrowing"></emu-xref>): the result is a `uint8` in the branch that tests it against *null* and needs no cast there. A `string` is deliberately not a conversion source for a numeric type, so `let c: uint8 = '1';` is a type error and the parse is always written.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-arrays">
+    <h1>Arrays and Tuples</h1>
+    <p>This clause completes the ~array~ and ~tuple~ kinds: the membership test <emu-xref href="#sec-isoftype"></emu-xref> defers, the default value of a tuple, and the checking of an element store.</p>
+
+    <emu-clause id="sec-array-membership">
+      <h1>Membership</h1>
+      <p>For an ~array~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is _t_.[[Extent]] where that is not ~dynamic~, and every element of _v_ is of the type _t_.[[Element]].</p>
+
+      <p>For a ~tuple~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is at least the number of elements of _t_.[[Elements]] that have neither an initializer nor a preceding spread and at most the number that may be supplied, and every element of _v_ is of the type of the element of _t_.[[Elements]] that receives it.</p>
+
+      <emu-note>
+        <p>A tuple's length is a range rather than a number because a trailing position may carry a default and a position may spread an array type. `[uint8, uint32 = 10]` accepts a one-element and a two-element array, which is what lets a shorter array satisfy a longer tuple return, and `[uint32, ...[].&lt;float32&gt;]` accepts any length from one upward.</p>
+        <p>Checking every element is linear in the array's length, which is the cost the `any` boundary has for an array and does not have for a `uint8`. It falls only where an array of unknown type reaches a typed position; an array whose static type is already the target is not checked at all (<emu-xref href="#sec-check-elision"></emu-xref>), and a `[].&lt;uint8&gt;` passed to a `[].&lt;uint8&gt;` parameter costs nothing. Whether an implementation may instead check an element on each read, deferring the cost and spreading it, is the same question the ~object~ and ~function~ kinds raise, and it has the same answer here as there: the check as specified is eager, and a lazier one would need the wrapper the higher-order case would need.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-array-defaults-and-stores">
+      <h1>Defaults and Stores</h1>
+      <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]], the value of that element's |Initializer| where it has one and the default value of that element's type otherwise. It is ~none~ where an element has no initializer and its type has no default.</p>
+
+      <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is a `uint32`. Deleting an element of a typed array is a *TypeError*.</p>
+
+      <emu-note>
+        <p>This reconciles the two rules <emu-xref href="#sec-default-values"></emu-xref> leaves in tension. A tuple defaults element-wise, but an element that carries a default already has a value for its position, so the initializer is used where there is one and the type's default only where there is not. `[uint8, uint32 = 10]` therefore defaults to `[0, 10]` rather than being rejected because the second position was already spoken for.</p>
+        <p>The literal element store remains the open case <emu-xref href="#sec-literal-propagation"></emu-xref> records: the design specifies `array[0] = 300` on a `[].&lt;uint8&gt;` as wrapping to 44 on the grounds of matching `Uint8Array`, while the literal rule would reject it, and the compatibility argument does not reach new syntax. Nothing in this clause resolves it, and it needs a decision.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-extensions">
+    <h1>Extensions</h1>
+    <p>The design is organized as a core and a set of extensions, each of which adds types, operations, or syntax to the core rather than revising it. This clause states what an extension may do and records the hooks the preceding clauses have already named.</p>
+
+    <emu-clause id="sec-extension-mechanism">
+      <h1>The Extension Mechanism</h1>
+      <p>An extension may add types to <emu-xref href="#sec-type-universe"></emu-xref>, provided each is described by a Type Record of one of the kinds of <emu-xref href="#table-type-record-kinds"></emu-xref>. It may define the operations of <emu-xref href="#sec-numeric-types-of-this-proposal"></emu-xref> for a type it adds, and may declare operators for a type that does not define them (<emu-xref href="#sec-user-defined-operators"></emu-xref>). It may add syntax, subject to the constraint the whole proposal is under: the syntax must be an error in the current language. It may add library functions, overloaded by <emu-xref href="#sec-overload-resolution"></emu-xref>.</p>
+
+      <p>An extension may not revise the type-checking framework of <emu-xref href="#sec-type-system-foundations"></emu-xref>. In particular it may not add a kind to <emu-xref href="#table-type-record-kinds"></emu-xref>, may not change SameType or IsSubtype for a kind it did not introduce, and may not introduce an implicit conversion beyond those of <emu-xref href="#table-implicit-conversions"></emu-xref>.</p>
+
+      <emu-note>
+        <p>The last of these is the constraint worth stating explicitly, because it is the one an extension is most likely to want to break. A units extension wants `Meter` to become `float32`, a decimal extension wants a Number to become a `decimal128`, and a SIMD extension wants a scalar to broadcast into a vector. Each of these is available without an implicit conversion: the first is a metadata parameterization, which is a subtype of its base and so is subsumed rather than converted; the second is written; and the third is an operator the extension declares. The framework holds because every extension so far has been expressible within it, which is evidence that the four implicit cases are the right four rather than merely the ones that were listed first.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-extension-hooks">
+      <h1>The Hooks</h1>
+      <p><emu-xref href="#table-extension-hooks"></emu-xref> lists the extensions the preceding clauses name and what each is relied on for. It is a map of the obligations this specification has incurred outward, not a specification of the extensions themselves.</p>
+
+      <emu-table id="table-extension-hooks" caption="Extensions and the Hooks They Fill">
+        <table>
+          <thead><tr><th>Extension</th><th>Relied on for</th></tr></thead>
+          <tbody>
+            <tr><td>primitive metadata</td><td>The metadata parameterization of a primitive, which <emu-xref href="#sec-issubtype"></emu-xref> makes a subtype of its base; the meta protocol that converts between two parameterizations of one primitive at a boundary; the `DecimalContext` that fixes a decimal's scale and rounding; and the declaration of operators on a parameterized primitive.</td></tr>
+            <tr><td>memory layout</td><td>`byteLength`, alignment, and the layout of a value type class, which <emu-xref href="#sec-typed-classes"></emu-xref> and <emu-xref href="#sec-default-values"></emu-xref> depend on; and the bit-field widths that make an `int.&lt;N&gt;` for a small _N_ meaningful.</td></tr>
+            <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
+            <tr><td>generics</td><td>Value generic parameters and their arguments; the `where` clause; declaration-site variance, which <emu-xref href="#sec-issubtype"></emu-xref> leaves open; and the syntax of a computed value type argument, which <emu-xref href="#sec-type-references"></emu-xref> does not provide.</td></tr>
+            <tr><td>dependent record types</td><td>The `is` operator, which <emu-xref href="#table-narrowing-forms"></emu-xref> lists as a narrowing form, and the `where` clauses whose run-time check is inserted at the boundaries of <emu-xref href="#table-check-sites"></emu-xref>.</td></tr>
+            <tr><td>decorators</td><td>The reflection facility of which <emu-xref href="#sec-reflect-getreflection"></emu-xref> is one context, including the reflection of a declaration's members and a function's signatures.</td></tr>
+            <tr><td>complex numbers</td><td>The type of an imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) and the conversions of the complex types.</td></tr>
+            <tr><td>operator overloading</td><td>The declaration syntax for an operator and the resolution of a case where the receiver is not the left operand.</td></tr>
+            <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
+            <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The extensions not listed, including serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here.</p>
+        <p>The dependency runs in one direction with one exception. The metadata parameterization of the primitive metadata extension is relied on by <emu-xref href="#sec-issubtype"></emu-xref>, which is the keystone of the core, so the subtyping of a primitive cannot be stated without a forward reference to an extension. This is the one place where the core and an extension are not separable, and it is worth deciding whether the parameterization belongs in the core instead. The same rule already has to cover an enum refining its underlying type (<emu-xref href="#sec-enums"></emu-xref>), which is core, so the relation is not an extension's to own.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
