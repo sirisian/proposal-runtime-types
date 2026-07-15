@@ -47,7 +47,7 @@ contributors: Sirisian
             <tr><td>~any~</td><td>(none)</td><td>The dynamic type. Any value is assignable to it, and a value of the ~any~ type is assignable to any type subject to a run-time check (<emu-xref href="#sec-requiretype"></emu-xref>).</td></tr>
             <tr><td>~void~</td><td>(none)</td><td>The type of the absence of a value.</td></tr>
             <tr><td>~primitive~</td><td>[[Name]] (a String), [[Arguments]] (a List of Type Records and other values)</td><td>A built-in value type such as `uint8` or `float64`, together with any type or value arguments, for example the width of `int.&lt;N&gt;`. The primitive types are enumerated in the type universe clause.</td></tr>
-            <tr><td>~nominal~</td><td>[[Declaration]] (a Parse Node)</td><td>A class, interface, or enum type, identified by the declaration that introduced it.</td></tr>
+            <tr><td>~nominal~</td><td>[[Declaration]] (a Parse Node), [[Arguments]] (a List of Type Records and other values)</td><td>A class, interface, or enum type, identified by the declaration that introduced it, together with the arguments of a generic instantiation. [[Arguments]] is empty where the declaration is not generic.</td></tr>
             <tr><td>~union~</td><td>[[Members]] (a List of Type Records)</td><td>A union type. A value belongs to it if it belongs to any member.</td></tr>
             <tr><td>~intersection~</td><td>[[Members]] (a List of Type Records)</td><td>An intersection type. A value belongs to it if it belongs to every member.</td></tr>
             <tr><td>~tuple~</td><td>[[Elements]] (a List of Type Records)</td><td>A tuple type of fixed length and position-wise element types.</td></tr>
@@ -68,7 +68,7 @@ contributors: Sirisian
       <p>Type Objects are interned. <emu-xref href="#sec-gettypeobject"></emu-xref> maps each canonical Type Record to a unique Type Object, so two Type Objects denote the same type if and only if they are the same value. Consequently comparing two Type Objects with IsStrictlyEqual returns *true* exactly when they denote the same type, and a Type Object may be used as a property key or a key in a Map or Set to key on a type.</p>
 
       <emu-note>
-        <p>The observable behaviour of a Type Object, including how it exposes its own structure to reflection, is defined by the type-object and reflection clause. The remainder of the type system uses only its [[TypeRecord]] and its identity.</p>
+        <p>The observable behaviour of a Type Object, including how it exposes its own structure to reflection, is defined by <emu-xref href="#sec-reflection"></emu-xref>. The remainder of the type system uses only its [[TypeRecord]] and its identity.</p>
       </emu-note>
     </emu-clause>
 
@@ -107,6 +107,8 @@ contributors: Sirisian
         <emu-alg>
           1. If _s_ and _t_ are the same Record, return *true*.
           1. If _assumptions_ contains a Record _p_ such that _p_.[[First]] is _s_ and _p_.[[Second]] is _t_, return *true*.
+          1. If _s_.[[Kind]] is ~nominal~ and _s_.[[Declaration]] is an enum declaration, then
+            1. If IsSubtype(the underlying type of _s_.[[Declaration]], _t_, _assumptions_) is *true*, return *true*.
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. Set _assumptions_ to the list-concatenation of _assumptions_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
           1. If _s_.[[Kind]] is ~any~ or _s_.[[Kind]] is ~void~, return *true*.
@@ -114,8 +116,8 @@ contributors: Sirisian
             1. If _s_.[[Name]] is not _t_.[[Name]], return *false*.
             1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
           1. If _s_.[[Kind]] is ~nominal~, then
-            1. If _s_.[[Declaration]] and _t_.[[Declaration]] are the same Parse Node, return *true*.
-            1. Return *false*.
+            1. If _s_.[[Declaration]] and _t_.[[Declaration]] are not the same Parse Node, return *false*.
+            1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
           1. If _s_.[[Kind]] is ~union~ or _s_.[[Kind]] is ~intersection~, return SameTypeList(_s_.[[Members]], _t_.[[Members]], _assumptions_).
           1. If _s_.[[Kind]] is ~tuple~, return SameTypeList(_s_.[[Elements]], _t_.[[Elements]], _assumptions_).
           1. If _s_.[[Kind]] is ~array~, then
@@ -124,10 +126,10 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is ~function~, return SameFunctionType(_s_, _t_, _assumptions_).
           1. Assert: _s_.[[Kind]] is ~object~.
-          1. Return the result of comparing _s_ and _t_ as the same object type, as defined by the clause that introduces that kind.
+          1. Return SameObjectType(_s_, _t_, _assumptions_).
         </emu-alg>
         <emu-note>
-          <p>SameTypeList holds when two Lists of Type Records have the same length and are position-wise the same under _assumptions_. SameArgumentList is SameTypeList extended to compare non-type arguments, such as an array extent, with SameValue. SameObjectType and SameFunctionType compare the members of an ~object~ or ~function~ type and are defined alongside those types. Because a canonical ~union~ or ~intersection~ has its members in a fixed order (<emu-xref href="#sec-canonicalizetype"></emu-xref>), position-wise comparison of members is sufficient.</p>
+          <p>SameTypeList holds when two Lists of Type Records have the same length and are position-wise the same under _assumptions_. SameArgumentList is SameTypeList extended to compare non-type arguments, such as an array extent, with SameValue. SameObjectType (<emu-xref href="#sec-sameobjecttype"></emu-xref>) and SameFunctionType (<emu-xref href="#sec-samefunctiontype"></emu-xref>) compare the members of an ~object~ or ~function~ type. Because a canonical ~union~ or ~intersection~ has its members in a fixed order (<emu-xref href="#sec-canonicalizetype"></emu-xref>), position-wise comparison of members is sufficient.</p>
         </emu-note>
       </emu-clause>
 
@@ -211,7 +213,7 @@ contributors: Sirisian
           1. Return _t_.
         </emu-alg>
         <emu-note>
-          <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing any Type Record arguments, which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration.</p>
+          <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing the Type Records in its [[Arguments]], which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration.</p>
         </emu-note>
       </emu-clause>
 
@@ -281,8 +283,9 @@ contributors: Sirisian
             1. If _s_.[[Arguments]] is a metadata parameterization of _t_.[[Arguments]], as the primitive metadata extension defines, return *true*.
             1. Return *false*.
           1. If _s_.[[Kind]] is ~nominal~, then
-            1. If _t_.[[Declaration]] is _s_.[[Declaration]], return *true*.
-            1. If _t_.[[Declaration]] is an ancestor of _s_.[[Declaration]] in the class and interface hierarchy, return *true*.
+            1. If _t_.[[Declaration]] is _s_.[[Declaration]], return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
+            1. If _t_.[[Declaration]] is an ancestor of _s_.[[Declaration]] in the class and interface hierarchy, then
+              1. Return the result of comparing _t_.[[Arguments]] against the arguments _s_ supplies to _t_.[[Declaration]] through the hierarchy, with SameArgumentList.
             1. Return *false*.
           1. If _s_.[[Kind]] is ~array~, then
             1. If _t_.[[Extent]] is not ~dynamic~ and _t_.[[Extent]] is not _s_.[[Extent]], return *false*.
@@ -296,11 +299,12 @@ contributors: Sirisian
             1. Return *true*.
           1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is ~function~, return IsFunctionSubtype(_s_, _t_, _assumptions_).
-          1. If _s_.[[Kind]] is ~object~, return the result of the subtype comparison defined for that kind by the clause that introduces it.
+          1. If _s_.[[Kind]] is ~object~, return IsObjectSubtype(_s_, _t_, _assumptions_).
           1. Return *false*.
         </emu-alg>
         <emu-note>
-          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target. IsObjectSubtype and IsFunctionSubtype are defined alongside object and function types; they apply width and depth subtyping to properties, and contravariant-parameter, covariant-return subtyping to signatures. The justification for each choice is given by the clause that introduces the corresponding feature.</p>
+          <p>A generic class is invariant in its arguments, so `Map.&lt;string, uint8&gt;` is a subtype of no other instantiation of `Map`. This is the conservative choice and the only one that is sound for a mutable container, since a `Map.&lt;string, uint8&gt;` used as a `Map.&lt;string, number&gt;` would accept a Number into storage typed `uint8`. Whether a generic parameter may be declared covariant or contravariant, as it may in C# and Kotlin, is a question for the generics extension; nothing here forecloses it, and the step above is what such a declaration would relax.</p>
+          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target. IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
         </emu-note>
       </emu-clause>
 
@@ -921,7 +925,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>`type` is not a value type: its values are Objects, and they have identity. That identity is exactly what interning fixes, so two occurrences of a type expression that denote the same type are the same Type Object rather than merely equal ones. `type` is nonetheless a primitive type in the sense of the Type Record kinds, since it is a named type of the language rather than a structural description of an object's members.</p>
-        <p>Because `type` is itself a type, `type` is a value of `type`, and a type argument may be constrained to it, which is what a generic parameter written `T: type` asks for. The reflection clause defines what a Type Object exposes.</p>
+        <p>Because `type` is itself a type, `type` is a value of `type`, and a type argument may be constrained to it, which is what a generic parameter written `T: type` asks for. <emu-xref href="#sec-reflection"></emu-xref> defines what a Type Object exposes.</p>
       </emu-note>
     </emu-clause>
 
@@ -1249,7 +1253,7 @@ contributors: Sirisian
           1. Return the ~object~ Type Record whose [[Properties]] describes the own properties of _value_ and their declared types, where a property with no declared type has the `any` type.
         </emu-alg>
         <emu-note>
-          <p>Every value has exactly one runtime type, because the values of distinct value types are distinct (<emu-xref href="#sec-value-types"></emu-xref>). The `uint8` representing 0 and the `uint16` representing 0 are different values, so `a instanceof uint16` is *false* for a `uint8` binding `a` even though `typeof a` reports *"number"* for both. `typeof` is unchanged by this proposal: it reports the underlying language type, and RuntimeTypeOf is what reports the type of this proposal. The reflection clause exposes the latter as `Reflect.typeOf`.</p>
+          <p>Every value has exactly one runtime type, because the values of distinct value types are distinct (<emu-xref href="#sec-value-types"></emu-xref>). The `uint8` representing 0 and the `uint16` representing 0 are different values, so `a instanceof uint16` is *false* for a `uint8` binding `a` even though `typeof a` reports *"number"* for both. `typeof` is unchanged by this proposal: it reports the underlying language type, and RuntimeTypeOf is what reports the type of this proposal. <emu-xref href="#sec-reflect-typeof"></emu-xref> exposes the latter as `Reflect.typeOf`.</p>
           <p>The [[RuntimeType]] slot is what a Proxy constructed with a type argument carries, so that it reports the type its trap checks enforce rather than the shape of its target. A Proxy constructed without one has no slot and is an ordinary Object.</p>
           <p>The types named *"undefined"* and *"null"* are used here but are not among the types of <emu-xref href="#sec-type-universe"></emu-xref>, and `undefined` is not admitted in type position by <emu-xref href="#sec-type-expressions"></emu-xref>, which reaches `null` only through |PredefinedType|. The design nonetheless writes `undefined` as a type, since the reject type of a typed promise is `undefined` by convention when the promise never rejects. The type universe should name both, and the grammar should admit `undefined`.</p>
         </emu-note>
@@ -1301,14 +1305,14 @@ contributors: Sirisian
         </emu-alg>
 
         <emu-note>
-          <p>Deciding a structural type reads the value's properties, so the check calls user code: a property backed by a getter runs it, which may throw, may have side effects, and may return a different value each time it is read. A check is therefore not a passive observation, and this is why the operation returns a completion. A getter that returns a value of the required type once and a different value afterwards defeats the check, which is the same aliasing exposure noted below. Whether a boundary check should read through accessors at all, or inspect only own data properties, is a question for the objects clause; reading them is assumed here because a property's type is a claim about what the property yields.</p>
+          <p>Deciding a structural type reads the value's properties, so the check calls user code: a property backed by a getter runs it, which may throw, may have side effects, and may return a different value each time it is read. A check is therefore not a passive observation, and this is why the operation returns a completion. A getter that returns a value of the required type once and a different value afterwards defeats the check, which is the same aliasing exposure noted below. Whether a boundary check should read through accessors at all, or inspect only own data properties, remains open; reading them is assumed here because a property's type is a claim about what the property yields.</p>
           <p>The final step is the general case: the value's runtime type is compared against the target with the subtype relation of <emu-xref href="#sec-issubtype"></emu-xref>, so the runtime test and the static one agree by construction. The earlier steps exist because a structural type cannot be decided by comparing two Type Records: an ordinary Object's runtime type is a description of the properties it happens to have, and the question is whether it has the ones the target requires.</p>
         </emu-note>
 
         <emu-note>
           <p>The ~function~ case is checked shallowly and is unsound, and this is the one place where the specification knowingly permits a type violation to go unreported. A function's signature cannot be verified without calling it, so the check confirms only that the value is callable and that the signature it declares is assignable to the target, which admits `any`. An untyped function reaching a `(uint8) =&gt; uint8` position therefore passes, and if it returns a String the caller receives one where its static type promised a `uint8`.</p>
           <p>This is the higher-order problem every gradual type system meets, and the design does not address it. The available answers are the known ones. The value can be wrapped so that each call checks its arguments and its result, which is sound and is what a contract system does, at the cost of an allocation per boundary crossing, a change to object identity, and a blame mechanism to say which side broke the contract. The check can stay shallow and the unsoundness be accepted, as an optional type system does, at the cost of the guarantee. Or a check can be inserted at each call through a binding whose runtime signature has an `any` where its static type does not, which is a wrapper by another name but pays only where the imprecision is. This clause specifies the shallow check so that the rest of the system is defined, and records that the choice is open. It bears on the proposal's central claim, since a type the engine cannot rely on is a type the engine cannot optimize against.</p>
-          <p>The ~object~ case is checked at the boundary but not afterwards, and has the same shape of problem. A plain Object's properties are untyped unless declared with the `{ (a: uint8): 1 }` form of the object typing section, so an aliased write through an untyped reference can invalidate a check that has already passed. The interfaces and objects clauses have to say whether a boundary imposes the target's property types on the object it accepts.</p>
+          <p>The ~object~ case is checked at the boundary but not afterwards, and has the same shape of problem. A plain Object's properties are untyped unless declared with the `{ (a: uint8): 1 }` form of the object typing section, so an aliased write through an untyped reference can invalidate a check that has already passed. <emu-xref href="#sec-object-types-semantics"></emu-xref> settles whether a boundary imposes the target's property types on the object it accepts: it does not.</p>
         </emu-note>
       </emu-clause>
     </emu-clause>
@@ -1508,7 +1512,7 @@ contributors: Sirisian
       <emu-note>
         <p>The reason is security rather than convenience. An allocation that exposed the bytes of a previously freed one would leak whatever had been there: another script's data, a former secret, or a heap pointer that defeats address space layout randomization. A fresh page from the operating system is already zero, so the fill costs nothing on a large new allocation, and reused memory must be cleared regardless, so there is nothing to gain by exposing it. The one pattern an uninitialized form would serve, allocate and then fill from input, is served by placement `new` over an existing buffer and by array views.</p>
         <p>A type with no default is one for which no zero is meaningful, and the operation reports that rather than inventing one. A union of two non-nullable types is the ordinary case: `let x: uint8 | string;` has two candidate zeros and no reason to prefer either, so it requires an initializer. `symbol`, `object`, a function type, and a class whose construction must run are the others.</p>
-        <p>The design states the defaults for the numeric, SIMD, String, Boolean, nullable, and array types and does not reach the rest, so the boundaries above are supplied here and need review. Three deserve attention. A `bigint` is given the zero `0n` on the same reasoning as the other numeric types. A tuple defaults element-wise, which follows from a tuple of value types being laid out contiguously, but a tuple with a defaulted trailing position already has an initializer for that position and the two rules should be reconciled by the arrays clause. A value type class defaults field-wise, which is what makes `let d: [10].&lt;A&gt;;` hold ten zero-filled instances as the memory layout extension requires, but it means a class can be brought into existence without its constructor running, which the classes clause has to either endorse or forbid.</p>
+        <p>The design states the defaults for the numeric, SIMD, String, Boolean, nullable, and array types and does not reach the rest, so the boundaries above are supplied here and need review. Three deserve attention. A `bigint` is given the zero `0n` on the same reasoning as the other numeric types. A tuple defaults element-wise, which follows from a tuple of value types being laid out contiguously, but a tuple with a defaulted trailing position already has an initializer for that position and the two rules should be reconciled by the arrays clause. A value type class defaults field-wise, which is what makes `let d: [10].&lt;A&gt;;` hold ten zero-filled instances as the memory layout extension requires, but it means a class can be brought into existence without its constructor running, which <emu-xref href="#sec-typed-classes"></emu-xref> endorses.</p>
       </emu-note>
     </emu-clause>
 
@@ -1600,7 +1604,7 @@ contributors: Sirisian
       <emu-note>
         <p>This is why `d ?? 5` is rejected where `d` is a `uint8`: the left operand can never be nullish, so NarrowTo of `uint8` and `null | undefined` keeps no member and the test is a mistake rather than silent dead code. The same rule rejects `a instanceof string` where `a` is a `uint8`.</p>
         <p>Narrowing on `typeof` is weaker here than in a type system layered over the language, and deliberately so, because `typeof` is unchanged: it reports *"number"* for every numeric type, so `typeof v === "number"` narrows `uint8 | string` to `uint8` but cannot separate `uint8` from `uint16`, and reports *"object"* for the SIMD, rational, and complex types. `Reflect.typeOf` and `instanceof` are what distinguish those, and `instanceof` is the form that narrows. A program discriminating a union of numeric types therefore writes `instanceof`, not `typeof`.</p>
-        <p>Narrowing a binding rather than an expression is sound here only because a narrowed binding is invalidated by an assignment that leaves the narrowed type, which the last sentence above states. The design's `a ??= 5;` narrowing `a` to `uint8` "until a nullable reassignment" is that rule. It is worth noting what this clause does not give: a narrowing of a property or an element, `if (o.f instanceof T)`, is not stated by the design and is not specified here, and it cannot be sound without knowing that `o.f` is not reassigned in between, which for a sealed typed class of a `readonly` field is knowable and otherwise is not. The objects clause has to settle it.</p>
+        <p>Narrowing a binding rather than an expression is sound here only because a narrowed binding is invalidated by an assignment that leaves the narrowed type, which the last sentence above states. The design's `a ??= 5;` narrowing `a` to `uint8` "until a nullable reassignment" is that rule. It is worth noting what this clause does not give: a narrowing of a property or an element, `if (o.f instanceof T)`, is not stated by the design and is not specified here, and it cannot be sound without knowing that `o.f` is not reassigned in between, which for a sealed typed class of a `readonly` field is knowable and otherwise is not. <emu-xref href="#sec-object-types-semantics"></emu-xref> settles it.</p>
         <p>The `switch` row covers the exhaustiveness the design reserves to enums and sealed classes. A union of literal types deliberately does not drive exhaustiveness, so it narrows in each case but its `default` is not proven unreachable.</p>
       </emu-note>
     </emu-clause>
@@ -1958,6 +1962,201 @@ contributors: Sirisian
 
       <emu-note>
         <p>`(x: uint8): uint8 =&gt; x * x` is therefore an arrow function of one `uint8` parameter returning a `uint8`. The return annotation sits between the parameters and the `=&gt;`, which is the only position available, and it is what distinguishes an annotated arrow from a function type: `(uint8) =&gt; uint8` in a type position is a type, while `(x: uint8): uint8 =&gt; x * x` in an expression position is a function. An arrow function is not overloadable, since it has no name to overload.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-classes-interfaces-and-enums">
+    <h1>Classes, Interfaces, and Enums</h1>
+    <p>This clause defines the nominal and structural types a program declares: the object type and its identity and subtyping, which complete the last cases <emu-xref href="#sec-type-system-foundations"></emu-xref> defers; the rules that make a class a value type; interfaces; enums; and the sealed hierarchy that gives a closed union.</p>
+
+    <emu-clause id="sec-object-types-semantics">
+      <h1>Object Types</h1>
+      <p>A <dfn id="property-type-record">Property Type Record</dfn> describes one member of an ~object~ type. It has a [[Key]] (a property key), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean), and a [[Readonly]] field (a Boolean).</p>
+
+      <emu-clause id="sec-sameobjecttype" type="abstract operation">
+        <h1>
+          SameObjectType (
+            _s_: an ~object~ Type Record,
+            _t_: an ~object~ Type Record,
+            _assumptions_: a List of Records that have [[First]] and [[Second]] fields,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether _s_ and _t_ are the same object type.</dd>
+        </dl>
+        <emu-alg>
+          1. If _s_.[[Properties]] and _t_.[[Properties]] do not have the same number of elements, return *false*.
+          1. For each element _p_ of _s_.[[Properties]], do
+            1. Let _q_ be the element of _t_.[[Properties]] whose [[Key]] is _p_.[[Key]], or ~empty~ if there is none.
+            1. If _q_ is ~empty~, return *false*.
+            1. If _p_.[[Optional]] is not _q_.[[Optional]], return *false*.
+            1. If _p_.[[Readonly]] is not _q_.[[Readonly]], return *false*.
+            1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>Members are matched by key rather than by position, so the order in which an object type lists them is not part of its identity and `{ x: float32, y: float32 }` and `{ y: float32, x: float32 }` are one type. Canonicalization orders the [[Properties]] of an ~object~ Type Record by key, which is what allows the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> to give them one Type Object.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-isobjectsubtype" type="abstract operation">
+        <h1>
+          IsObjectSubtype (
+            _s_: an ~object~ Type Record,
+            _t_: an ~object~ Type Record,
+            _assumptions_: a List of Records that have [[First]] and [[Second]] fields,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether every value of the object type _s_ is a value of the object type _t_.</dd>
+        </dl>
+        <emu-alg>
+          1. For each element _q_ of _t_.[[Properties]], do
+            1. Let _p_ be the element of _s_.[[Properties]] whose [[Key]] is _q_.[[Key]], or ~empty~ if there is none.
+            1. If _p_ is ~empty~, then
+              1. If _q_.[[Optional]] is *false*, return *false*.
+              1. Continue.
+            1. If _p_.[[Optional]] is *true* and _q_.[[Optional]] is *false*, return *false*.
+            1. If _q_.[[Readonly]] is *false* and _p_.[[Readonly]] is *true*, return *false*.
+            1. If _q_.[[Readonly]] is *true*, then
+              1. If IsSubtype(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+            1. Else,
+              1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>An object type is subtyped in width, so a type with more members is a subtype of one with fewer: an object that has everything `{ x: float32 }` requires is usable where that type is required, whatever else it has.</p>
+          <p>It is subtyped in depth only through a `readonly` member. A `readonly` member is covariant, since a value read from it and never written through it need only be of the required type. A writable member is invariant, because covariance there is unsound: were `{ x: Meter }` a subtype of `{ x: float32 }`, a bare `float32` could be written through the supertype view into a slot the program believes holds a `Meter`. This is the same rule the ~reference~ and ~array~ kinds already follow in <emu-xref href="#sec-issubtype"></emu-xref>, and it is the point at which this proposal parts company with an erasable type system, which can afford covariance there because nothing depends on the claim. Here the layout does.</p>
+        </emu-note>
+      </emu-clause>
+
+      <p>A boundary that accepts a value into a position of an ~object~ type does not impose that type's members on the value. The value's own properties keep the types they were declared with, and a property the value declared without a type keeps the `any` type.</p>
+
+      <emu-note>
+        <p>This answers the question <emu-xref href="#sec-isoftype"></emu-xref> raises and it answers it in the direction that admits the unsoundness, because the alternative is worse. Imposing the target's member types would mean that passing a plain object to a `{ x: uint8 }` position silently retypes the object for every other holder of it, which is an action at a distance no other boundary performs, and would make the same object have different property types depending on where it had been. The consequence is that a check on a structural type is a statement about the value at the moment it crossed, not a guarantee about it afterwards, and a later write through an untyped alias can invalidate it. A program that wants the guarantee declares the property's type with the `{ (x: uint8): 1 }` form of the object typing section, or uses a class, where the field's type is a property of the layout.</p>
+        <p>A narrowing of a property, as in `if (o.f instanceof T)`, follows from the same fact and is admitted only where the property cannot change between the test and the use: a `readonly` field of a sealed typed class, whose write is a type error after construction. Elsewhere the narrowing does not hold, since `o.f` may be a getter or may be assigned in between, and <emu-xref href="#sec-narrowing"></emu-xref> therefore narrows bindings rather than paths.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-typed-classes">
+      <h1>Typed Classes</h1>
+      <p>A class is <dfn id="typed-class">typed</dfn> when at least one of its public or private fields carries a type annotation. A typed class is automatically sealed and its prototype frozen, as <emu-xref href="#sec-typed-storage"></emu-xref> specifies. A class declared `dynamic` is not sealed and is not a value type.</p>
+
+      <p>A typed class is a <dfn id="value-type-class">value type class</dfn> when every one of its fields has a type that is a value type. Instances of a value type class are values in the sense of <emu-xref href="#sec-value-types"></emu-xref>: they are laid out contiguously, they are stored inline in a field or an array element of that type, and assigning one copies it. It is a type error for a value type class to contain itself, directly or through a cycle of value type fields, since the layout would have no finite size. A field that closes such a cycle is written `T | null`, which is a reference.</p>
+
+      <p>A field with no initializer holds the default value of its type (<emu-xref href="#sec-defaultvalueof"></emu-xref>), and it is a type error to declare a field whose type has no default and give it no initializer.</p>
+
+      <p>`===` on two instances of a value type class compares them field by field, since the identity of a value type is its value. `===` on two instances of a class that is not a value type compares references.</p>
+
+      <emu-note>
+        <p>That a value type class defaults field by field means an instance can come into existence without its constructor running, which <emu-xref href="#sec-default-values"></emu-xref> flags. This clause endorses it, because the design already requires it in two places and the alternative would break both. `let d: [10].&lt;A&gt;;` must hold ten zero-filled instances for the memory layout extension's contiguous array to exist at all, and a conversion from a matching object literal, `{ ... } := Vector3`, is specified to fill the layout directly and run no constructor. A value type class is therefore a shape with a zero, not an object with an invariant its constructor establishes, and a class that needs its constructor to run states that by holding a field whose type has no default, which makes the zero-filled form a type error. This is a real constraint on what a value type class can promise, and it should be stated in the design rather than left to follow from the array case.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-interfaces-semantics">
+      <h1>Interfaces</h1>
+      <p>An interface declares a contract. Its type is a ~nominal~ type whose [[Declaration]] is the interface declaration, and a class that implements it is a subtype of it by <emu-xref href="#sec-issubtype"></emu-xref>, which follows the declared hierarchy. An interface may also type an object, an array, or a function structurally.</p>
+
+      <p>A class that implements an interface cannot remove the contract: deleting a member the interface requires is a *TypeError*, and this holds through a subclass, a reference, and reflection.</p>
+
+      <emu-note>
+        <p>An interface is nominal where a class declares that it implements one and structural where a value is checked against it, which are two questions rather than one contradiction: the first asks whether a declaration promised the contract, the second whether a value meets it. `IsOfType` decides the second by <emu-xref href="#sec-isoftype"></emu-xref>, so an object that has the members satisfies an interface-typed position whether or not any class declared it.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-enums">
+      <h1>Enums</h1>
+      <p>An enum declaration introduces a ~nominal~ type whose values are its enumerators. The type after `:` is the enum's <dfn id="underlying-type">underlying type</dfn>, and an enum declared without one has the underlying type `int32`. Any type may be an underlying type, including a function type and `symbol`.</p>
+
+      <p>An enumerator with no initializer takes the value after the one before it, and the first takes 0. An enumerator initialized with a function of two parameters is given the result of calling that function with the enumerator's index and its name as a String, and a following enumerator with no initializer is given the result of calling the same function with its own index and name. Such a function is not a closure.</p>
+
+      <p>An enum type is a subtype of its underlying type, so a value of an enum type is usable wherever the underlying type is required and no conversion is written. The reverse is explicit: calling the enum type with a value of the underlying type returns the enumerator whose value it is, and throws a *TypeError* when it is not one of them.</p>
+
+      <emu-note>
+        <p>The one-way rule is the rule of C#, Rust, and Swift. It is what lets a bitmask index such as `comp / 32` read directly while `Component(id)` remains a deliberate and validated step, and it is why an enum can be used for arithmetic, indexing, and comparison without a cast.</p>
+        <p>An enum's subtyping is a further case of the ~primitive~ and ~nominal~ rules in <emu-xref href="#sec-issubtype"></emu-xref>, which follow a declared class hierarchy and a metadata parameterization but do not reach an enum's underlying type. It is stated here rather than there because it is the same shape of relation, a type that refines another and is subsumed into it, and the specification should ultimately give the three one rule rather than three.</p>
+        <p>`Reflect.typeOf(Count.Zero)` reports `Count`, by the rule of <emu-xref href="#sec-reflect-typeof"></emu-xref> that a value's runtime type is the most specific type of which it is a value. This does not make the enumerator anything other than a value the underlying type also accepts: membership in `int32` follows from `Count` being a subtype of it, not from a second runtime type, so the uniqueness <emu-xref href="#sec-runtimetypeof"></emu-xref> requires is preserved and no conversion is performed. The case is exactly parallel to a metadata parameterization, where `Reflect.typeOf` of a `Meter` is `float32.&lt;{ m: 1 }&gt;` and not `float32`, while `m instanceof float32` is nonetheless *true*.</p>
+        <p>What remains is that this specification now has three relations of one shape: a metadata parameterization refining its primitive, an enum refining its underlying type, and a class extending its base. Each is a separate step of <emu-xref href="#sec-issubtype"></emu-xref>. They would be better given one rule, and the design would be better stating the enum case as subtyping rather than as an implicit conversion, which is what it is: describing it as a conversion is what makes it look like a fifth exception to <emu-xref href="#table-implicit-conversions"></emu-xref> when it is not an exception at all.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-sealed-classes">
+      <h1>Sealed Classes</h1>
+      <p>A class declared `sealed` may not be extended outside the module that declares it, so its subclasses are a fixed and known set. A sealed class is a reference type rather than a value type, so a field of a sealed type holds an instance of any of its subclasses directly rather than through a nullable union.</p>
+
+      <p>A `sealed abstract` class can be neither instantiated nor extended outside its module. Its concrete subclasses are therefore a closed set with no case among them for the base, and a `switch` over a value of its type is exhaustive when it has a case for each subclass.</p>
+
+      <emu-note>
+        <p>This is the algebraic data type, assembled from parts the proposal has for other reasons rather than from a new construct. The cases are the subclasses, the case labels are their type objects, which are values because types are values, and the match is the `switch` the control structures section already defines. What makes it work is that the set is closed: exhaustiveness is a claim about a hierarchy no other module can extend, which is why it is reserved to a sealed class and an enum and is deliberately not available for a union of literal types, whose members are not a declaration anyone owns.</p>
+        <p>That a sealed class is a reference type is what lets a field hold a subclass instance polymorphically. A value type class cannot, since its field embeds the base slice of the layout and has no room for a subclass, which is why the two forms differ and why holding a value type class polymorphically is spelled `T | null`.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-reflection">
+    <h1>Reflection</h1>
+    <p>This clause defines what a program observes of a type at run time: the operation that reports a value's type, the opacity of a Type Object, the operation that exposes a type's structure, and the effect of a declared type on the existing reflective operations.</p>
+
+    <emu-clause id="sec-reflect-typeof">
+      <h1>Reflect.typeOf ( _value_ )</h1>
+      <p>This function returns the Type Object denoting the type of _value_. It performs the following steps when called:</p>
+      <emu-alg>
+        1. Return GetTypeObject(RuntimeTypeOf(_value_)).
+      </emu-alg>
+
+      <emu-note>
+        <p>`Reflect.typeOf` reports the most specific type of which the value is a value, not every type it belongs to. For a `uint8` binding it returns `uint8`; for a value of the metadata-parameterized `Meter` it returns `float32.&lt;{ m: 1 }&gt;`, the full parameterization, which is how reflection obtains constraint information at run time. Membership in a less specific type is not a second runtime type but a consequence of subtyping, which is why `m instanceof float32` is *true* while `Reflect.typeOf(m)` is not `float32`.</p>
+        <p>It is the companion of `typeof`, which is unchanged and reports the underlying language type: `typeof a` is *"number"* for a `uint8` binding while `Reflect.typeOf(a)` is `uint8`. `typeof` on a Type Object is *"object"*, since a Type Object is an Object, and `typeof uint8 === "object"` therefore doubles as feature detection for this proposal.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-type-object-opacity">
+      <h1>The Opacity of a Type Object</h1>
+      <p>A Type Object exposes no property that reveals the structure of the type it denotes. Given the Type Object for `Player | null` no property yields its members, and given the one for `[].&lt;uint32&gt;` no property yields its element type or its extent. A Type Object's [[TypeRecord]] is an internal slot and is reachable only through <emu-xref href="#sec-reflect-getreflection"></emu-xref>.</p>
+
+      <emu-note>
+        <p>Opacity is what lets the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> be an implementation strategy rather than an obligation to materialize a graph. An engine that represents `[].&lt;uint32&gt;` as a tag rather than as an object with an `element` property is conforming, and a program cannot tell. It also keeps the type-object surface from becoming a second, weaker reflection API alongside the real one: there is one way to inspect a type, and it is named.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflect-getreflection">
+      <h1>Structural Reflection</h1>
+      <p>`Reflect.getReflection.&lt;Reflect.Type&gt;(_t_)` returns a reflection node describing the structure of the type _t_ denotes. The node has a `kind` property whose value is a String naming the [[Kind]] of _t_'s Type Record, and the further properties of <emu-xref href="#table-reflection-nodes"></emu-xref>. Every property of a node that denotes a type holds a Type Object, so a walker recurses by reflecting it in turn.</p>
+
+      <emu-table id="table-reflection-nodes" caption="Reflection Nodes by Kind">
+        <table>
+          <thead><tr><th>`kind`</th><th>Further properties</th></tr></thead>
+          <tbody>
+            <tr><td>*"union"*, *"intersection"*</td><td>`members`, a List of Type Objects, in the canonical order.</td></tr>
+            <tr><td>*"array"*</td><td>`element`, a Type Object; `extent`, a non-negative integer or *undefined* for a dynamic length.</td></tr>
+            <tr><td>*"tuple"*</td><td>`elements`, a List of Type Objects.</td></tr>
+            <tr><td>*"object"*</td><td>`properties`, a List of records with `key`, `type` (a Type Object), `optional`, and `readonly`.</td></tr>
+            <tr><td>*"function"*</td><td>`signatures`, a List of records with `parameters` and `return`, in declaration order.</td></tr>
+            <tr><td>*"reference"*</td><td>`target`, a Type Object.</td></tr>
+            <tr><td>*"primitive"*, *"nominal"*, *"any"*, *"void"*</td><td>`name` for a primitive, together with its `arguments`; `declaration` for a nominal type. An `any` or `void` node has no further properties.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The node kinds are the Type Record kinds of <emu-xref href="#table-type-record-kinds"></emu-xref>, so the reflected structure is the structure the type checker reasons about rather than a separate model of it. This is the payoff of a Type Object being interned by its Type Record: what a program sees at run time and what the specification computes over are one thing.</p>
+        <p>The same `Reflect.getReflection` reflects a declaration's members, keyed on the declaration rather than on a type, which is how a class's fields, a function's parameters, and an enum's enumerators are exposed. That context and the rest of the reflection facility, including its metadata, are defined by the decorators extension. This clause defines only the type-object context it operates on.</p>
+        <p>A union's members are reflected in the canonical order rather than in the order written, since canonicalization has already reordered them and the Type Object is shared with every other spelling of the same type. A function's signatures are reflected in declaration order, which <emu-xref href="#sec-samefunctiontype"></emu-xref> preserves for this reason.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflection-and-declared-types">
+      <h1>Reflection and Declared Types</h1>
+      <p>The existing reflective operations respect a declared type. `Reflect.set` on a property with a declared type _t_ performs RequireType(_value_, _t_) and throws where the value does not satisfy it. `Reflect.get` returns the property's value, which is of its declared type. `Reflect.defineProperty` accepts a `type` key in the property descriptor, whose value is a Type Object, and a descriptor with a `type` and no `value` gives the property the default value of that type (<emu-xref href="#sec-defaultvalueof"></emu-xref>). `Reflect.deleteProperty` on a property with a declared type, and on a member required by an implemented interface, is a *TypeError*.</p>
+
+      <p>A Proxy constructed with a type argument _T_ has a [[RuntimeType]] internal slot whose value is _T_'s Type Record, so `Reflect.typeOf` reports _T_ rather than the shape of its target, and its traps are checked against _T_. A Proxy constructed without one has no such slot and is of the `any` type.</p>
+
+      <emu-note>
+        <p>Reflection is a boundary in the sense of <emu-xref href="#table-check-sites"></emu-xref>, not an exception to it. A value entering a typed position through `Reflect.set` is checked exactly as one entering through an assignment, which is what keeps a typed field's type a fact about its storage: were reflection able to write past the check, an engine could not lay the field out on the strength of its type, and the proposal's premise would not hold. That a typed property cannot be deleted is the same guarantee in the other direction, since a layout with a hole in it is not the layout the type described.</p>
+        <p>A Proxy reporting the type it was constructed with rather than its target's shape is what makes the trap checks meaningful: the contract a proxy enforces is the one it was given, and reporting anything else would describe a value the program never promised.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
