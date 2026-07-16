@@ -200,6 +200,7 @@ contributors: Sirisian
               1. Else,
                 1. Append _c_ to _members_.
             1. Remove from _members_ each element that is the same type (SameType) as an element occurring earlier in _members_.
+            1. If _t_.[[Kind]] is ~intersection~ and _members_ contains an element whose [[Kind]] is ~union~ and whose [[Members]] is empty, return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; } (the `never` type; see <emu-xref href="#sec-never-type"></emu-xref>).
             1. If _members_ has exactly one element, return that element.
             1. Order the elements of _members_ according to a total order on canonical Type Records fixed by this specification.
             1. Return the Type Record { [[Kind]]: _t_.[[Kind]], [[Members]]: _members_ }.
@@ -213,7 +214,7 @@ contributors: Sirisian
           1. Return _t_.
         </emu-alg>
         <emu-note>
-          <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing the Type Records in its [[Arguments]], which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration.</p>
+          <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing the Type Records in its [[Arguments]], which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration. Flattening is also what removes a `never` member from a union: the member is an empty union, so it contributes nothing, and `T | never` canonicalizes to `T` with no rule naming the case. The intersection step above is the one algebraic fact about `never` that does not fall out this way (<emu-xref href="#sec-never-type"></emu-xref>).</p>
         </emu-note>
       </emu-clause>
 
@@ -922,6 +923,24 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-never-type">
+      <h1>The never Type</h1>
+      <p>`never` is the type with no values: the union of no members, described by the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; }. It is not a new kind of type; it is the empty case of a kind the type system already has, admitted as a type in its own right because computation reaches it regardless. A union filtered of its every member is this type, whatever this clause says.</p>
+
+      <p>Its algebra follows from the operations already defined, with no rule specific to it except the one noted last.</p>
+      <ul>
+        <li>`never` is a subtype of every type. In IsSubtype (<emu-xref href="#sec-issubtype"></emu-xref>) a source of the ~union~ kind is a subtype when every member is, and a quantification over no members holds.</li>
+        <li>No type other than `never` is a subtype of `never`. A target of the ~union~ kind requires some member to accept the source, and there is none.</li>
+        <li>`never` is the identity of union. Canonicalization (<emu-xref href="#sec-canonicalizetype"></emu-xref>) flattens a member of the same kind into its parent, and flattening an empty union contributes no members, so `T | never` canonicalizes to `T` with no rule naming the case.</li>
+        <li>`never` annihilates intersection: an intersection with a `never` member is `never`. This is the one fact that does not fall out, and CanonicalizeType carries the step for it.</li>
+      </ul>
+      <p>No value is a value of the `never` type: IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) over a union with no members is *false* for every value, and DefaultValueOf (<emu-xref href="#sec-defaultvalueof"></emu-xref>) of it is ~none~, so a binding of the type can be neither defaulted nor, since no expression's value can satisfy it, initialized. A value of the `any` type reaching a position of the `never` type fails its boundary check (<emu-xref href="#sec-requiretype"></emu-xref>) for every value. That vacuity is the point: `never` exists to be computed with, as the result of removing every member from a union, not to be inhabited.</p>
+
+      <emu-note>
+        <p>Because the empty union canonicalizes to itself and Type Objects are interned (<emu-xref href="#sec-gettypeobject"></emu-xref>), every computation that produces the empty union produces one Type Object, so `never` has the same identity story as every other type. No production of the type grammar (<emu-xref href="#sec-type-grammar"></emu-xref>) currently derives the name, so until the grammar admits it the type is reachable only through computation and reflection. Admitting it does not extend `switch` exhaustiveness, which remains reserved to enums and sealed hierarchies (<emu-xref href="#sec-sealed-classes"></emu-xref>). It is also distinct from the ~empty~ sentinel of the narrowing operations (<emu-xref href="#sec-narrowing"></emu-xref>), which reports a test that cannot succeed as a mistake rather than narrowing to the type with no values.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-the-type-type">
       <h1>The type Type</h1>
       <p>`type` is the type whose values are the Type Objects (<emu-xref href="#sec-types-and-type-objects"></emu-xref>). It is described by the Type Record { [[Kind]]: ~primitive~, [[Name]]: *"type"*, [[Arguments]]: &laquo; &raquo; }, and it is the Static Type of a type name or type expression in expression position (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>). A function that computes a type annotates its return with it.</p>
@@ -1604,7 +1623,7 @@ contributors: Sirisian
         </emu-alg>
       </emu-clause>
 
-      <p>It is a type error to apply a narrowing form where the test can never succeed or can never fail, since the branch it guards is then dead code the program did not intend. These are the branches for which NarrowTo or NarrowFrom returns ~empty~.</p>
+      <p>It is a type error to apply a narrowing form where the test can never succeed or can never fail, since the branch it guards is then dead code the program did not intend. These are the branches for which NarrowTo or NarrowFrom returns ~empty~. The sentinel is deliberately not the `never` type (<emu-xref href="#sec-never-type"></emu-xref>): a test that cannot succeed is reported as a mistake rather than narrowed to the type with no values, because a branch the program wrote and can never take is dead code and not a computation.</p>
 
       <emu-note>
         <p>This is why `d ?? 5` is rejected where `d` is a `uint8`: the left operand can never be nullish, so NarrowTo of `uint8` and `null | undefined` keeps no member and the test is a mistake rather than silent dead code. The same rule rejects `a instanceof string` where `a` is a `uint8`.</p>
@@ -2002,7 +2021,7 @@ contributors: Sirisian
           1. Return *true*.
         </emu-alg>
         <emu-note>
-          <p>Members are matched by key rather than by position, so the order in which an object type lists them is not part of its identity and `{ x: float32, y: float32 }` and `{ y: float32, x: float32 }` are one type. Canonicalization orders the [[Properties]] of an ~object~ Type Record by key, which is what allows the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> to give them one Type Object.</p>
+          <p>Members are matched by key rather than by position, so the order in which an object type lists them is not part of its identity and `{ x: float32, y: float32 }` and `{ y: float32, x: float32 }` are one type. Canonicalization orders the [[Properties]] of an ~object~ Type Record by key, which is what allows the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> to give them one Type Object. That ordering serves identity; whether the source's own member order should additionally be preserved for display and reflection, carried outside the canonical form the way a parameter's name already is (<emu-xref href="#sec-signature-records"></emu-xref>), is open. Nothing today records it, so a reflected object type lists its properties in key order whatever order the source wrote.</p>
         </emu-note>
       </emu-clause>
 
@@ -2122,6 +2141,8 @@ contributors: Sirisian
       <h1>The Opacity of a Type Object</h1>
       <p>A Type Object exposes no property that reveals the structure of the type it denotes. Given the Type Object for `Player | null` no property yields its members, and given the one for `[].&lt;uint32&gt;` no property yields its element type or its extent. A Type Object's [[TypeRecord]] is an internal slot and is reachable only through <emu-xref href="#sec-reflect-getreflection"></emu-xref>.</p>
 
+      <p>One exception is display: a Type Object has a `toString` method returning the canonical source form of the type it denotes, so calling `String` on the Type Object for `'a' | 'b'` yields the String *"'a' | 'b'"*. The printed form exists for diagnostics and authored error messages, not for inspection: its format follows the canonical form and is therefore stable, but parsing it is not the supported way to read a type's structure, which remains <emu-xref href="#sec-reflect-getreflection"></emu-xref>.</p>
+
       <emu-note>
         <p>Opacity is what lets the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> be an implementation strategy rather than an obligation to materialize a graph. An engine that represents `[].&lt;uint32&gt;` as a tag rather than as an object with an `element` property is conforming, and a program cannot tell. It also keeps the type-object surface from becoming a second, weaker reflection API alongside the real one: there is one way to inspect a type, and it is named.</p>
       </emu-note>
@@ -2147,7 +2168,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>The node kinds are the Type Record kinds of <emu-xref href="#table-type-record-kinds"></emu-xref>, so the reflected structure is the structure the type checker reasons about rather than a separate model of it. This is the payoff of a Type Object being interned by its Type Record: what a program sees at run time and what the specification computes over are one thing.</p>
+        <p>The node kinds follow the Type Record kinds of <emu-xref href="#table-type-record-kinds"></emu-xref>, so what a program sees at run time and what the specification computes over are one structure rather than two. The correspondence is not one-to-one, and the table above does not yet round-trip every type: no node carries a literal type's value, a metadata parameterization's metadata, or a generic instantiation's arguments, and a reader walking a recursive type needs a back-edge node that no Type Record kind supplies. The completed node model, and the construction operation that makes the round trip from a type to its description and back, are what the type programming extension supplies (<emu-xref href="#table-extension-hooks"></emu-xref>), superseding this table when incorporated.</p>
         <p>The same `Reflect.getReflection` reflects a declaration's members, keyed on the declaration rather than on a type, which is how a class's fields, a function's parameters, and an enum's enumerators are exposed. That context and the rest of the reflection facility, including its metadata, are defined by the decorators extension. This clause defines only the type-object context it operates on.</p>
         <p>A union's members are reflected in the canonical order rather than in the order written, since canonicalization has already reordered them and the Type Object is shared with every other spelling of the same type. A function's signatures are reflected in declaration order, which <emu-xref href="#sec-samefunctiontype"></emu-xref> preserves for this reason.</p>
       </emu-note>
@@ -2292,6 +2313,7 @@ contributors: Sirisian
             <tr><td>operator overloading</td><td>The declaration syntax for an operator and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
             <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
+            <tr><td>type programming</td><td>The construction inverse of <emu-xref href="#sec-reflect-getreflection"></emu-xref> and the completed reflection node model that supersedes <emu-xref href="#table-reflection-nodes"></emu-xref>; the exposure of <emu-xref href="#sec-isassignable"></emu-xref> as a callable predicate; the evaluation semantics, memoization, and recursion of compile-time type expressions (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>); and a name for the `never` type (<emu-xref href="#sec-never-type"></emu-xref>).</td></tr>
           </tbody>
         </table>
       </emu-table>
