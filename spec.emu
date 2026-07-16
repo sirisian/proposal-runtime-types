@@ -525,6 +525,8 @@ contributors: Sirisian
           PredefinedType
           LiteralType
           TypeReference[?Yield, ?Await]
+          ComputedType[?Yield, ?Await]
+          KeyOfType[?Yield, ?Await]
           ArrayOrTupleType[?Yield, ?Await]
           ObjectType[?Yield, ?Await]
           ReferenceType[?Yield, ?Await]
@@ -541,13 +543,17 @@ contributors: Sirisian
           `false`
 
         ReferenceType[Yield, Await] :
-          `ref` PrimaryType[?Yield, ?Await]</ins>
+          `ref` PrimaryType[?Yield, ?Await]
+
+        KeyOfType[Yield, Await] :
+          `keyof` PrimaryType[?Yield, ?Await]</ins>
       </emu-grammar>
 
       <emu-note>
         <p>|FunctionType| is an alternative of |Type| rather than of |UnionType|, because a function type's return extends as far to the right as it can: `(string) =&gt; uint32 | null` returns `uint32 | null`. A function type is therefore not by itself a member of a union or an intersection, and putting one in a union requires parenthesizing it. That is true on either side, so the order of a union's members never matters.</p>
         <p>`void` and `null` are reserved words and so cannot be reached through |TypeReference|, which is why they are given their own production. The other built-in type names, `uint8` and the rest, are ordinary identifiers and are reached through |TypeReference|; they are shadowable, so a program that declares its own binding named `uint8` is unaffected.</p>
         <p>|ReferenceType| takes a |PrimaryType| operand, so `ref uint8 | null` is a union of `ref uint8` and `null`. `ref` is a contextual keyword: it is a valid identifier today, so `ref` followed by a token that cannot begin a type is an identifier.</p>
+        <p>`keyof` is likewise a contextual keyword, and a |KeyOfType| binds tighter than union and intersection, so `keyof A | B` is the union of `keyof A` and `B`. Its result is the union of the operand's key types, one literal type per named member. The full definition over each kind, including how an index signature's key type folds in and how a symbol key is treated, is supplied with the completed reflection model of the type programming extension (<emu-xref href="#table-extension-hooks"></emu-xref>), not least because a literal type's own Type Record representation is part of that completion: no kind in <emu-xref href="#table-type-record-kinds"></emu-xref> yet carries a literal's value.</p>
       </emu-note>
 
       <emu-clause id="sec-type-references">
@@ -575,7 +581,26 @@ contributors: Sirisian
 
         <emu-note>
           <p>Because `.&lt;` is a single punctuator, a qualified name and an application are told apart lexically: in `Temporal.Unit` the `.` is followed by an identifier, while in `Map.&lt;string, uint8&gt;` the `.&lt;` opens an argument list, so a |TypeName| cannot extend across it.</p>
-          <p>A type argument is written as a |Type| even when it is a value, as the width in `int.&lt;8&gt;` and the lane count in `vector.&lt;float32, 4&gt;` are. A numeric or string literal argument is a |LiteralType|, and a name that resolves to a value generic parameter is a |TypeReference|, so the syntax need not distinguish the two; the clause on generics decides which a given parameter expects. A value argument that is a computed expression, such as an arithmetic combination of value generic parameters, has no syntax here and is an open question for the generics clause.</p>
+          <p>A type argument is written as a |Type| even when it is a value, as the width in `int.&lt;8&gt;` and the lane count in `vector.&lt;float32, 4&gt;` are. A numeric or string literal argument is a |LiteralType|, and a name that resolves to a value generic parameter is a |TypeReference|, so the syntax need not distinguish the two; the clause on generics decides which a given parameter expects. A value argument that is a computed expression, such as an arithmetic combination of value generic parameters, has no syntax here and is an open question for the generics clause. A computed type (<emu-xref href="#sec-computed-types"></emu-xref>) gives the computation a spelling as a call, so a builder can stand in where the argument position cannot compute; whether the argument position itself should is the part that remains open.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-computed-types">
+        <h1>Computed Types</h1>
+        <p>A type position admits a call. The callee is written as a type reference and the arguments as ordinary expressions, so `partial(User)`, `keysOf(T)`, and `pick(User, ['id', 'name'])` are types, as is a call of a call where a function returns a function that computes one.</p>
+
+        <emu-grammar type="definition">
+          <ins>ComputedType[Yield, Await] :
+            TypeReference[?Yield, ?Await] Arguments[?Yield, ?Await]
+            ComputedType[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
+        </emu-grammar>
+
+        <p>A |ComputedType| is a compile-time type expression and is governed by <emu-xref href="#sec-compile-time-evaluability"></emu-xref>: the call must be compile-time evaluable, and the type the |ComputedType| denotes is the Type Object that EvaluateToTypeObject returns for it. A call that is not evaluable, that completes abruptly, or that does not produce a Type Object is a type error by the rule stated there.</p>
+
+        <emu-note>
+          <p>The form is additive twice over. Every position in which a |Type| may appear is new syntax, so no existing program contains one; and within the grammar of this specification a |TypeName| followed by `(` derived nothing before this production, so no program written against the earlier grammar changes meaning either. Disambiguation costs one token: after a type reference, `.&lt;` opens type arguments, `(` opens a call, and any other token ends the reference.</p>
+          <p>Only a call is admitted, deliberately. The design's rule is that an expression evaluating to a Type Object during checking is a valid type, and the call is the one expression form the type grammar needs to reach all of it: a conditional over IsAssignable, a map over a union's members, or any richer computation is a function away, written inside the builder rather than inline in the annotation. Keeping the surface to one form also keeps the evaluability requirement attached to one production.</p>
+          <p>The same call in expression position is an ordinary call and needs nothing from this clause: a builder is an ordinary function, and calling it at run time yields the same interned Type Object the type position denotes. This production makes the call writable where a type is required; it does not change what the call is.</p>
         </emu-note>
       </emu-clause>
 
@@ -799,7 +824,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>Placing a conversion at |RelationalExpression| gives it the precedence of `instanceof`, so `a + b := uint8` converts the sum, and the right operand being a |Type| means `x := A | B` converts to the union rather than taking the bitwise or of a conversion.</p>
-        <p>`type` is a contextual keyword, since a program may already bind the name `type`, and this leaves an ambiguity the design must settle: `type (uint8) =&gt; uint8` is a type operator applied to a function type, while `type (x)` is a call of a function named `type`, and the two agree until the token after the closing parenthesis. An implementation can resolve it with a cover grammar, as it does for arrow parameters, but the committee may prefer a rule that avoids the ambiguity, such as restricting the operand or requiring the operator only where a type cannot otherwise be written. The same question does not arise for the `type` declaration form, whose `type` is followed by a binding identifier.</p>
+        <p>`type` is a contextual keyword, since a program may already bind the name `type`, and this leaves an ambiguity the design must settle: `type (uint8) =&gt; uint8` is a type operator applied to a function type, while `type (x)` is a call of a function named `type`, and the two agree until the token after the closing parenthesis. An implementation can resolve it with a cover grammar, as it does for arrow parameters, but the committee may prefer a rule that avoids the ambiguity, such as restricting the operand or requiring the operator only where a type cannot otherwise be written. The same question does not arise for the `type` declaration form, whose `type` is followed by a binding identifier. Nor do the computed types of <emu-xref href="#sec-computed-types"></emu-xref> widen the ambiguity: `type f(x)` was a syntax error and is now the operator applied to a computed type, and the unresolved case remains exactly an operand that begins with `(`.</p>
         <p>The operand of `type` is a full |Type| and so extends as far as one reaches: `type A | B` is the union of `A` and `B`, not the bitwise or of `type A` and `B`. A bare name is a type expression, so `type uint8` is a redundant spelling of `uint8`. The extensions that introduce type-position operators, including the `is` operator of the dependent record types extension, use the |Type| production defined here.</p>
       </emu-note>
     </emu-clause>
@@ -937,7 +962,7 @@ contributors: Sirisian
       <p>No value is a value of the `never` type: IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) over a union with no members is *false* for every value, and DefaultValueOf (<emu-xref href="#sec-defaultvalueof"></emu-xref>) of it is ~none~, so a binding of the type can be neither defaulted nor, since no expression's value can satisfy it, initialized. A value of the `any` type reaching a position of the `never` type fails its boundary check (<emu-xref href="#sec-requiretype"></emu-xref>) for every value. That vacuity is the point: `never` exists to be computed with, as the result of removing every member from a union, not to be inhabited.</p>
 
       <emu-note>
-        <p>Because the empty union canonicalizes to itself and Type Objects are interned (<emu-xref href="#sec-gettypeobject"></emu-xref>), every computation that produces the empty union produces one Type Object, so `never` has the same identity story as every other type. No production of the type grammar (<emu-xref href="#sec-type-grammar"></emu-xref>) currently derives the name, so until the grammar admits it the type is reachable only through computation and reflection. Admitting it does not extend `switch` exhaustiveness, which remains reserved to enums and sealed hierarchies (<emu-xref href="#sec-sealed-classes"></emu-xref>). It is also distinct from the ~empty~ sentinel of the narrowing operations (<emu-xref href="#sec-narrowing"></emu-xref>), which reports a test that cannot succeed as a mistake rather than narrowing to the type with no values.</p>
+        <p>Because the empty union canonicalizes to itself and Type Objects are interned (<emu-xref href="#sec-gettypeobject"></emu-xref>), every computation that produces the empty union produces one Type Object, so `never` has the same identity story as every other type. The name is admitted through <emu-xref href="#sec-type-names"></emu-xref> on the same terms as every other built-in type name, so `let x: never;` is writable, and the name is shadowable exactly as `uint8` is. Admitting it does not extend `switch` exhaustiveness, which remains reserved to enums and sealed hierarchies (<emu-xref href="#sec-sealed-classes"></emu-xref>). It is also distinct from the ~empty~ sentinel of the narrowing operations (<emu-xref href="#sec-narrowing"></emu-xref>), which reports a test that cannot succeed as a mistake rather than narrowing to the type with no values.</p>
       </emu-note>
     </emu-clause>
 
@@ -988,6 +1013,7 @@ contributors: Sirisian
             <tr><td>`boolean8`, `boolean16`, `boolean32`, `boolean64`</td><td>`vector.&lt;boolean1, 8&gt;` and so on for 16, 32, and 64 lanes</td></tr>
             <tr><td>`rational`</td><td>`rational.&lt;64&gt;`</td></tr>
             <tr><td>`complex64`, `complex128`, `complex`</td><td>`complex.&lt;float32&gt;`, `complex.&lt;float64&gt;`, `complex.&lt;number&gt;`</td></tr>
+            <tr><td>`never`</td><td>the union of no members, the `never` type (<emu-xref href="#sec-never-type"></emu-xref>)</td></tr>
             <tr><td>_T_`x`_N_, as in `int8x16`, `uint32x4`, `float32x4`, `boolean32x8`</td><td>`vector.&lt;`_T_`, `_N_`&gt;` for the lane type _T_ and lane count _N_ named</td></tr>
           </tbody>
         </table>
@@ -998,7 +1024,7 @@ contributors: Sirisian
       </emu-note>
 
       <emu-note>
-        <p>How these names are bound is not settled by the design and is not settled here. Every other part of this proposal is gated by syntax that is an error today, which is the argument that no existing program changes meaning. Type names are not: they are ordinary identifiers, and `number`, `string`, `object`, `boolean`, `symbol`, and `any` are among the most common identifiers in existing code. The available answers each cost something.</p>
+        <p>How these names are bound is not settled by the design and is not settled here. Every other part of this proposal is gated by syntax that is an error today, which is the argument that no existing program changes meaning. Type names are not: they are ordinary identifiers, and `number`, `string`, `object`, `boolean`, `symbol`, `any`, and `never` are among the most common identifiers in existing code. The available answers each cost something.</p>
         <p>Binding them as properties of the global object is what the language does for every constructor it has added, and it keeps `var string = "x"` working, since a `var` at global scope reuses an existing property. But the design also asks that these names cannot be reassigned, and a non-writable global property would make that same assignment throw in strict mode and fail silently outside it, so the two requirements cannot both hold. Binding them as immutable lexical declarations of the global scope satisfies the design but makes `var string` at the top level of an existing script a *SyntaxError*, which is not acceptable. Requiring them to be imported, which earlier drafts of the design assumed, has no compatibility cost at all and gives up the ambient spelling the rest of the document uses. Resolving them in type position only, as a language with separate type and value namespaces would, is compatible but contradicts types being values, since the same name must denote the type in expression position for reflection to work.</p>
         <p>This is the one place where the proposal's compatibility argument does not reach, and it deserves a decision and a web-compatibility analysis before Stage 2.</p>
       </emu-note>
