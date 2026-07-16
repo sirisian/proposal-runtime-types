@@ -396,7 +396,7 @@ contributors: Sirisian
 
       <p>Evaluation is confined to checking and reads declarations rather than run-time bindings. A top-level type-position expression evaluates during the compilation of its module, with the other static semantics and before the evaluation of any module in the graph begins. A type-position expression inside a generic declaration evaluates at each specialization, once every generic parameter it reads is bound. The callee of a call resolves through imports to a function declaration, whose body these semantics interpret, so no module's run-time evaluation is required or performed by evaluating a type.</p>
 
-      <p>No operation of this specification evaluates such an expression during inference, overload resolution, or narrowing. The only checker-visible effect of a compile-time-evaluable function is the Type Object it evaluates to at a type position. This is a design invariant, stated so that later ergonomic pressure has something to push against.</p>
+      <p>No operation of this specification evaluates such an expression before every generic parameter it reads is bound: a builder runs strictly after inference binds its arguments, never inside that inference, and never during overload resolution or narrowing. The computed constraints of <emu-xref href="#sec-computed-constraints"></emu-xref> are the measure of this boundary rather than an exception to it, since a constraint over `T` runs after `T` is inferred and before the parameter it constrains is, which is after everything it reads. The only checker-visible effect of a compile-time-evaluable function is the Type Object it evaluates to at a type position. This is a design invariant, stated so that later ergonomic pressure has something to push against.</p>
 
       <emu-clause id="sec-iscompiletimeevaluable" type="abstract operation">
         <h1>
@@ -881,6 +881,20 @@ contributors: Sirisian
       <emu-note>
         <p>A parameter written with `:` is a value generic parameter, whose argument is a value of the named type, as `W` and `H` are in `class GridArray&lt;W: uint32, H: uint32&gt;`. A parameter written with `extends` is a type parameter bounded by a type, as `T` is in `T extends []`. A parameter with neither is an unbounded type parameter. The `where` clause that further constrains a parameter is defined by the generics extension.</p>
       </emu-note>
+
+      <emu-clause id="sec-computed-constraints">
+        <h1>Computed Constraints and Literal Inference</h1>
+        <p>The |Type| of a |TypeParameterConstraint| or a |TypeParameterDefault| may be a |ComputedType| (<emu-xref href="#sec-computed-types"></emu-xref>) that reads parameters declared earlier in the same |TypeParameterList|. It is a type error for it to read the parameter it belongs to or one declared later in the list.</p>
+
+        <p>Parameters bind left to right. At a use of the generic declaration, whether through explicit arguments or through inference from a call, the first parameter is bound, then the next parameter's constraint is evaluated by <emu-xref href="#sec-compile-time-evaluability"></emu-xref> over the bindings so far, then that parameter is bound and checked against its evaluated constraint, and so on down the list. Within the declaration itself, before any parameter is bound, such a constraint is carried as the deferred application of <emu-xref href="#sec-deferred-applications"></emu-xref>.</p>
+
+        <p>Where a parameter's evaluated constraint is a literal type or a union of literal types (<emu-xref href="#sec-literal-types"></emu-xref>), the binding inferred for that parameter from a call argument is the literal type of the argument's value, not the widened base. The binding is then checked against the constraint as any binding is.</p>
+
+        <emu-note>
+          <p>This is the one placement of a builder call that needs a sentence of new specification, and the one inference rule builders ask for. `function pluck&lt;T, K: keysOf(T)&gt;(o: T, key: K): indexed(T, K)` reads in order: infer `T` from `o`, evaluate `keysOf(T)` over that binding, and infer `K` from the second argument literally, so `pluck(user, 'name')` binds `K` to the literal type `'name'` and the return type evaluates to that property's type. The constraint does double duty, checking the argument and cueing the literal inference, which is the cue `K extends keyof T` gives an erased system. It is a rule about constraints rather than a hook: no user code runs inside the inference of the parameters the constraint reads, and a mistaken argument fails the ordinary constraint check, with the evaluated union available to the diagnostic.</p>
+          <p>A constraint that is a value type binds a value, as the note above says of `W: uint32`; a constraint that is a union of literal types binds a literal type, whose value is recoverable from it. The design's kit reads that value back out constantly, which suggests these are one mechanism seen from two sides, a binding to the literal type with the value as its view, and the generics work should state which is primitive.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-type-annotations">
@@ -1126,6 +1140,8 @@ contributors: Sirisian
 
       <p>The one value of a literal type is a value of its base, so the type is a subtype of its base (<emu-xref href="#sec-issubtype"></emu-xref>), `'on'` is usable where a `string` is required, and a value is of a literal type exactly when it is that value. A union of literal types is the closed set the design's discriminated unions select on, and `keyof` produces one (<emu-xref href="#sec-keyof"></emu-xref>).</p>
 
+      <p>A literal expression whose contextual type (<emu-xref href="#sec-contextual-types"></emu-xref>) is a literal type, or a union or intersection with a literal type among its members, takes the literal type of its own value where that literal type is assignable to the contextual type, so `let a: 'on' | 'off' = 'on';` gives `a` the literal type `'on'`. A contextual type of any other shape leaves the literal to the rules already given for untyped literals, so `let s: string = 'on';` still gives `s` a `string` and `let x: uint8 = 5;` is unchanged.</p>
+
       <emu-note>
         <p>The base of a numeric literal is `number` however the literal will be used, matching the Static Type a literal takes with no contextual type; a literal type over another numeric type, the `uint8` 3 as a type, is expressible through construction but not through syntax, and its interaction with literal propagation is left with the conversions work. A Symbol cannot be a literal type's value: a symbol has no literal syntax, and admitting computed symbol keys as types is an extension the design records (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
       </emu-note>
@@ -1233,6 +1249,7 @@ contributors: Sirisian
           <tbody>
             <tr><td>The |Initializer| of a binding with a |TypeAnnotation|</td><td>The annotated type.</td></tr>
             <tr><td>An argument of a call whose callee has a single applicable signature</td><td>The declared type of the corresponding parameter.</td></tr>
+            <tr><td>An argument whose corresponding parameter's declared type is a generic parameter</td><td>That parameter's evaluated constraint (<emu-xref href="#sec-computed-constraints"></emu-xref>), or ~none~ where it has none.</td></tr>
             <tr><td>The operand of a `return` in a function with a return annotation</td><td>The annotated return type.</td></tr>
             <tr><td>The right operand of an assignment to a target of a known type</td><td>The type of the target.</td></tr>
             <tr><td>An operand of a binary operator whose other operand has a known value type</td><td>The type of the other operand.</td></tr>
