@@ -55,6 +55,7 @@ contributors: Sirisian
             <tr><td>~object~</td><td>[[Properties]] (a List of Property Type Records)</td><td>A structural object type or interface type.</td></tr>
             <tr><td>~function~</td><td>[[Signatures]] (a List of Signature Records)</td><td>A function type. It has more than one signature when the function is overloaded.</td></tr>
             <tr><td>~reference~</td><td>[[Target]] (a Type Record)</td><td>A reference to a storage location holding a value of the target type, as introduced by `ref`.</td></tr>
+            <tr><td>~application~</td><td>[[Builder]] (a function), [[Arguments]] (a List of Type Records, TypeParameter Parse Nodes, and ECMAScript language values)</td><td>A deferred compile-time application: a call of a compile-time-evaluable function at least one of whose arguments involves an unbound generic parameter, carried as a type until specialization evaluates it (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>).</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -115,6 +116,9 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~primitive~, then
             1. If _s_.[[Name]] is not _t_.[[Name]], return *false*.
             1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
+          1. If _s_.[[Kind]] is ~application~, then
+            1. If _s_.[[Builder]] and _t_.[[Builder]] are not the same function, return *false*.
+            1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
           1. If _s_.[[Kind]] is ~nominal~, then
             1. If _s_.[[Declaration]] and _t_.[[Declaration]] are not the same Parse Node, return *false*.
             1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
@@ -163,7 +167,7 @@ contributors: Sirisian
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It determines whether _a_ and _b_ have the same length and equal elements, comparing Type Record elements as types under _assumptions_ and other elements with SameValue.</dd>
+          <dd>It determines whether _a_ and _b_ have the same length and equal elements, comparing Type Record elements as types under _assumptions_, Parse Node elements by being the same Parse Node, compound compile-time constants by structural equivalence (<emu-xref href="#sec-deferred-applications"></emu-xref>), and other elements with SameValue.</dd>
         </dl>
         <emu-alg>
           1. If _a_ and _b_ do not have the same number of elements, return *false*.
@@ -174,6 +178,12 @@ contributors: Sirisian
               1. If SameTypeWithAssumptions(_x_, _y_, _assumptions_) is *false*, return *false*.
             1. Else if _x_ is a Type Record or _y_ is a Type Record, then
               1. Return *false*.
+            1. Else if _x_ is a Parse Node and _y_ is a Parse Node, then
+              1. If _x_ and _y_ are not the same Parse Node, return *false*.
+            1. Else if _x_ is a Parse Node or _y_ is a Parse Node, then
+              1. Return *false*.
+            1. Else if _x_ and _y_ are compound compile-time constants, then
+              1. If _x_ and _y_ are not structurally equivalent (<emu-xref href="#sec-deferred-applications"></emu-xref>), return *false*.
             1. Else if SameValue(_x_, _y_) is *false*, then
               1. Return *false*.
           1. Return *true*.
@@ -210,6 +220,12 @@ contributors: Sirisian
             1. Return the Type Record { [[Kind]]: ~tuple~, [[Elements]]: _elements_ }.
           1. If _t_.[[Kind]] is ~array~, return the Type Record { [[Kind]]: ~array~, [[Element]]: CanonicalizeType(_t_.[[Element]]), [[Extent]]: _t_.[[Extent]] }.
           1. If _t_.[[Kind]] is ~reference~, return the Type Record { [[Kind]]: ~reference~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
+          1. If _t_.[[Kind]] is ~application~, then
+            1. Let _args_ be a new empty List.
+            1. For each element _a_ of _t_.[[Arguments]], do
+              1. If _a_ is a Type Record, append CanonicalizeType(_a_) to _args_.
+              1. Else, append _a_ to _args_.
+            1. Return the Type Record { [[Kind]]: ~application~, [[Builder]]: _t_.[[Builder]], [[Arguments]]: _args_ }.
           1. If _t_.[[Kind]] is ~object~ or _t_.[[Kind]] is ~function~, return the canonical form of _t_ defined alongside that kind, with each contained Type Record canonicalized.
           1. Return _t_.
         </emu-alg>
@@ -304,6 +320,7 @@ contributors: Sirisian
           1. Return *false*.
         </emu-alg>
         <emu-note>
+          <p>A deferred ~application~ is a subtype only of itself and of the `any` type. Before specialization nothing finer than identity is known about its result, so nothing finer is assumed: two mentions of one deferred call are one type by interning, and two different calls are unrelated until they evaluate. No step above names the kind because none needs to; an ~application~ source reaches the final step for every target but itself and `any`.</p>
           <p>A generic class is invariant in its arguments, so `Map.&lt;string, uint8&gt;` is a subtype of no other instantiation of `Map`. This is the conservative choice and the only one that is sound for a mutable container, since a `Map.&lt;string, uint8&gt;` used as a `Map.&lt;string, number&gt;` would accept a Number into storage typed `uint8`. Whether a generic parameter may be declared covariant or contravariant, as it may in C# and Kotlin, is a question for the generics extension; nothing here forecloses it, and the step above is what such a declaration would relax.</p>
           <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target. IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
         </emu-note>
@@ -354,8 +371,12 @@ contributors: Sirisian
     </emu-clause>
 
     <emu-clause id="sec-compile-time-evaluability">
-      <h1>Compile-Time Evaluability</h1>
-      <p>Because a type is a value, a type annotation may be an expression that computes one, provided the computation can be carried out during type checking. Such an expression is <dfn id="compile-time-evaluable">compile-time evaluable</dfn>.</p>
+      <h1>Compile-Time Evaluation</h1>
+      <p>Because a type is a value, a type annotation may be an expression that computes one (<emu-xref href="#sec-computed-types"></emu-xref>); an expression whose computation can be carried out during type checking is <dfn id="compile-time-evaluable">compile-time evaluable</dfn>. This clause defines when such an expression may be evaluated, when it is, what its evaluation may do, and what carries its result before it can run: the evaluability discipline, the deferred application that stands for a call whose generic arguments are not yet bound, the evaluation of a call with memoization and a fixpoint for recursion, and the budget that bounds the whole.</p>
+
+      <p>Evaluation is confined to checking and reads declarations rather than run-time bindings. A top-level type-position expression evaluates during the compilation of its module, with the other static semantics and before the evaluation of any module in the graph begins. A type-position expression inside a generic declaration evaluates at each specialization, once every generic parameter it reads is bound. The callee of a call resolves through imports to a function declaration, whose body these semantics interpret, so no module's run-time evaluation is required or performed by evaluating a type.</p>
+
+      <p>No operation of this specification evaluates such an expression during inference, overload resolution, or narrowing. The only checker-visible effect of a compile-time-evaluable function is the Type Object it evaluates to at a type position. This is a design invariant, stated so that later ergonomic pressure has something to push against.</p>
 
       <emu-clause id="sec-iscompiletimeevaluable" type="abstract operation">
         <h1>
@@ -370,8 +391,9 @@ contributors: Sirisian
         <emu-alg>
           1. If _expr_ is a literal, return *true*.
           1. If _expr_ is a reference to a binding, then
+            1. If the binding is a parameter of the function under evaluation, or a local binding of that function, return *true*.
             1. If the binding is immutable and its initializer is compile-time evaluable, return *true*.
-            1. If the binding is a value generic parameter, return *true*.
+            1. If the binding is a value generic parameter or a type generic parameter, return *true*.
             1. Return *false*.
           1. If _expr_ is a function call, then
             1. Let _callee_ be the expression that _expr_ calls.
@@ -384,8 +406,73 @@ contributors: Sirisian
           1. If every operand of _expr_ is compile-time evaluable and the result of _expr_'s operator is determined by its operands, return *true*.
           1. Return *false*.
         </emu-alg>
+
+        <p>A <dfn id="compile-time-evaluable-function">compile-time-evaluable function</dfn> is one whose body reads only its parameters, its own local bindings, immutable bindings whose initializers are compile-time evaluable, and other compile-time-evaluable functions. It may create local state and mutate it. Its body contains no `await`, no `yield`, no direct or indirect `eval`, no use of the Function constructor, and no construction of a Proxy; regular expressions are within the fragment. It performs no input or output and reads no ambient mutable state, none of which it can name under the reading rule above, which is why the discipline is a property of what the code can name rather than a wall around what it does.</p>
+
         <emu-note>
-          <p>A <dfn id="compile-time-evaluable-function">compile-time-evaluable function</dfn> is one whose body reads only its parameters, immutable bindings with compile-time-evaluable initializers, and other compile-time-evaluable functions. This is the property the `where` clauses and metadata annotations of the extensions already require, and it is what lets a `switch` over a value generic parameter be evaluated to a type during checking. A function that is not compile-time evaluable remains an ordinary function in expression position; only its use in type position is restricted.</p>
+          <p>This is the same notion the `where` clauses and metadata annotations of the extensions require, and it is what lets a `switch` over a generic parameter be evaluated to a type during checking. A function that is not compile-time evaluable remains an ordinary function in expression position; only its use in type position is restricted. Local mutation is admitted because an accumulator array or a visited `Set` is how a walk over a type is written; shared module-level mutable state is not evaluable and is rejected statically, which also disposes of the hand-rolled memo cache, since the memoization of <emu-xref href="#sec-evaluatebuildercall"></emu-xref> is the supported mechanism and is observably equivalent. Fixing the fragment's grammar and semantics as a normative implementation target in its own right, with a conformance suite, is future annex work; the discipline above is the normative boundary this specification relies on.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-deferred-applications">
+        <h1>Deferred Applications</h1>
+        <p>A call whose arguments involve an unbound generic parameter cannot evaluate yet, and is carried as a type: the ~application~ Type Record of <emu-xref href="#table-type-record-kinds"></emu-xref>. The <dfn id="deferred-application-record">deferred application Type Record</dfn> of a |ComputedType| has [[Builder]] the function its callee resolves to and, for each argument in order, an element of [[Arguments]] that is: the TypeParameter Parse Node where the argument is a reference to an unbound generic parameter; the deferred application Type Record where the argument is itself a |ComputedType| reading one; and otherwise the argument's compile-time value, a Type Object contributing its [[TypeRecord]].</p>
+
+        <p>Identity is by that key. SameTypeWithAssumptions compares two ~application~ Records by builder identity and SameArgumentList, and Type Objects are interned, so two mentions of `partial(T)` in one generic body are one Type Object before anything is known about `T`. At specialization, each TypeParameter Parse Node among the [[Arguments]] is replaced by the parameter's binding, and the application evaluates by <emu-xref href="#sec-evaluatebuildercall"></emu-xref>.</p>
+
+        <p>Two compound compile-time constants, arrays or plain objects of compile-time constants, are <dfn id="structurally-equivalent">structurally equivalent</dfn> when they have the same shape and their leaves are pairwise SameValue, Type Objects comparing by identity. A compound constant argument contributes to an application's identity by structural equivalence rather than by reference, so `pick(User, ['id', 'name'])` written twice is one application although the array is a fresh object at each occurrence.</p>
+
+        <emu-note>
+          <p>An unbound parameter is represented by its declaring Parse Node rather than by a Type Record kind of its own, because a parameter is never a type by itself anywhere this specification currently reaches; what a bare parameter annotation denotes inside a generic body belongs to the generics work, and the hook for it is recorded in <emu-xref href="#table-extension-hooks"></emu-xref>. Structural equivalence for compound constants is the value semantics the Composites proposal gives tuples and records; it is stated directly here so that this specification does not depend on that proposal, and can defer to it if it advances.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-evaluatebuildercall" type="abstract operation">
+        <h1>
+          EvaluateBuilderCall (
+            _f_: a compile-time-evaluable function,
+            _args_: a List,
+          ): either a normal completion containing a Type Object or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It evaluates one type-level call, with memoization and a fixpoint for recursion.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _key_ be CanonicalizeType(the Type Record { [[Kind]]: ~application~, [[Builder]]: _f_, [[Arguments]]: _args_ }).
+          1. If the evaluation memo contains an entry for _key_, return that entry's Type Object.
+          1. If the in-flight List contains _key_, then
+            1. If no placeholder exists for _key_, let the placeholder for _key_ be a fresh Type Object, created without interning and distinguished from every other value.
+            1. Return the placeholder for _key_.
+          1. Append _key_ to the in-flight List.
+          1. Let _result_ be Completion(the evaluation of the body of _f_ with the elements of _args_ as its arguments under the semantics of this clause).
+          1. Remove _key_ from the in-flight List.
+          1. Let _value_ be ? _result_.
+          1. If _value_ is not a Type Object, throw a *TypeError* exception.
+          1. If a placeholder exists for _key_, then
+            1. If _value_ is the placeholder for _key_, throw a *TypeError* exception.
+            1. Let _final_ be the Type Record obtained from _value_.[[TypeRecord]] by replacing each position that holds the placeholder with a reference back to the type being defined, forming a cyclic Type Record.
+            1. If no replaced position is a reference position, throw a *TypeError* exception.
+            1. Set _value_ to GetTypeObject(_final_).
+          1. Record _value_ in the evaluation memo for _key_.
+          1. Return _value_.
+        </emu-alg>
+
+        <p>The <dfn id="evaluation-memo">evaluation memo</dfn> is a specification-level map from canonical ~application~ Type Records to Type Objects, and the in-flight List tracks the keys under evaluation. Each distinct key evaluates once per program; every later occurrence, in any module, yields the same interned Type Object. An implementation may realize both devices in any way that yields these results.</p>
+
+        <emu-note>
+          <p>The fixpoint is what makes a builder work on a recursive type with no API surface: a builder mapping over a type that references itself re-enters itself with the same key, receives the placeholder, and the placeholder resolves at return into the same kind of named-back-edge cyclic type that a recursive alias produces from syntax, validated by the same cycle rule (<emu-xref href="#sec-type-alias-declarations"></emu-xref>). The two throws distinguish the two failures: a call whose entire result is its own placeholder learnt nothing and is unproductive recursion, and a cycle resolved at a position that embeds the layout inline would demand an infinite layout. A recursion that never repeats a key, a genuinely infinite family, is not caught here; it runs into the budget of <emu-xref href="#sec-evaluation-budget"></emu-xref>. This mechanism is the computational twin of the coinductive assumption Lists that SameTypeWithAssumptions and IsSubtype already carry.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-evaluation-budget">
+        <h1>The Evaluation Budget</h1>
+        <p>Evaluation under this clause is metered by two host-defined limits: a count of evaluation steps and a count of constructed Type Records, each per top-level type-position evaluation. For a given source text, two hosts either produce, position for position, the same interned types, or at least one reports a type error: the limits decide whether compilation fails, never what it produces.</p>
+
+        <p>Exhaustion is not an abrupt completion the evaluated code can observe. No `try` statement within the evaluation handles it; the evaluation is abandoned, and EvaluateToTypeObject of the containing type-position expression is ~empty~, with a diagnostic naming the outermost call and the deepest frames.</p>
+
+        <emu-note>
+          <p>Making exhaustion catchable inside evaluation would let a program's types depend on the host's limits: the same source would elaborate differently under a large budget and a small one, and the memo would cache whichever answer came first, which is nondeterminism through the error channel. Graceful degradation therefore has to be deterministic and structural: a builder takes an explicit cap as an argument and computes the identical type on every host, rather than falling back when fuel runs out. Bounding a deliberately Turing-complete type language by limits has precedent; the concrete default magnitudes are an open question the design records.</p>
         </emu-note>
       </emu-clause>
 
@@ -397,19 +484,20 @@ contributors: Sirisian
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It evaluates _expr_, which appears in type position, to the Type Object it denotes, or ~empty~ if it does not evaluate to one.</dd>
+          <dd>It evaluates _expr_, which appears in type position, to the Type Object it denotes, or defers it, or returns ~empty~ if it does not evaluate to one.</dd>
         </dl>
         <emu-alg>
           1. If IsCompileTimeEvaluable(_expr_) is *false*, return ~empty~.
-          1. Let _result_ be Completion(the evaluation of _expr_ during type checking).
+          1. If _expr_ is a |ComputedType| and _expr_ reads a generic parameter that is not bound, return GetTypeObject(the deferred application Type Record of _expr_ (<emu-xref href="#sec-deferred-applications"></emu-xref>)).
+          1. Let _result_ be Completion(the evaluation of _expr_ during type checking in which each call of a compile-time-evaluable function is performed by EvaluateBuilderCall).
           1. If _result_ is an abrupt completion, return ~empty~.
           1. Let _value_ be _result_.[[Value]].
           1. If _value_ is not a Type Object, return ~empty~.
           1. Return _value_.
         </emu-alg>
-        <p>It is a type error if an expression appears in type position and EvaluateToTypeObject of it is ~empty~ (<emu-xref href="#sec-type-errors"></emu-xref>).</p>
+        <p>It is a type error if an expression appears in type position and EvaluateToTypeObject of it is ~empty~ (<emu-xref href="#sec-type-errors"></emu-xref>). When the ~empty~ arises from an abrupt completion whose value is an Error, the type error's diagnostic carries that Error's message, prefixed by the source text of the type-position expression; when it arises from the budget, the diagnostic is the one <emu-xref href="#sec-evaluation-budget"></emu-xref> describes. Diagnostic content is not observable to the evaluated program.</p>
         <emu-note>
-          <p>Evaluation during type checking uses the ordinary evaluation semantics of the operators and calls involved, restricted to the compile-time-evaluable fragment, so no separate evaluator is defined. Because enum and sealed-class exhaustiveness is checked, a `switch` used to map a value to a type covers every case its argument can take and therefore yields a Type Object rather than *undefined*.</p>
+          <p>Evaluation during type checking uses the ordinary evaluation semantics of the operators and calls involved, restricted to the compile-time-evaluable fragment, so no separate evaluator is defined. Because enum and sealed-class exhaustiveness is checked, a `switch` used to map a value to a type covers every case its argument can take and therefore yields a Type Object rather than *undefined*. A thrown exception becoming the diagnostic is the design's authored-error story: a builder states its own misuse message, which an erased type language cannot.</p>
         </emu-note>
       </emu-clause>
     </emu-clause>
@@ -1498,6 +1586,8 @@ contributors: Sirisian
 
       <emu-note>
         <p>`type Point = { x: float32, y: float32 };` is therefore close to a `const` whose value is a type object, and the two spellings agree: `Point === type { x: float32, y: float32 }` is *true*, because Type Objects are interned (<emu-xref href="#sec-gettypeobject"></emu-xref>). What the declaration adds over the `const` is that the name is also usable where a type is expected. An alias is transparent: it introduces no new type, so `Point` and its expansion are the same type and are mutually assignable, and a nominal type is created only by a class, an interface, or an enum.</p>
+
+      <p>An alias may refer to itself, directly or through other aliases, provided every cycle passes through a position that holds a reference rather than an inline layout: a member written `T | null`, the element of a dynamic array, or a field of a sealed class. It is a type error if a cycle never does, since the type would demand an infinite inline layout, which is the same rule <emu-xref href="#sec-typed-classes"></emu-xref> applies to a value type class containing itself. The fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref> validates a computed cycle by this rule.</p>
         <p>The `[no LineTerminator here]` restriction is what keeps `type` a contextual keyword. `type` followed by a line terminator and then an identifier is two statements today, an expression statement naming `type` and another naming the identifier, and it continues to be. This is the same device the design relies on throughout, and it is why `type X = 1;` on one line is unambiguous: it is a syntax error today.</p>
         <p>Whether a generic alias may be exported, and how `export type Point = ...` interacts with the module's binding namespace, is left to the modules clause. A generic alias creating no binding is a decision worth revisiting: it means `Grown` in `type Grown&lt;T&gt; = [...Row, T];` cannot be reflected on, while a non-generic alias can be.</p>
       </emu-note>
@@ -2332,7 +2422,7 @@ contributors: Sirisian
             <tr><td>primitive metadata</td><td>The metadata parameterization of a primitive, which <emu-xref href="#sec-issubtype"></emu-xref> makes a subtype of its base; the meta protocol that converts between two parameterizations of one primitive at a boundary; the `DecimalContext` that fixes a decimal's scale and rounding; and the declaration of operators on a parameterized primitive.</td></tr>
             <tr><td>memory layout</td><td>`byteLength`, alignment, and the layout of a value type class, which <emu-xref href="#sec-typed-classes"></emu-xref> and <emu-xref href="#sec-default-values"></emu-xref> depend on; and the bit-field widths that make an `int.&lt;N&gt;` for a small _N_ meaningful.</td></tr>
             <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
-            <tr><td>generics</td><td>Value generic parameters and their arguments; the `where` clause; declaration-site variance, which <emu-xref href="#sec-issubtype"></emu-xref> leaves open; and the syntax of a computed value type argument, which <emu-xref href="#sec-type-references"></emu-xref> does not provide.</td></tr>
+            <tr><td>generics</td><td>Value generic parameters and their arguments; the `where` clause; declaration-site variance, which <emu-xref href="#sec-issubtype"></emu-xref> leaves open; the syntax of a computed value type argument, which <emu-xref href="#sec-type-references"></emu-xref> does not provide; and the checking of a generic body, within which a reference to an unbound parameter appears in a deferred application as its declaring Parse Node and is substituted at specialization (<emu-xref href="#sec-deferred-applications"></emu-xref>).</td></tr>
             <tr><td>dependent record types</td><td>The `is` operator, which <emu-xref href="#table-narrowing-forms"></emu-xref> lists as a narrowing form, and the `where` clauses whose run-time check is inserted at the boundaries of <emu-xref href="#table-check-sites"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>The reflection facility of which <emu-xref href="#sec-reflect-getreflection"></emu-xref> is one context, including the reflection of a declaration's members and a function's signatures.</td></tr>
             <tr><td>complex numbers</td><td>The type of an imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) and the conversions of the complex types.</td></tr>
