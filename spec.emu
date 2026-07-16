@@ -47,12 +47,13 @@ contributors: Sirisian
             <tr><td>~any~</td><td>(none)</td><td>The dynamic type. Any value is assignable to it, and a value of the ~any~ type is assignable to any type subject to a run-time check (<emu-xref href="#sec-requiretype"></emu-xref>).</td></tr>
             <tr><td>~void~</td><td>(none)</td><td>The type of the absence of a value.</td></tr>
             <tr><td>~primitive~</td><td>[[Name]] (a String), [[Arguments]] (a List of Type Records and other values)</td><td>A built-in value type such as `uint8` or `float64`, together with any type or value arguments, for example the width of `int.&lt;N&gt;`. The primitive types are enumerated in the type universe clause.</td></tr>
+            <tr><td>~literal~</td><td>[[Value]] (a String, Number, Boolean, or BigInt), [[Base]] (a Type Record)</td><td>A literal type: the type whose one value is [[Value]], a subtype of its [[Base]] (<emu-xref href="#sec-literal-types"></emu-xref>).</td></tr>
             <tr><td>~nominal~</td><td>[[Declaration]] (a Parse Node), [[Arguments]] (a List of Type Records and other values)</td><td>A class, interface, or enum type, identified by the declaration that introduced it, together with the arguments of a generic instantiation. [[Arguments]] is empty where the declaration is not generic.</td></tr>
             <tr><td>~union~</td><td>[[Members]] (a List of Type Records)</td><td>A union type. A value belongs to it if it belongs to any member.</td></tr>
             <tr><td>~intersection~</td><td>[[Members]] (a List of Type Records)</td><td>An intersection type. A value belongs to it if it belongs to every member.</td></tr>
-            <tr><td>~tuple~</td><td>[[Elements]] (a List of Type Records)</td><td>A tuple type of fixed length and position-wise element types.</td></tr>
+            <tr><td>~tuple~</td><td>[[Elements]] (a List of Tuple Element Records)</td><td>A tuple type of position-wise element types, each element carrying its spread flag and its default.</td></tr>
             <tr><td>~array~</td><td>[[Element]] (a Type Record), [[Extent]] (a non-negative integer or ~dynamic~)</td><td>An array type. [[Extent]] is the fixed length of a `[N].&lt;T&gt;`, or ~dynamic~ for a `[].&lt;T&gt;`.</td></tr>
-            <tr><td>~object~</td><td>[[Properties]] (a List of Property Type Records)</td><td>A structural object type or interface type.</td></tr>
+            <tr><td>~object~</td><td>[[Properties]] (a List of Property Type Records), [[IndexSignatures]] (a List of Index Signature Records)</td><td>A structural object type or interface type.</td></tr>
             <tr><td>~function~</td><td>[[Signatures]] (a List of Signature Records)</td><td>A function type. It has more than one signature when the function is overloaded.</td></tr>
             <tr><td>~reference~</td><td>[[Target]] (a Type Record)</td><td>A reference to a storage location holding a value of the target type, as introduced by `ref`.</td></tr>
             <tr><td>~application~</td><td>[[Builder]] (a function), [[Arguments]] (a List of Type Records, TypeParameter Parse Nodes, and ECMAScript language values)</td><td>A deferred compile-time application: a call of a compile-time-evaluable function at least one of whose arguments involves an unbound generic parameter, carried as a type until specialization evaluates it (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>).</td></tr>
@@ -61,7 +62,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>The structured fields referenced above, a Property Type Record and a Signature Record, are defined by the clauses that introduce object types and function types. This clause depends only on Type Records being comparable and canonicalizable, which the operations below provide for every kind.</p>
+        <p>The structured fields referenced above, a Property Type Record, an Index Signature Record, a Signature Record, and a Tuple Element Record, are defined by the clauses that introduce object types, function types, and arrays and tuples. This clause depends only on Type Records being comparable and canonicalizable, which the operations below provide for every kind.</p>
       </emu-note>
 
       <p>A <dfn id="type-object">Type Object</dfn> is an ECMAScript object that denotes a type. Every Type Object has a [[TypeRecord]] internal slot whose value is a canonical Type Record (<emu-xref href="#sec-canonicalizetype"></emu-xref>). A type name or type expression in expression position evaluates to a Type Object, and reflection returns one.</p>
@@ -110,12 +111,16 @@ contributors: Sirisian
           1. If _assumptions_ contains a Record _p_ such that _p_.[[First]] is _s_ and _p_.[[Second]] is _t_, return *true*.
           1. If _s_.[[Kind]] is ~nominal~ and _s_.[[Declaration]] is an enum declaration, then
             1. If IsSubtype(the underlying type of _s_.[[Declaration]], _t_, _assumptions_) is *true*, return *true*.
+          1. If _s_.[[Kind]] is ~literal~, return IsSubtype(_s_.[[Base]], _t_, _assumptions_).
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. Set _assumptions_ to the list-concatenation of _assumptions_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
           1. If _s_.[[Kind]] is ~any~ or _s_.[[Kind]] is ~void~, return *true*.
           1. If _s_.[[Kind]] is ~primitive~, then
             1. If _s_.[[Name]] is not _t_.[[Name]], return *false*.
             1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
+          1. If _s_.[[Kind]] is ~literal~, then
+            1. If SameValue(_s_.[[Value]], _t_.[[Value]]) is *false*, return *false*.
+            1. Return SameTypeWithAssumptions(_s_.[[Base]], _t_.[[Base]], _assumptions_).
           1. If _s_.[[Kind]] is ~application~, then
             1. If _s_.[[Builder]] and _t_.[[Builder]] are not the same function, return *false*.
             1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
@@ -123,7 +128,18 @@ contributors: Sirisian
             1. If _s_.[[Declaration]] and _t_.[[Declaration]] are not the same Parse Node, return *false*.
             1. Return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
           1. If _s_.[[Kind]] is ~union~ or _s_.[[Kind]] is ~intersection~, return SameTypeList(_s_.[[Members]], _t_.[[Members]], _assumptions_).
-          1. If _s_.[[Kind]] is ~tuple~, return SameTypeList(_s_.[[Elements]], _t_.[[Elements]], _assumptions_).
+          1. If _s_.[[Kind]] is ~tuple~, then
+            1. If _s_.[[Elements]] and _t_.[[Elements]] do not have the same number of elements, return *false*.
+            1. For each integer _i_ such that 0 &le; _i_ and _i_ &lt; the number of elements of _s_.[[Elements]], do
+              1. Let _p_ be _s_.[[Elements]][_i_].
+              1. Let _q_ be _t_.[[Elements]][_i_].
+              1. If _p_.[[Rest]] is not _q_.[[Rest]], return *false*.
+              1. If _p_.[[Initial]] is ~none~ or _q_.[[Initial]] is ~none~, then
+                1. If _p_.[[Initial]] is not ~none~ or _q_.[[Initial]] is not ~none~, return *false*.
+              1. Else if SameValue(_p_.[[Initial]], _q_.[[Initial]]) is *false*, then
+                1. Return *false*.
+              1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+            1. Return *true*.
           1. If _s_.[[Kind]] is ~array~, then
             1. If _s_.[[Extent]] is not _t_.[[Extent]], return *false*.
             1. Return SameTypeWithAssumptions(_s_.[[Element]], _t_.[[Element]], _assumptions_).
@@ -216,10 +232,12 @@ contributors: Sirisian
             1. Return the Type Record { [[Kind]]: _t_.[[Kind]], [[Members]]: _members_ }.
           1. If _t_.[[Kind]] is ~tuple~, then
             1. Let _elements_ be a new empty List.
-            1. For each element _e_ of _t_.[[Elements]], append CanonicalizeType(_e_) to _elements_.
+            1. For each element _e_ of _t_.[[Elements]], do
+              1. Append the Tuple Element Record { [[Type]]: CanonicalizeType(_e_.[[Type]]), [[Rest]]: _e_.[[Rest]], [[Initial]]: _e_.[[Initial]] } to _elements_.
             1. Return the Type Record { [[Kind]]: ~tuple~, [[Elements]]: _elements_ }.
           1. If _t_.[[Kind]] is ~array~, return the Type Record { [[Kind]]: ~array~, [[Element]]: CanonicalizeType(_t_.[[Element]]), [[Extent]]: _t_.[[Extent]] }.
           1. If _t_.[[Kind]] is ~reference~, return the Type Record { [[Kind]]: ~reference~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
+          1. If _t_.[[Kind]] is ~literal~, return the Type Record { [[Kind]]: ~literal~, [[Value]]: _t_.[[Value]], [[Base]]: CanonicalizeType(_t_.[[Base]]) }.
           1. If _t_.[[Kind]] is ~application~, then
             1. Let _args_ be a new empty List.
             1. For each element _a_ of _t_.[[Arguments]], do
@@ -310,9 +328,10 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~tuple~, then
             1. If _s_.[[Elements]] and _t_.[[Elements]] do not have the same number of elements, return *false*.
             1. For each integer _i_ such that 0 &le; _i_ and _i_ &lt; the number of elements of _s_.[[Elements]], do
-              1. Let _si_ be _s_.[[Elements]][_i_].
-              1. Let _ti_ be _t_.[[Elements]][_i_].
-              1. If IsSubtype(_si_, _ti_, _assumptions_) is *false*, return *false*.
+              1. Let _p_ be _s_.[[Elements]][_i_].
+              1. Let _q_ be _t_.[[Elements]][_i_].
+              1. If _p_.[[Rest]] is not _q_.[[Rest]], return *false*.
+              1. If IsSubtype(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
             1. Return *true*.
           1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is ~function~, return IsFunctionSubtype(_s_, _t_, _assumptions_).
@@ -320,6 +339,7 @@ contributors: Sirisian
           1. Return *false*.
         </emu-alg>
         <emu-note>
+          <p>A ~literal~ type is a subtype of its base and of everything its base is a subtype of, which is what makes `'on'` usable where a `string` is required while `string` is not usable where `'on'` is. A ~tuple~'s [[Rest]] flags must match position for position, and its defaults take part in identity but not in subtyping; the finer relation between tuples whose arities differ through defaults or rests is not yet given.</p>
           <p>A deferred ~application~ is a subtype only of itself and of the `any` type. Before specialization nothing finer than identity is known about its result, so nothing finer is assumed: two mentions of one deferred call are one type by interning, and two different calls are unrelated until they evaluate. No step above names the kind because none needs to; an ~application~ source reaches the final step for every target but itself and `any`.</p>
           <p>A generic class is invariant in its arguments, so `Map.&lt;string, uint8&gt;` is a subtype of no other instantiation of `Map`. This is the conservative choice and the only one that is sound for a mutable container, since a `Map.&lt;string, uint8&gt;` used as a `Map.&lt;string, number&gt;` would accept a Number into storage typed `uint8`. Whether a generic parameter may be declared covariant or contravariant, as it may in C# and Kotlin, is a question for the generics extension; nothing here forecloses it, and the step above is what such a declaration would relax.</p>
           <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target. IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
@@ -641,7 +661,7 @@ contributors: Sirisian
         <p>|FunctionType| is an alternative of |Type| rather than of |UnionType|, because a function type's return extends as far to the right as it can: `(string) =&gt; uint32 | null` returns `uint32 | null`. A function type is therefore not by itself a member of a union or an intersection, and putting one in a union requires parenthesizing it. That is true on either side, so the order of a union's members never matters.</p>
         <p>`void` and `null` are reserved words and so cannot be reached through |TypeReference|, which is why they are given their own production. The other built-in type names, `uint8` and the rest, are ordinary identifiers and are reached through |TypeReference|; they are shadowable, so a program that declares its own binding named `uint8` is unaffected.</p>
         <p>|ReferenceType| takes a |PrimaryType| operand, so `ref uint8 | null` is a union of `ref uint8` and `null`. `ref` is a contextual keyword: it is a valid identifier today, so `ref` followed by a token that cannot begin a type is an identifier.</p>
-        <p>`keyof` is likewise a contextual keyword, and a |KeyOfType| binds tighter than union and intersection, so `keyof A | B` is the union of `keyof A` and `B`. Its result is the union of the operand's key types, one literal type per named member. The full definition over each kind, including how an index signature's key type folds in and how a symbol key is treated, is supplied with the completed reflection model of the type programming extension (<emu-xref href="#table-extension-hooks"></emu-xref>), not least because a literal type's own Type Record representation is part of that completion: no kind in <emu-xref href="#table-type-record-kinds"></emu-xref> yet carries a literal's value.</p>
+        <p>`keyof` is likewise a contextual keyword, and a |KeyOfType| binds tighter than union and intersection, so `keyof A | B` is the union of `keyof A` and `B`. Its result is the union of the operand's key types, one literal type per named member. The full definition over each kind is given by <emu-xref href="#sec-keyof"></emu-xref>, producing a union of the literal types of <emu-xref href="#sec-literal-types"></emu-xref>.</p>
       </emu-note>
 
       <emu-clause id="sec-type-references">
@@ -690,6 +710,52 @@ contributors: Sirisian
           <p>Only a call is admitted, deliberately. The design's rule is that an expression evaluating to a Type Object during checking is a valid type, and the call is the one expression form the type grammar needs to reach all of it: a conditional over IsAssignable, a map over a union's members, or any richer computation is a function away, written inside the builder rather than inline in the annotation. Keeping the surface to one form also keeps the evaluability requirement attached to one production.</p>
           <p>The same call in expression position is an ordinary call and needs nothing from this clause: a builder is an ordinary function, and calling it at run time yields the same interned Type Object the type position denotes. This production makes the call writable where a type is required; it does not change what the call is.</p>
         </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-keyof">
+        <h1>Static Semantics of keyof</h1>
+        <p>A |KeyOfType| denotes GetTypeObject of the Type Record that KeyTypesOf returns for the Type Record its operand denotes. It is a type error if KeyTypesOf of that Record is ~empty~.</p>
+
+        <emu-clause id="sec-keytypesof" type="abstract operation">
+          <h1>
+            KeyTypesOf (
+              _t_: a Type Record,
+            ): either a Type Record or ~empty~
+          </h1>
+          <dl class="header">
+            <dt>description</dt>
+            <dd>It returns the type of the keys of _t_, or ~empty~ where _t_ has no keys.</dd>
+          </dl>
+          <emu-alg>
+            1. If _t_.[[Kind]] is ~object~, then
+              1. Let _keys_ be a new empty List.
+              1. For each element _p_ of _t_.[[Properties]], do
+                1. If _p_.[[Key]] is a String, append the Type Record { [[Kind]]: ~literal~, [[Value]]: _p_.[[Key]], [[Base]]: the Type Record of the String type } to _keys_.
+              1. For each element _x_ of _t_.[[IndexSignatures]], append _x_.[[KeyType]] to _keys_.
+              1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _keys_ }).
+            1. If _t_.[[Kind]] is ~intersection~, then
+              1. Let _keys_ be a new empty List.
+              1. For each element _m_ of _t_.[[Members]], do
+                1. Let _k_ be KeyTypesOf(_m_).
+                1. If _k_ is ~empty~, return ~empty~.
+                1. Append _k_ to _keys_.
+              1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _keys_ }).
+            1. If _t_.[[Kind]] is ~union~, then
+              1. If _t_.[[Members]] is empty, return _t_.
+              1. Let _first_ be KeyTypesOf(_t_.[[Members]][0]).
+              1. If _first_ is ~empty~, return ~empty~.
+              1. Let _kept_ be a List of the union members of _first_: the elements of _first_.[[Members]] where _first_.[[Kind]] is ~union~, and &laquo; _first_ &raquo; otherwise.
+              1. For each integer _i_ such that 1 &le; _i_ and _i_ &lt; the number of elements of _t_.[[Members]], do
+                1. Let _k_ be KeyTypesOf(_t_.[[Members]][_i_]).
+                1. If _k_ is ~empty~, return ~empty~.
+                1. Remove from _kept_ each element that is not assignable (IsAssignable) to _k_.
+              1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
+            1. Return ~empty~.
+          </emu-alg>
+          <emu-note>
+            <p>These are the rules of the design's `keysOf`, which computes the same function over a Type Object held in a variable, so the operator and the kit function cannot drift apart. A union's keys are the common keys, computed by keeping the first arm's keys that remain assignable to each further arm's, which is what lets the literal `'x'` survive against an arm whose keys come from a `string`-keyed index signature. An intersection's keys are the union of its members' keys. A Symbol key contributes nothing, pending the design's symbol literal types. A kind with no keys is ~empty~ and a type error, matching the kit's authored throw; `keyof never` is `never` by the empty-union step, a case the kit's fold does not reach and the design should state.</p>
+          </emu-note>
+        </emu-clause>
       </emu-clause>
 
       <emu-clause id="sec-array-and-tuple-types">
@@ -1051,6 +1117,17 @@ contributors: Sirisian
 
       <emu-note>
         <p>Because the empty union canonicalizes to itself and Type Objects are interned (<emu-xref href="#sec-gettypeobject"></emu-xref>), every computation that produces the empty union produces one Type Object, so `never` has the same identity story as every other type. The name is admitted through <emu-xref href="#sec-type-names"></emu-xref> on the same terms as every other built-in type name, so `let x: never;` is writable, and the name is shadowable exactly as `uint8` is. Admitting it does not extend `switch` exhaustiveness, which remains reserved to enums and sealed hierarchies (<emu-xref href="#sec-sealed-classes"></emu-xref>). It is also distinct from the ~empty~ sentinel of the narrowing operations (<emu-xref href="#sec-narrowing"></emu-xref>), which reports a test that cannot succeed as a mistake rather than narrowing to the type with no values.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-literal-types">
+      <h1>Literal Types</h1>
+      <p>A literal type has exactly one value. It is described by the Type Record { [[Kind]]: ~literal~, [[Value]]: _v_, [[Base]]: _b_ }, where _v_ is a String, Number, Boolean, or BigInt and _b_ is the Type Record of the existing language type of which _v_ is a value. A |LiteralType| (<emu-xref href="#sec-type-expressions"></emu-xref>) denotes the literal type of the value it writes: a |StringLiteral| with base `string`, a |NumericLiteral| with base `number` or `bigint` as the literal is written, and `true` or `false` with base `boolean`.</p>
+
+      <p>The one value of a literal type is a value of its base, so the type is a subtype of its base (<emu-xref href="#sec-issubtype"></emu-xref>), `'on'` is usable where a `string` is required, and a value is of a literal type exactly when it is that value. A union of literal types is the closed set the design's discriminated unions select on, and `keyof` produces one (<emu-xref href="#sec-keyof"></emu-xref>).</p>
+
+      <emu-note>
+        <p>The base of a numeric literal is `number` however the literal will be used, matching the Static Type a literal takes with no contextual type; a literal type over another numeric type, the `uint8` 3 as a type, is expressible through construction but not through syntax, and its interaction with literal propagation is left with the conversions work. A Symbol cannot be a literal type's value: a symbol has no literal syntax, and admitting computed symbol keys as types is an extension the design records (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
       </emu-note>
     </emu-clause>
 
@@ -1424,6 +1501,7 @@ contributors: Sirisian
             1. For each element _m_ of _t_.[[Members]], do
               1. If ? IsOfType(_value_, _m_) is *false*, return *false*.
             1. Return *true*.
+          1. If _t_.[[Kind]] is ~literal~, return SameValue(_value_, _t_.[[Value]]).
           1. If _t_.[[Kind]] is ~object~, then
             1. If _value_ is not an Object, return *false*.
             1. For each Property Type Record _p_ of _t_.[[Properties]], do
@@ -1638,8 +1716,9 @@ contributors: Sirisian
             1. If _d_ is ~none~, return ~none~.
             1. Return a new array of the type _t_ whose _t_.[[Extent]] elements are each _d_.
           1. If _t_.[[Kind]] is ~tuple~, then
-            1. If DefaultValueOf(_e_) is ~none~ for any element _e_ of _t_.[[Elements]], return ~none~.
-            1. Return a new tuple of the type _t_ whose elements are the defaults of _t_.[[Elements]].
+            1. For each element _e_ of _t_.[[Elements]], do
+              1. If _e_.[[Rest]] is *false* and _e_.[[Initial]] is ~none~ and DefaultValueOf(_e_.[[Type]]) is ~none~, return ~none~.
+            1. Return a new tuple of the type _t_ whose elements are, for each element of _t_.[[Elements]] whose [[Rest]] is *false* and in order, its [[Initial]] where that is not ~none~ and the default value of its [[Type]] otherwise.
           1. If _t_.[[Kind]] is ~nominal~ and _t_ denotes a value type class, return the instance of _t_ each of whose fields holds the default of the field's type, or ~none~ if any field's type has no default.
           1. Return ~none~.
         </emu-alg>
@@ -1892,16 +1971,17 @@ contributors: Sirisian
           <tbody>
             <tr><td>[[Parameters]]</td><td>a List of Parameter Records</td><td>The parameters, in order.</td></tr>
             <tr><td>[[Return]]</td><td>a Type Record</td><td>The declared return type, or the `any` type where none is declared.</td></tr>
+            <tr><td>[[ThisType]]</td><td>a Type Record or ~none~</td><td>The declared `this` type, or ~none~ where none is declared.</td></tr>
             <tr><td>[[TypeParameters]]</td><td>a List of Parse Nodes</td><td>The type parameters the signature declares, empty when it is not generic.</td></tr>
             <tr><td>[[Untyped]]</td><td>a Boolean</td><td>*true* when the signature declares no parameter type and no return type, in which case it is a catch-all.</td></tr>
           </tbody>
         </table>
       </emu-table>
 
-      <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), and a [[Reference]] field (a Boolean, *true* when the parameter is declared `ref`).</p>
+      <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), an [[Initial]] field (an ECMAScript language value or ~none~, the declared default), and a [[Reference]] field (a Boolean). [[Reference]] is *true* exactly when [[Type]].[[Kind]] is ~reference~: the flag restates the type for convenience, and reflection reads the fact from the type.</p>
 
       <emu-note>
-        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity.</p>
+        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity. A parameter's [[Initial]] and a signature's [[ThisType]] are part of the identity, compared by SameValue and as a type; the name remains the one non-canonical field. The rules that consume [[ThisType]], its contravariant place in subtyping and the contextual adoption of an expected `this` by a function literal, are parked with the design's declarative checker facts alongside declared narrowing (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
       </emu-note>
     </emu-clause>
 
@@ -1933,7 +2013,15 @@ contributors: Sirisian
               1. If _p_.[[Optional]] is not _q_.[[Optional]], return *false*.
               1. If _p_.[[Rest]] is not _q_.[[Rest]], return *false*.
               1. If _p_.[[Reference]] is not _q_.[[Reference]], return *false*.
+              1. If _p_.[[Initial]] is ~none~ or _q_.[[Initial]] is ~none~, then
+                1. If _p_.[[Initial]] is not ~none~ or _q_.[[Initial]] is not ~none~, return *false*.
+              1. Else if SameValue(_p_.[[Initial]], _q_.[[Initial]]) is *false*, then
+                1. Return *false*.
               1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+            1. If _a_.[[ThisType]] is ~none~ or _b_.[[ThisType]] is ~none~, then
+              1. If _a_.[[ThisType]] is not ~none~ or _b_.[[ThisType]] is not ~none~, return *false*.
+            1. Else if SameTypeWithAssumptions(_a_.[[ThisType]], _b_.[[ThisType]], _assumptions_) is *false*, then
+              1. Return *false*.
             1. If SameTypeWithAssumptions(_a_.[[Return]], _b_.[[Return]], _assumptions_) is *false*, return *false*.
           1. Return *true*.
         </emu-alg>
@@ -2112,7 +2200,9 @@ contributors: Sirisian
 
     <emu-clause id="sec-object-types-semantics">
       <h1>Object Types</h1>
-      <p>A <dfn id="property-type-record">Property Type Record</dfn> describes one member of an ~object~ type. It has a [[Key]] (a property key), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean), and a [[Readonly]] field (a Boolean).</p>
+      <p>A <dfn id="property-type-record">Property Type Record</dfn> describes one member of an ~object~ type. It has a [[Key]] (a property key), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean), a [[Readonly]] field (a Boolean), and an [[Initial]] field (an ECMAScript language value or ~none~, the member's declared default).</p>
+
+      <p>An <dfn id="index-signature-record">Index Signature Record</dfn> has a [[KeyType]] and a [[ValueType]], each a Type Record. No production of the type grammar writes one: an object type acquires index signatures through construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>), they take part in identity below and in `keyof` (<emu-xref href="#sec-keyof"></emu-xref>), and their membership and subtype rules are parked with the objects work that will write the source syntax.</p>
 
       <emu-clause id="sec-sameobjecttype" type="abstract operation">
         <h1>
@@ -2133,11 +2223,21 @@ contributors: Sirisian
             1. If _q_ is ~empty~, return *false*.
             1. If _p_.[[Optional]] is not _q_.[[Optional]], return *false*.
             1. If _p_.[[Readonly]] is not _q_.[[Readonly]], return *false*.
+            1. If _p_.[[Initial]] is ~none~ or _q_.[[Initial]] is ~none~, then
+              1. If _p_.[[Initial]] is not ~none~ or _q_.[[Initial]] is not ~none~, return *false*.
+            1. Else if SameValue(_p_.[[Initial]], _q_.[[Initial]]) is *false*, then
+              1. Return *false*.
             1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+          1. If _s_.[[IndexSignatures]] and _t_.[[IndexSignatures]] do not have the same number of elements, return *false*.
+          1. For each integer _j_ such that 0 &le; _j_ and _j_ &lt; the number of elements of _s_.[[IndexSignatures]], do
+            1. Let _a_ be _s_.[[IndexSignatures]][_j_].
+            1. Let _b_ be _t_.[[IndexSignatures]][_j_].
+            1. If SameTypeWithAssumptions(_a_.[[KeyType]], _b_.[[KeyType]], _assumptions_) is *false*, return *false*.
+            1. If SameTypeWithAssumptions(_a_.[[ValueType]], _b_.[[ValueType]], _assumptions_) is *false*, return *false*.
           1. Return *true*.
         </emu-alg>
         <emu-note>
-          <p>Members are matched by key rather than by position, so the order in which an object type lists them is not part of its identity and `{ x: float32, y: float32 }` and `{ y: float32, x: float32 }` are one type. Canonicalization orders the [[Properties]] of an ~object~ Type Record by key, which is what allows the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> to give them one Type Object. That ordering serves identity; whether the source's own member order should additionally be preserved for display and reflection, carried outside the canonical form the way a parameter's name already is (<emu-xref href="#sec-signature-records"></emu-xref>), is open. Nothing today records it, so a reflected object type lists its properties in key order whatever order the source wrote.</p>
+          <p>Members are matched by key rather than by position, so the order in which an object type lists them is not part of its identity and `{ x: float32, y: float32 }` and `{ y: float32, x: float32 }` are one type. Canonicalization orders the [[Properties]] of an ~object~ Type Record by key, which is what allows the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> to give them one Type Object, and orders the [[IndexSignatures]] by the fixed total order on their [[KeyType]]s. That ordering serves identity; whether the source's own member order should additionally be preserved for display and reflection, carried outside the canonical form the way a parameter's name already is (<emu-xref href="#sec-signature-records"></emu-xref>), is open. Nothing today records it, so a reflected object type lists its properties in key order whatever order the source wrote.</p>
         </emu-note>
       </emu-clause>
 
@@ -2272,21 +2372,60 @@ contributors: Sirisian
         <table>
           <thead><tr><th>`kind`</th><th>Further properties</th></tr></thead>
           <tbody>
-            <tr><td>*"union"*, *"intersection"*</td><td>`members`, a List of Type Objects, in the canonical order.</td></tr>
+            <tr><td>*"primitive"*</td><td>`type`, the Type Object itself; `generic`, either *undefined* or a record with `base` (a Type Object) and `arguments` (a List of Type Objects and values), the decomposition of a generic instantiation. This one node covers every named leaf: the built-in primitives, classes, interfaces, enums, and the `any`, `void`, and `type` types.</td></tr>
+            <tr><td>*"literal"*</td><td>`value`, a String, Number, Boolean, or BigInt; `base`, a Type Object.</td></tr>
+            <tr><td>*"parameterized"*</td><td>`base`, a Type Object; `metadata`, an object: the metadata half of a parameterization such as `float32.&lt;{ m: 1 }&gt;`.</td></tr>
+            <tr><td>*"union"*</td><td>`arms`, a List of Type Objects, in the canonical order; empty for the `never` type.</td></tr>
+            <tr><td>*"intersection"*</td><td>`members`, a List of Type Objects, in the canonical order.</td></tr>
+            <tr><td>*"tuple"*</td><td>`elements`, a List of records with `type` (a Type Object), `rest`, and `initial`.</td></tr>
             <tr><td>*"array"*</td><td>`element`, a Type Object; `extent`, a non-negative integer or *undefined* for a dynamic length.</td></tr>
-            <tr><td>*"tuple"*</td><td>`elements`, a List of Type Objects.</td></tr>
-            <tr><td>*"object"*</td><td>`properties`, a List of records with `key`, `type` (a Type Object), `optional`, and `readonly`.</td></tr>
-            <tr><td>*"function"*</td><td>`signatures`, a List of records with `parameters` and `return`, in declaration order.</td></tr>
-            <tr><td>*"reference"*</td><td>`target`, a Type Object.</td></tr>
-            <tr><td>*"primitive"*, *"nominal"*, *"any"*, *"void"*</td><td>`name` for a primitive, together with its `arguments`; `declaration` for a nominal type. An `any` or `void` node has no further properties.</td></tr>
+            <tr><td>*"object"*</td><td>`properties`, a List of records with `name` (a String or Symbol), `type` (a Type Object), `optional`, `readonly`, and `initial`; `indexSignatures`, a List of records with `key` and `value` (Type Objects).</td></tr>
+            <tr><td>*"function"*</td><td>`signatures`, in declaration order, each a record with `parameters` (records with `type`, `name`, `index`, `optional`, `rest`, `initial`, and `metadata`), `return` (a record with `type` and `metadata`), and `thisType` (a Type Object or *undefined*). The `metadata` properties are supplied by the decorators extension.</td></tr>
+            <tr><td>*"reference"*</td><td>`target`, a Type Object: the `ref` borrow type of <emu-xref href="#sec-type-expressions"></emu-xref>.</td></tr>
+            <tr><td>*"cycle"*</td><td>`name`, a String: the reader-facing back-edge at which a recursive type closes. It appears in reflection output only and is not accepted by construction.</td></tr>
           </tbody>
         </table>
       </emu-table>
 
       <emu-note>
-        <p>The node kinds follow the Type Record kinds of <emu-xref href="#table-type-record-kinds"></emu-xref>, so what a program sees at run time and what the specification computes over are one structure rather than two. The correspondence is not one-to-one, and the table above does not yet round-trip every type: no node carries a literal type's value, a metadata parameterization's metadata, or a generic instantiation's arguments, and a reader walking a recursive type needs a back-edge node that no Type Record kind supplies. The completed node model, and the construction operation that makes the round trip from a type to its description and back, are what the type programming extension supplies (<emu-xref href="#table-extension-hooks"></emu-xref>), superseding this table when incorporated.</p>
-        <p>The same `Reflect.getReflection` reflects a declaration's members, keyed on the declaration rather than on a type, which is how a class's fields, a function's parameters, and an enum's enumerators are exposed. That context and the rest of the reflection facility, including its metadata, are defined by the decorators extension. This clause defines only the type-object context it operates on.</p>
-        <p>A union's members are reflected in the canonical order rather than in the order written, since canonicalization has already reordered them and the Type Object is shared with every other spelling of the same type. A function's signatures are reflected in declaration order, which <emu-xref href="#sec-samefunctiontype"></emu-xref> preserves for this reason.</p>
+        <p>The node kinds and the Type Record kinds of <emu-xref href="#table-type-record-kinds"></emu-xref> correspond, and the correspondence now round-trips: every kind is readable, and writable through <emu-xref href="#sec-reflect-maketype"></emu-xref>, with three deliberate wrinkles. The named leaves, ~primitive~ and ~nominal~ alike and with them `any`, `void`, and `type`, share the one *"primitive"* node, whose payload is the interned Type Object itself with a generic instantiation additionally decomposed, so a leaf is opaque to a walker exactly as <emu-xref href="#sec-type-object-opacity"></emu-xref> requires and a nominal type never exposes its declaration. A metadata parameterization reads and rebuilds through *"parameterized"*, whose metadata is the corresponding member of the ~primitive~ Record's [[Arguments]]. And the ~application~ kind has no node at all, because specialization evaluates every deferred application before any code runs, so reflection cannot encounter one.</p>
+        <p>The same `Reflect.getReflection` reflects a declaration's members, keyed on the declaration rather than on a type, which is how a class's fields, a function's parameters, and an enum's enumerators are exposed. That context and the rest of the reflection facility, including its metadata and a `Reflect.ClassConstructor` context for construct signatures, are defined by the decorators extension. This clause defines only the type-object context it operates on.</p>
+        <p>A union's arms are reflected in the canonical order rather than in the order written, since canonicalization has already reordered them and the Type Object is shared with every other spelling of the same type. A function's signatures are reflected in declaration order, which <emu-xref href="#sec-samefunctiontype"></emu-xref> preserves for this reason.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflect-maketype">
+      <h1>Reflect.makeType ( _node_ )</h1>
+      <p>The input is structural: any object matching a node's shape in <emu-xref href="#table-reflection-nodes"></emu-xref> describes that node, and a Type Object anywhere within it contributes its [[TypeRecord]]. This function performs the following steps when called:</p>
+      <emu-alg>
+        1. If _node_ is not an Object matching a node's shape in <emu-xref href="#table-reflection-nodes"></emu-xref>, throw a *TypeError* exception.
+        1. Let _record_ be the Type Record that _node_, read as a description, describes.
+        1. If _record_ describes a type that no declaration could introduce, throw a *TypeError* exception with the message the equivalent source declaration produces.
+        1. Return GetTypeObject(_record_).
+      </emu-alg>
+      <p>For every type _T_, `Reflect.makeType(Reflect.getReflection.&lt;Reflect.Type&gt;(`_T_`))` is _T_. Construction canonicalizes and interns by <emu-xref href="#sec-canonicalizetype"></emu-xref> and <emu-xref href="#sec-gettypeobject"></emu-xref>, the same operations that give a source-written type its identity, which is what makes the round trip the identity function rather than an equivalence.</p>
+      <emu-note>
+        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, an intersection of distinct value types, or an index signature with an illegal key type fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflect-isassignable">
+      <h1>Reflect.isAssignable ( _source_, _target_ )</h1>
+      <p>This function performs the following steps when called:</p>
+      <emu-alg>
+        1. If _source_ is not a Type Object or _target_ is not a Type Object, throw a *TypeError* exception.
+        1. Return IsAssignable(_source_.[[TypeRecord]], _target_.[[TypeRecord]]).
+      </emu-alg>
+      <emu-note>
+        <p>This is the checker's own judgment (<emu-xref href="#sec-isassignable"></emu-xref>) exposed unchanged, so what a builder branches on and what the checker enforces cannot disagree; the conditional types of an erased system are written `Reflect.isAssignable(T, U) ? X : Y` inside a builder. It is deliberately the assignability relation rather than a new one: mutual assignability is composed from it, and identity is `===` by interning. The function is compile-time evaluable.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflect-never">
+      <h1>Reflect.never</h1>
+      <p>The initial value of `Reflect.never` is the Type Object of the `never` type (<emu-xref href="#sec-never-type"></emu-xref>). This property has the attributes { [[Writable]]: *false*, [[Enumerable]]: *false*, [[Configurable]]: *false* }.</p>
+      <emu-note>
+        <p>A name for the empty union, so that code need not spell it as a construction; `Reflect.makeType({ kind: 'union', arms: [] })` returns the same object.</p>
       </emu-note>
     </emu-clause>
 
@@ -2371,11 +2510,13 @@ contributors: Sirisian
     <h1>Arrays and Tuples</h1>
     <p>This clause completes the ~array~ and ~tuple~ kinds: the membership test <emu-xref href="#sec-isoftype"></emu-xref> defers, the default value of a tuple, and the checking of an element store.</p>
 
+    <p>A <dfn id="tuple-element-record">Tuple Element Record</dfn> describes one position of a ~tuple~ type. It has a [[Type]] (a Type Record), a [[Rest]] field (a Boolean, *true* for a `...` element), and an [[Initial]] field (an ECMAScript language value or ~none~, the position's declared default).</p>
+
     <emu-clause id="sec-array-membership">
       <h1>Membership</h1>
       <p>For an ~array~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is _t_.[[Extent]] where that is not ~dynamic~, and every element of _v_ is of the type _t_.[[Element]].</p>
 
-      <p>For a ~tuple~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is at least the number of elements of _t_.[[Elements]] that have neither an initializer nor a preceding spread and at most the number that may be supplied, and every element of _v_ is of the type of the element of _t_.[[Elements]] that receives it.</p>
+      <p>For a ~tuple~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is at least the number of elements of _t_.[[Elements]] whose [[Rest]] is *false* and [[Initial]] is ~none~ and that no [[Rest]] element precedes, at most the element count where no element's [[Rest]] is *true* and unbounded otherwise, and every element of _v_ is of the [[Type]] of the element of _t_.[[Elements]] that receives it, a [[Rest]] element receiving every remainder.</p>
 
       <emu-note>
         <p>A tuple's length is a range rather than a number because a trailing position may carry a default and a position may spread an array type. `[uint8, uint32 = 10]` accepts a one-element and a two-element array, which is what lets a shorter array satisfy a longer tuple return, and `[uint32, ...[].&lt;float32&gt;]` accepts any length from one upward.</p>
@@ -2385,7 +2526,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-array-defaults-and-stores">
       <h1>Defaults and Stores</h1>
-      <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]], the value of that element's |Initializer| where it has one and the default value of that element's type otherwise. It is ~none~ where an element has no initializer and its type has no default.</p>
+      <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]] whose [[Rest]] is *false*, its [[Initial]] where that is not ~none~ and the default value of its [[Type]] otherwise; a [[Rest]] element contributes no elements. It is ~none~ where an element has an [[Initial]] of ~none~ and a [[Type]] with no default.</p>
 
       <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is a `uint32`. Deleting an element of a typed array throws a *TypeError* exception.</p>
 
@@ -2429,7 +2570,7 @@ contributors: Sirisian
             <tr><td>operator overloading</td><td>The declaration syntax for an operator and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
             <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
-            <tr><td>type programming</td><td>The construction inverse of <emu-xref href="#sec-reflect-getreflection"></emu-xref> and the completed reflection node model that supersedes <emu-xref href="#table-reflection-nodes"></emu-xref>; the exposure of <emu-xref href="#sec-isassignable"></emu-xref> as a callable predicate; the evaluation semantics, memoization, and recursion of compile-time type expressions (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>); and a name for the `never` type (<emu-xref href="#sec-never-type"></emu-xref>).</td></tr>
+            <tr><td>type programming</td><td>The standard builder kit as a module and its normative status; the evaluable fragment as a normative annex with its conformance suite; symbol values as literal types, which <emu-xref href="#sec-literal-types"></emu-xref> excludes; the `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. The construction, relations, `never`, and evaluation obligations recorded here previously are discharged by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>.</td></tr>
           </tbody>
         </table>
       </emu-table>
