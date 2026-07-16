@@ -437,7 +437,7 @@ contributors: Sirisian
         <p>A <dfn id="compile-time-evaluable-function">compile-time-evaluable function</dfn> is one whose body reads only its parameters, its own local bindings, immutable bindings whose initializers are compile-time evaluable, and other compile-time-evaluable functions. It may create local state and mutate it. Its body contains no `await`, no `yield`, no direct or indirect `eval`, no use of the Function constructor, and no construction of a Proxy; regular expressions are within the fragment. It performs no input or output and reads no ambient mutable state, none of which it can name under the reading rule above, which is why the discipline is a property of what the code can name rather than a wall around what it does.</p>
 
         <emu-note>
-          <p>This is the same notion the `where` clauses and metadata annotations of the extensions require, and it is what lets a `switch` over a generic parameter be evaluated to a type during checking. A function that is not compile-time evaluable remains an ordinary function in expression position; only its use in type position is restricted. Local mutation is admitted because an accumulator array or a visited `Set` is how a walk over a type is written; shared module-level mutable state is not evaluable and is rejected statically, which also disposes of the hand-rolled memo cache, since the memoization of <emu-xref href="#sec-evaluatebuildercall"></emu-xref> is the supported mechanism and is observably equivalent. Fixing the fragment's grammar and semantics as a normative implementation target in its own right, with a conformance suite, is future annex work; the discipline above is the normative boundary this specification relies on.</p>
+          <p>This is the same notion the `where` clauses and metadata annotations of the extensions require, and it is what lets a `switch` over a generic parameter be evaluated to a type during checking. A function that is not compile-time evaluable remains an ordinary function in expression position; only its use in type position is restricted. Local mutation is admitted because an accumulator array or a visited `Set` is how a walk over a type is written; shared module-level mutable state is not evaluable and is rejected statically, which also disposes of the hand-rolled memo cache, since the memoization of <emu-xref href="#sec-evaluatebuildercall"></emu-xref> is the supported mechanism and is observably equivalent. Fixing the fragment's grammar and semantics as a normative implementation target in its own right, with a conformance suite, is <emu-xref href="#annex-evaluable-fragment"></emu-xref>; the discipline above is the boundary it pins.</p>
         </emu-note>
       </emu-clause>
 
@@ -2622,7 +2622,7 @@ contributors: Sirisian
             <tr><td>operator overloading</td><td>The declaration syntax for an operator and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
             <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
-            <tr><td>type programming</td><td>The standard builder kit as a module and its normative status; the evaluable fragment as a normative annex with its conformance suite; symbol values as literal types, which <emu-xref href="#sec-literal-types"></emu-xref> excludes; the `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. The construction, relations, `never`, and evaluation obligations recorded here previously are discharged by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>.</td></tr>
+            <tr><td>type programming</td><td>Symbol values as literal types, which <emu-xref href="#sec-literal-types"></emu-xref> excludes and whose adoption the acceptance corpus already assumes; the `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, and the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -2634,3 +2634,69 @@ contributors: Sirisian
     </emu-clause>
   </emu-clause>
 </emu-clause>
+
+<emu-annex id="annex-evaluable-fragment" normative>
+  <h1>The Compile-Time Evaluable Fragment</h1>
+  <p>This annex fixes the compile-time-evaluable subset of the language as an implementation target in its own right, so that a tool that is not an ECMAScript engine can evaluate types and prove that it agrees with one. The determinism this specification already requires, one result or failure and never a different result (<emu-xref href="#sec-evaluation-budget"></emu-xref>), is what makes that agreement a checkable claim.</p>
+
+  <emu-annex id="sec-fragment-grammar">
+    <h1>The Grammar of the Fragment</h1>
+    <p>The fragment is the ECMAScript grammar less the following, together with the reading discipline of <emu-xref href="#sec-iscompiletimeevaluable"></emu-xref>, which is what excludes input, output, and ambient state, since code in the fragment cannot name them.</p>
+    <ul>
+      <li>|AwaitExpression| and |YieldExpression|, and every async and generator form of function, method, and arrow.</li>
+      <li>|ClassDeclaration| and |ClassExpression|: a builder transforms and constructs types but does not mint a nominal one (<emu-xref href="#sec-parameterized-types"></emu-xref>).</li>
+      <li>A direct or indirect `eval`, the Function constructor, the construction of a Proxy, and a dynamic `import()`, which the library rule below also excludes.</li>
+      <li>The `debugger` statement.</li>
+    </ul>
+    <p>Everything else is within the fragment: functions and closures over evaluable bindings, local bindings and their mutation, the ordinary operators and control forms including `try`, subject to <emu-xref href="#sec-evaluation-budget"></emu-xref>'s carve-out, template literals, destructuring, spread, and regular expression literals.</p>
+  </emu-annex>
+
+  <emu-annex id="sec-fragment-library">
+    <h1>The Library Surface</h1>
+    <p>A built-in is within the fragment when its result is determined by its arguments, it performs no observable mutation outside values the call created, and it depends on no host or ambient state. The floor the fragment guarantees: the type operations of <emu-xref href="#sec-reflection"></emu-xref>, Type Object identity and `toString`, regular expression construction and matching, `Map` and `Set`, whose keys Type Objects serve as by interned identity, and the pure methods and functions of String, Number, BigInt, Math, Array, Object, and JSON. Excluded by the same rule: `Math.random`, Date, every locale-sensitive method, Atomics and shared memory, and weak references and finalization. The conformance suite fixes the exact enumeration.</p>
+  </emu-annex>
+
+  <emu-annex id="sec-fragment-semantics">
+    <h1>Semantics and Conformance</h1>
+    <p>The fragment's semantics are this specification's own, restricted to the fragment; no second evaluator is defined. A standalone implementation of the fragment conforms when, for every program of the fragment, it produces, position for position, the same interned types this specification produces, or fails where this specification fails, under the budget invariant of <emu-xref href="#sec-evaluation-budget"></emu-xref> and with the memoization of <emu-xref href="#sec-evaluatebuildercall"></emu-xref> or anything observably equivalent to it.</p>
+    <emu-note>
+      <p>The subset is deliberately small as a language: a conforming standalone evaluator is a small tree-walking interpreter, not an embedded engine, and because evaluation is memoized, an interactive tool evaluates each distinct application once. Regular expressions are the one sizeable obligation, and the pattern metadata of <emu-xref href="#sec-parameterized-types"></emu-xref> requires them anyway.</p>
+    </emu-note>
+  </emu-annex>
+
+  <emu-annex id="sec-fragment-conformance-suite">
+    <h1>The Conformance Suite and the Acceptance Corpus</h1>
+    <p>A conformance suite accompanies this annex, and conformance to the fragment is conformance to it together with this annex's text. Its seed is the design's acceptance corpus: one hundred and ninety programs, the whole of the type-challenges repository, the warm-up, thirteen easy, one hundred and four medium, fifty-five hard, and seventeen extreme, each pairing the erased-language solution with a builder solution whose assertions must hold under this specification's semantics. The assertions include type identity written `===`, which interning supplies and which the erased corpus can only imitate through unspecified checker behaviour.</p>
+    <emu-note>
+      <p>The corpus is maintained with the design and runs ahead of this specification in one respect: it exercises symbol values as literal types, which <emu-xref href="#sec-literal-types"></emu-xref> excludes pending the design's extension, so the affected challenges are gated on that adoption. The questions and divergences the corpus surfaced are recorded in its own notes and tracked with the design documents.</p>
+    </emu-note>
+  </emu-annex>
+</emu-annex>
+
+<emu-annex id="annex-standard-kit">
+  <h1>The Standard Builder Kit</h1>
+  <p>The primitives are normative and live in the core: construction, relations, `never`, `keyof`, and the evaluation semantics. The kit is the roughly two hundred lines of ordinary evaluable code written over them, and it ships as source under one standard module, spelled `std:types` until its final home is reconciled with the standard library extension. Shipping it as source is the proof that no construct in it is engine magic, gives the ecosystem one interned vocabulary, so that `partial(User)` in two packages is one type, and makes the definitions themselves the reference documentation. A codebase that cannot assume the module can polyfill it verbatim.</p>
+
+  <p>The surface, by family: property mapping and the object utilities (`mapProperties`, `mapPropertyTypes`, `partial`, `required`, `readonly`, `mutable`, `pick`, `omit`, `pickByValue`, `record`, `merge`, `renameProperties`, `propertyType`, `prop`, `objectOf`); keys and indexing (`keysOf`, `indexed`, `paths`); unions (`union`, `arms`, `exclude`, `extract`, `nonNullable`, `mapUnion`, `discriminants`, `byKind`, `handlers`, `removeKind`); functions (`fn`, `parameters`, `firstParameter`, `returnType`, `constructorParameters`, `thisParameterType`, `omitThisParameter`, `withThisType`, `instanceType`); tuples and arrays (`tupleOf`, `tupleElements`, `elementTypes`, `arrayOf`, `tail`, `reverse`, `zip`, `toArrayAll`, `toArrayEach`, `flatten`); literals and strings (`literal`, `literalValues`, `mapLiterals`, `uppercase`, `lowercase`, `capitalized`, `uncapitalized`, `suffixed`, `routeParams`); recursion and composition (`deepPartial`, `traverse`, `compose`, `awaited`); and the additions of the design's maximal set (`noInfer`, `brand`, `stringPattern`, `options`).</p>
+
+  <p>The style is visible in the definitions. The four property mappers are one line each, the union filters two, and the brand three:</p>
+  <pre><code class="javascript">export function partial(T: type): type { return mapProperties(T, p =&gt; ({ ...p, optional: true })); }
+export function required(T: type): type { return mapProperties(T, p =&gt; ({ ...p, optional: false })); }
+export function readonly(T: type): type { return mapProperties(T, p =&gt; ({ ...p, readonly: true })); }
+export function mutable(T: type): type { return mapProperties(T, p =&gt; ({ ...p, readonly: false })); }
+
+export function exclude(T: type, U: type): type {
+  return union(arms(T).filter(arm =&gt; !Reflect.isAssignable(arm, U)));
+}
+export function extract(T: type, U: type): type {
+  return union(arms(T).filter(arm =&gt; Reflect.isAssignable(arm, U)));
+}
+
+export function brand(T: type, tag: string | symbol): type {
+  return Reflect.makeType({ kind: 'parameterized', base: T, metadata: { brand: tag } });
+}</code></pre>
+
+  <emu-note>
+    <p>Where the kit and the core describe one operation, they must agree, and the corpus checks that they do: `keysOf` computes the function <emu-xref href="#sec-keytypesof"></emu-xref> specifies for `keyof`, and the corpus's library blocks assert each shipped helper against the exercise it solves. The kit's normative status is this annex's status: informative, with the primitives it is written over carrying the normativity.</p>
+  </emu-note>
+</emu-annex>
