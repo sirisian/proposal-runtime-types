@@ -1784,7 +1784,7 @@ contributors: Sirisian
 
       <p>It is a type error to declare a binding or a field with a type _t_ and no initializer when DefaultValueOf(_t_) is ~none~.</p>
 
-      <p>Every default above is a zero: the numeric zero, the empty String, *false*, *null*, and an array or an aggregate whose storage is zero-filled. Zero-filling is part of the semantics and not an optimization a program may opt out of, and no form of this proposal allocates without it.</p>
+      <p>Every default above is a zero: the numeric zero, the empty String, *false*, *null*, and an array or an aggregate whose storage is zero-filled. Zero-filling is part of the semantics and not an optimization a program may opt out of, and no form of this proposal allocates without it. What is filled for an aggregate is its layout (<emu-xref href="#sec-memory-layout"></emu-xref>), padding included, so two instances of one value type class that are `===` field by field are also equal byte for byte.</p>
 
       <emu-note>
         <p>The reason is security rather than convenience. An allocation that exposed the bytes of a previously freed one would leak whatever had been there: another script's data, a former secret, or a heap pointer that defeats address space layout randomization. A fresh page from the operating system is already zero, so the fill costs nothing on a large new allocation, and reused memory must be cleared regardless, so there is nothing to gain by exposing it. The one pattern an uninitialized form would serve, allocate and then fill from input, is served by placement `new` over an existing buffer and by array views.</p>
@@ -2366,7 +2366,7 @@ contributors: Sirisian
       <h1>Typed Classes</h1>
       <p>A class is <dfn id="typed-class">typed</dfn> when at least one of its public or private fields carries a type annotation. A typed class is automatically sealed and its prototype frozen, as <emu-xref href="#sec-typed-storage"></emu-xref> specifies. A class declared `dynamic` is not sealed and is not a value type.</p>
 
-      <p>A typed class is a <dfn id="value-type-class">value type class</dfn> when every one of its fields has a type that is a value type. Instances of a value type class are values in the sense of <emu-xref href="#sec-value-types"></emu-xref>: they are laid out contiguously, they are stored inline in a field or an array element of that type, and assigning one copies it. It is a type error for a value type class to contain itself, directly or through a cycle of value type fields, since the layout would have no finite size. A field that closes such a cycle is written `T | null`, which is a reference.</p>
+      <p>A typed class is a <dfn id="value-type-class">value type class</dfn> when every one of its fields has a type that is a value type. Instances of a value type class are values in the sense of <emu-xref href="#sec-value-types"></emu-xref>: they are laid out contiguously, they are stored inline in a field or an array element of that type, and assigning one copies it. It is a type error for a value type class to contain itself, directly or through a cycle of value type fields, since the layout would have no finite size (<emu-xref href="#sec-layout-finiteness"></emu-xref>). A field that closes such a cycle is written `T | null`, which is a reference.</p>
 
       <p>A field with no initializer holds the default value of its type (<emu-xref href="#sec-defaultvalueof"></emu-xref>), and it is a type error to declare a field whose type has no default and give it no initializer.</p>
 
@@ -2642,7 +2642,7 @@ contributors: Sirisian
           <thead><tr><th>Extension</th><th>Relied on for</th></tr></thead>
           <tbody>
             <tr><td>primitive metadata</td><td>The meta types the design ships over the protocol of <emu-xref href="#sec-primitive-metadata"></emu-xref>, which is where they are declared rather than specified: the `Dimensions` of units of measure with its unit aliases and dimensional algebra, the `NumberBounds` of the JSON Schema constraints, and the `DecimalContext` that fixes a decimal's scale and rounding. The protocol itself, its decomposition, its conversion, its narrowing, and the operator and cast declaration forms are delivered by that clause.</td></tr>
-            <tr><td>memory layout</td><td>`byteLength`, alignment, and the layout of a value type class, which <emu-xref href="#sec-typed-classes"></emu-xref> and <emu-xref href="#sec-default-values"></emu-xref> depend on; and the bit-field widths that make an `int.&lt;N&gt;` for a small _N_ meaningful.</td></tr>
+            <tr><td>memory layout</td><td>The placement construction that lands an instance on existing bytes, and the descriptor generation the layout is read for. The layout properties, the placement rule, the explicit controls, the bit-fields, and the finiteness condition that <emu-xref href="#sec-typed-classes"></emu-xref> states are delivered by <emu-xref href="#sec-memory-layout"></emu-xref>.</td></tr>
             <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; and the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
@@ -3032,6 +3032,94 @@ contributors: Sirisian
         <p>The two forms are the type predicate and the assertion function of an erased system, and they are one field here rather than two spellings, because the difference between them is not in the fact declared but in what the declaration returns. A function that answers a question returns the answer, and its narrowing applies where the answer was yes; a function that establishes a fact returns nothing, and its narrowing applies once it has returned. Deriving the two from [[Return]] is why no `asserts` operator appears here.</p>
         <p>Neither [[ThisType]] nor [[Narrows]] has a source spelling. A signature acquires them by construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>), which is how the design's `withThisType` writes one, and a program uses the result by annotating with it: a binding declared of a constructed guard type narrows at every call through it. They join the index signature and the symbol literal type as types this specification admits and no declaration writes (<emu-xref href="#sec-reflect-maketype"></emu-xref>), and giving them one is a question for the syntax the design has not yet posed, not a gap in what they mean.</p>
       </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-memory-layout">
+    <h1>Memory Layout</h1>
+    <p>A value type has a defined layout in memory, and this clause defines it. It is what makes a `[`_N_`].&lt;T&gt;` a contiguous buffer rather than a list of references, what gives <emu-xref href="#sec-default-values"></emu-xref>'s zero-fill something to fill, and what a serializer, a placement construction over existing bytes, or a vertex descriptor reads. The default is the rule C, C++, and Rust follow, so a value type class is laid out as the same declaration is in those languages, and the controls below are their `repr` attributes together with the field offsets those languages keep to themselves.</p>
+
+    <emu-clause id="sec-layout-properties">
+      <h1>Layout Properties</h1>
+      <p>A Type Object whose type has a layout has three own properties. `bitLength` is the size in bits, which is what an arbitrary-width integer needs in order to describe itself; `byteLength` is the laid-out size in bytes, the bits rounded up to a byte and then to the type's alignment, so that every element of an array of the type is aligned; and `alignment` is the byte alignment. Each has the attributes { [[Writable]]: *false*, [[Enumerable]]: *false*, [[Configurable]]: *false* }, and each is compile-time evaluable (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>), so `[Vertex.byteLength * 1024].&lt;uint8&gt;` is an array extent and `T.byteLength` inside a generic is a constant once `T` is specialized.</p>
+
+      <emu-table id="table-layout-by-type" caption="Which Types Have a Layout">
+        <table>
+          <thead><tr><th>Type</th><th>Layout</th></tr></thead>
+          <tbody>
+            <tr><td>A numeric type, `boolean`, or a SIMD vector</td><td>Yes. An `int.&lt;N&gt;` or `uint.&lt;N&gt;` has `bitLength` _N_; a named type has the `bitLength` its width states.</td></tr>
+            <tr><td>An enum</td><td>Yes, its underlying type's.</td></tr>
+            <tr><td>A value type class (<emu-xref href="#sec-typed-classes"></emu-xref>)</td><td>Yes, by <emu-xref href="#sec-natural-alignment"></emu-xref>.</td></tr>
+            <tr><td>A fixed-length array `[`_N_`].&lt;T&gt;`</td><td>Yes: _N_ times the `byteLength` of `T`, aligned as `T` is.</td></tr>
+            <tr><td>A parameterized type</td><td>Yes, its [[Base]]'s exactly (<emu-xref href="#sec-parameterized-types"></emu-xref>).</td></tr>
+            <tr><td>`bigint`, `string`, `any`</td><td>No. The size is a property of the value and not of the type.</td></tr>
+            <tr><td>A reference type, including a nullable union of a value type class</td><td>No. A reference's width is the implementation's business.</td></tr>
+            <tr><td>A dynamic-length array `[].&lt;T&gt;`</td><td>No as a type. An instance has a `byteLength`, its length times its element's.</td></tr>
+            <tr><td>A class with an untyped field, or one declared `dynamic`</td><td>No.</td></tr>
+            <tr><td>A union of value types</td><td>No. It has no one layout.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>A Type Object whose type has no layout has none of the three properties, so reading one is *undefined* and calling it a size is a *TypeError* rather than a number that hides the mistake.</p>
+
+      <emu-note>
+        <p>These are properties of an interned Type Object rather than a `sizeof` operator, which is why they need no grammar and work wherever a type does, including on the result of `Reflect.typeOf`. The layout they report is the declared one, so the controls of <emu-xref href="#sec-layout-control"></emu-xref> are accounted for in it: `byteLength` is what the program asked for, not what an implementation would have chosen.</p>
+        <p>The alignment of a named numeric type is its `byteLength`. For an `int.&lt;N&gt;` or `uint.&lt;N&gt;` of a width no named type has, the alignment is the smallest power of two that is at least the bits rounded up to a byte, and at most 8; the design fixes only `uint.&lt;4&gt;`, whose `byteLength` is 1, and this rule agrees with it and with every named width. A width above 64 therefore aligns to 8 and pads to a multiple of it, which is the only reading on which an array of them stays aligned.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-natural-alignment">
+      <h1>Natural Alignment and Padding</h1>
+      <p>The layout of a value type class places its fields in declaration order. Let a bit cursor begin at 0, at the end of the layout of the class it extends where it extends one and at 0 otherwise. For each field in order:</p>
+      <ul>
+        <li>Where the field's type has a `bitLength` under 8, it is a <dfn id="bit-field">bit-field</dfn>: it is placed at the cursor, or at the bit its `offsetBit` names, and the cursor advances by its `bitLength`.</li>
+        <li>Otherwise the cursor is first rounded up to a byte. The field is placed at the byte its `offset` names, where it has one; at the cursor, where the class is packed; and at the next multiple of its alignment otherwise, that alignment being the one its `align` names where it has one and its type's otherwise. The cursor advances to the end of the field.</li>
+      </ul>
+      <p>The class's alignment is the one its `alignAll` names, or 1 where it is packed, or the largest alignment among its fields otherwise. Its `bitLength` is the cursor's furthest extent, and its `byteLength` is the size its `size` names, or that extent rounded up to a byte and then to the class's alignment. It is a type error for a field to be placed outside the size a `size` fixes, or for an inherited field to be redeclared, since the redeclaration would have no defined offset.</p>
+
+      <p>A field's offset is read through the reflection of its declaration rather than from the type, because it belongs to the field: `Reflect.getReflection.&lt;Reflect.ClassField, T&gt;(`_name_`)` reports an `offset` and a `byteLength`, compile-time evaluable for the reason the layout is (<emu-xref href="#sec-decorators"></emu-xref>). This is the `offsetof` a serializer, a placement construction, or a vertex attribute descriptor needs.</p>
+
+      <emu-note>
+        <p>Rounding a class's `byteLength` up to its alignment is what makes an array of it an array: without the trailing pad, the second element would be misaligned. `class A { a: uint8; b: uint16; }` is therefore 4 bytes and not 3, and `[10].&lt;A&gt;` is 40.</p>
+        <p>Because layout follows declaration order and this specification never reorders, field order is a performance decision the program makes: `{ a: uint8, b: float64, c: uint8 }` occupies 24 bytes where `{ b: float64, a: uint8, c: uint8 }` occupies 16. Reordering would be sound for a program that only reads its own fields and wrong for every one that does not, and views, serialization, and interop are exactly the cases that do not. Since `byteLength` is a constant, a program that cares can assert the size it meant to have.</p>
+        <p>Inheritance appends, so a base's fields keep their offsets and a subclass's follow under the same rule, and `class B extends A` is laid out as the flattening of both. That is what lets a `B` be passed where an `A` is expected without copying: the prefix is an `A` already.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-layout-control">
+      <h1>Explicit Control</h1>
+      <p>Seven reserved names control the layout above. Each is a property-descriptor key and each has a decorator of the same name that sets it, so a program may write either and a tool that generates classes need not write decorators.</p>
+
+      <emu-table id="table-layout-controls" caption="Layout Controls">
+        <table>
+          <thead><tr><th>Name</th><th>Applies to</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td>`packed`</td><td>A class</td><td>Each field is placed immediately after the one before it and the class's alignment is 1. A field may then be unaligned, which costs a little on every access and buys exact offsets, which is the trade a wire format wants.</td></tr>
+            <tr><td>`alignAll`</td><td>A class</td><td>The alignment of the instance as a whole. It composes with `packed`, which decides the fields' placement while this decides the instance's.</td></tr>
+            <tr><td>`size`</td><td>A class</td><td>The allocated size, zero-padded to it.</td></tr>
+            <tr><td>`align`</td><td>A field</td><td>Requires the field's address to be a multiple of its value, in place of its type's alignment and in either direction: a field may be given a stricter alignment than its type needs, for a cache line or a wide move, or a weaker one, which is what a packed wire format does to a wide field.</td></tr>
+            <tr><td>`offset`</td><td>A field</td><td>Places the field that many bytes from the start of the allocation. The origin is 0 for each class, so in a subclass a positive offset lands after the base and a negative one reaches back into it.</td></tr>
+            <tr><td>`offsetBit`</td><td>A bit-field</td><td>Places it that many bits from the start of the allocation, which is what fixes bit order exactly.</td></tr>
+            <tr><td>`endian`</td><td>A multi-byte field</td><td>*"little"* or *"big"*, fixing the field's byte order. The default is the platform's, which is what a TypedArray already uses, so a class may mix native fields with network-order ones.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>These apply only where every field of the class and of its whole prototype chain is typed, since a class with an untyped field has no fixed layout to place a field within. A `dynamic` class may gain a typed field later through `Object.defineProperty` with a `type` key, and that field is part of no layout; on any other class such a call is a *TypeError*, because the layout closed at the declaration.</p>
+
+      <emu-note>
+        <p>An `align` replaces its field's alignment rather than strengthening it, which is the design's own reading: a `float32x4` at `@align(4)` follows a `float32` at byte 2 at byte 8, not at byte 16. That is what makes the control useful in both directions, and it is the program's to get right, since an implementation may hold a field's natural alignment to be a precondition of the instruction it would otherwise use.</p>
+        <p>Two fields given one `offset` occupy one memory, which is the C union, and a negative offset overlaps a base's. That is deliberate reinterpretation, for reading a `float32`'s bits as a `uint32`, and it is not how a program should write a tagged union: a `sealed abstract class` hierarchy is that, and the language checks it for exhaustiveness (<emu-xref href="#sec-enums"></emu-xref>).</p>
+        <p>Reading or writing a bit-field is a shift and a mask, and taking a reference to one is a type error, since it has no byte address to refer to. A bit-field is also not a SIMD lane mask: `boolean8` and its family are one bit per lane and belong to the vector types, where a bit-field is a sub-byte integer member of a class.</p>
+        <p>Automatic packing reaches only a field under 8 bits, so a `uint.&lt;12&gt;` occupies 2 bytes unless an `offsetBit` places it, which is worth knowing for a wire format whose fields are 12 bits wide. The design states the rule for the sub-byte case and leaves the wider one to the explicit control, and whether automatic packing should follow `bitLength` rather than a byte is a question it should answer.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-layout-finiteness">
+      <h1>Finiteness</h1>
+      <p>The layout of a value type class is defined exactly where the rule of <emu-xref href="#sec-typed-classes"></emu-xref> holds, that a value type class may not contain itself, directly or through a cycle of value type fields. The two are one condition. Computing a layout recurses from a class into the type of each of its fields; the recursion terminates exactly where that field relation is acyclic; and every field contributes a size of at least zero and at least one field of a cycle contributes more, so a cycle admits no finite fixpoint and every acyclic graph reaches one in as many steps as it has edges. The rule is therefore not a restriction placed on top of the layout but a statement of when the layout exists, and the diagnostic a program gets names the cycle rather than a size that could not be computed.</p>
+      <p>A field written `T | null` closes a cycle because it is a reference, which <emu-xref href="#table-layout-by-type"></emu-xref> gives no layout and whose width is the implementation's; the recursion stops there rather than descending, which is why a linked list is expressible and a class containing itself by value is not.</p>
     </emu-clause>
   </emu-clause>
 
