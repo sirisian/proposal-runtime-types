@@ -2647,14 +2647,14 @@ contributors: Sirisian
           <tbody>
             <tr><td>primitive metadata</td><td>The meta types the design ships over the protocol of <emu-xref href="#sec-primitive-metadata"></emu-xref>, which is where they are declared rather than specified: the `Dimensions` of units of measure with its unit aliases and dimensional algebra, the `NumberBounds` of the JSON Schema constraints, and the `DecimalContext` that fixes a decimal's scale and rounding. The protocol itself, its decomposition, its conversion, its narrowing, and the operator and cast declaration forms are delivered by that clause.</td></tr>
             <tr><td>memory layout</td><td>The placement construction that lands an instance on existing bytes, and the descriptor generation the layout is read for. The layout properties, the placement rule, the explicit controls, the bit-fields, and the finiteness condition that <emu-xref href="#sec-typed-classes"></emu-xref> states are delivered by <emu-xref href="#sec-memory-layout"></emu-xref>.</td></tr>
-            <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
+            <tr><td>SIMD</td><td>The lane-wise intrinsics an engine lowers to one instruction each, `swizzle`, `shuffle`, `lane`, `select`, and the reductions, together with the accessor vocabulary. The comparison operators and the lane counts are delivered by <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; and the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
-            <tr><td>complex numbers</td><td>The type of an imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) and the conversions of the complex types.</td></tr>
-            <tr><td>operator overloading</td><td>The grammar of an operator definition and of the `primitive` block that <emu-xref href="#sec-primitive-operator-blocks"></emu-xref> gives the meaning of, including the `.&lt;&hellip;&gt;` form an operator's own type parameters take; the same definitions on a class; and the resolution of a case where the receiver is not the left operand.</td></tr>
+            <tr><td>complex numbers</td><td>The operators and `Math` overloads of the complex types. The type of an imaginary literal and the conversions are delivered by <emu-xref href="#sec-complex-numbers"></emu-xref>.</td></tr>
+            <tr><td>operator overloading</td><td>The math library the design works the feature through, and the four conditions it states an engine must meet to compile that library well. The declaration forms, the receiver rule, and the resolution are delivered by <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
-            <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
+            <tr><td>ranges</td><td>The range literal's grammar and its lexical interaction with `.`, the members of `Range`, and the extensions that take a range as a bound. The case ranges and the bounded `for` counter that <emu-xref href="#sec-check-elision"></emu-xref> relies on are delivered by <emu-xref href="#sec-ranges"></emu-xref>.</td></tr>
             <tr><td>type programming</td><td>The `matchType` convenience, whose patterns are structural and never an opaque application, since matching against one is the inversion <emu-xref href="#sec-inference-through-results"></emu-xref> declines to perform. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>, the declarative checker facts by <emu-xref href="#sec-declarative-checker-facts"></emu-xref>, and contracts, trials, and declared inverses by <emu-xref href="#sec-checked-contracts"></emu-xref> and <emu-xref href="#sec-inference-through-results"></emu-xref>.</td></tr>
           </tbody>
         </table>
@@ -2939,7 +2939,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-primitive-operator-blocks">
       <h1>Operators on a Parameterized Primitive</h1>
-      <p>A declaration of the form `primitive` _T_ _P_ `{` &hellip; `}`, where _T_ names a primitive type and _P_ is an optional |TypeParameters| constrained by a meta type, declares operators on _T_ for each parameterization its parameters admit, and is the form that <emu-xref href="#sec-user-defined-operators"></emu-xref> allows an extension to supply. Its grammar, and that of the operator definitions within it, is the operator overloading extension's, which declares the same definitions on a class (<emu-xref href="#table-extension-hooks"></emu-xref>). What this clause fixes is what those definitions mean for metadata, which is this specification's to say because the metadata is.</p>
+      <p>A declaration of the form `primitive` _T_ _P_ `{` &hellip; `}`, where _T_ names a primitive type and _P_ is an optional |TypeParameters| constrained by a meta type, declares operators on _T_ for each parameterization its parameters admit, and is the form that <emu-xref href="#sec-user-defined-operators"></emu-xref> allows an extension to supply. Its grammar, and that of the operator definitions within it, is <emu-xref href="#sec-operator-declarations"></emu-xref>'s, which declares the same definitions on a class. What this clause fixes is what those definitions mean for metadata, which is this specification's to say because the metadata is.</p>
 
       <p>An operator body evaluates on raw values: no operator declared by any block is re-entered within one, so `return this + rhs;` inside `operator+` is the primitive addition rather than itself. The metadata of a result comes from the return type annotations alone. For one operator invocation: at most one definition with a body may match, and two that do is an early error; any number of definitions without a body may match, each contributing its own meta type's portion of the result through its return type; where no definition with a body matches, the primitive operation runs; and the portions the matching return types evaluate to are merged into one flat metadata object, each meta type contributing its `default` where no matching definition mentions it.</p>
 
@@ -3187,6 +3187,80 @@ contributors: Sirisian
         <p>This rung is last on purpose. The first two need nothing from an author: a builder in a return position infers plainly, and a closed constraint trials. An inverse is for the remainder, and it should be adopted when porting demonstrates the need.</p>
       </emu-note>
     </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-operator-declarations">
+    <h1>Operator Declarations</h1>
+    <p>An operator is declared in one of three places, and they differ only in what the receiver is: on a class, where the receiver is the left operand; on a class reopened elsewhere, by the extension form, which appends operators to a type declared in another module; and in a `primitive` block (<emu-xref href="#sec-primitive-operator-blocks"></emu-xref>), where the receiver is the primitive. This clause gives the form; <emu-xref href="#sec-user-defined-operators"></emu-xref> gives what an operator declaration means for the operators of the language, and <emu-xref href="#sec-primitive-operator-blocks"></emu-xref> what it means for metadata.</p>
+
+    <emu-grammar type="definition">
+      <ins>PrimitiveOperatorDeclaration[Yield, Await] :
+        `primitive` [no LineTerminator here] TypeName[?Yield, ?Await] TypeParameters[?Yield, ?Await]? `{` OperatorDefinitionList[?Yield, ?Await]? `}`
+
+      OperatorDefinitionList[Yield, Await] :
+        OperatorDefinition[?Yield, ?Await]
+        OperatorDefinitionList[?Yield, ?Await] OperatorDefinition[?Yield, ?Await]
+
+      OperatorDefinition[Yield, Await] :
+        `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
+        `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? `;`
+        `operator` Type[?Yield, ?Await] `(` `)` `{` FunctionBody[~Yield, ~Await] `}`
+
+      OperatorTypeParameters[Yield, Await] :
+        `.&lt;` TypeParameterList[?Yield, ?Await] `&gt;`
+
+      OperatorName :: one of
+        `+` `-` `*` `/` `%` `**` `==` `&lt;` `&gt;` `&lt;=` `&gt;=` `&amp;` `|` `^` `~` `&lt;&lt;` `&gt;&gt;` `&gt;&gt;&gt;`</ins>
+    </emu-grammar>
+
+    <p>An |OperatorDefinition| is a |ClassElement| and an interface member, so a class declares operators among its methods and an interface declares the operators a type must have, which is what makes an operator expressible as a constraint. The form without a body is the declaration-only one an interface and a metadata-only definition take. The third production is the implicit cast operator of <emu-xref href="#sec-primitive-operator-blocks"></emu-xref>.</p>
+
+    <p>An operator's own type parameters are written `.&lt;`&hellip;`&gt;` rather than `&lt;`&hellip;`&gt;` because the operator name may itself end in `&lt;` or `&gt;`: `operator&lt;.&lt;D2: Dimensions&gt;` lexes where `operator&lt; &lt;D2: Dimensions&gt;` would collide with the `&lt;&lt;` token. This is the one place a declaration site uses the application spelling, and the reason is lexical rather than principled.</p>
+
+    <p>Resolution reads the left operand's type alone. For `a * b`, the operators of `a`'s type are searched for a signature whose parameter accepts `b`, and the operands are never reversed to find a match. Return type overloading applies as it does to any function (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and two applicable definitions with the same parameter types and no expected return type is an ambiguity and a type error. A `primitive` block adds to a global operator table; two definitions for one pair of types is a type error at the second declaration. A `static operator` defines an operator on the class object rather than on its instances, so that `A += 5` may mean something, and takes no part in any of the above.</p>
+
+    <emu-note>
+      <p>Never reversing the operands is the rule that makes `Matrix4 * Vector4` and `Vector4 * Matrix4` different operations, which in a column-major library they are: one transforms a column vector and the other a row vector. A language that reverses operands to find any match makes that bug unfindable. It is also why `2 * v` needs a `primitive` block rather than falling back to `v`'s operators: the left operand is a number, and the declaration belongs where the library author can write it.</p>
+      <p>The block is made generic by an interface constraint rather than written once per pair, so `primitive float32 { operator*.&lt;T extends ScalarMultiply.&lt;float32, T&gt;&gt;(rhs: T): T }` covers every type that defines scalar multiplication, including ones declared later. `2 * v` reaches it because viability filtering precedes ranking (<emu-xref href="#sec-resolveoverload"></emu-xref>): a `Vector4` satisfies `ScalarMultiply.&lt;float32, Vector4&gt;` and not the `number` instantiation, so the `number` candidate is eliminated before the number-first order could prefer it. Division does not commute, so no such block exists for it and `2 / v` stays a type error, which is correct, since it is not defined.</p>
+      <p>A global table is why an operator-bearing type is a nominal class and not an alias. Were `Vector4` an alias for `float32x4`, its operators would land on `float32x4` itself and any other library aliasing that lane type would collide on every shared pair. Two libraries with two nominal `Vector4` classes coexist, because the parameter types differ. The division the design draws is to alias for storage and accessors and to declare a class where the type carries operators.</p>
+    </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-vector-comparisons">
+    <h1>Vector Comparisons</h1>
+    <p>A comparison between two vectors of one shape yields one lane per input lane, and what it yields for each is decided by the expected type, since the comparison is overloaded on its return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). Three results are defined: the wide mask, a vector of the boolean type of the same width as the compared element, so a `float32x4` comparison yields a `boolean32x4` of lanes all-set or all-clear; the compact mask, a bit vector of one bit per lane; and the compared vector type itself, its matching lanes all-ones. Left with no expected type the expression is ambiguous among them and is a type error, so the result's type is written.</p>
+
+    <p>The lane counts the shorthand names cover are the register widths, which is why `float32x4` has a name and a three-lane float vector does not. A vector of any other lane count is written `vector.&lt;`_T_`, `_N_`&gt;`, which is what a narrowing accessor produces, and a library wanting a name for one declares it.</p>
+
+    <emu-note>
+      <p>The three forms are three instructions, which is the point of the overloading rather than a consequence of it: the wide mask is what a comparison natively produces on SSE and NEON, the compact mask is an AVX-512 mask register, and the all-ones vector is what a program blends with. Choosing among them by the annotation lets one spelling reach each without an intrinsic per form, and makes the ambiguity rule load-bearing rather than pedantic: an unannotated `a &lt; b` has no defensible default among three instructions, and a coin flip here is a performance cliff a program cannot see.</p>
+      <p>The bit vectors are the one place a lane and a bit coincide: lane _i_ of a `boolean8` is bit _i_ counting from the least significant, which is how `movmskps` and `vpmovmskb` number their results, and the conversion to and from an integer is that one rule read in each direction. They are not the bit-fields of <emu-xref href="#sec-memory-layout"></emu-xref>, which are sub-byte integer members of a class.</p>
+    </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-complex-numbers">
+    <h1>Complex Numbers</h1>
+    <p>`complex.&lt;`_T_`&gt;` is a value type holding a real and an imaginary component of the real numeric type _T_. The width-named shorthands count total bits, following the convention of the numeric libraries the design cites, so a `complex64` holds two `float32` components; the bare name `complex` is `complex.&lt;number&gt;`.</p>
+
+    <p>An imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) has the type `complex`, with the literal's value as its imaginary component and zero as its real one, so `4i` is `complex(0, 4)`. Literal propagation applies as it does to any numeric literal (<emu-xref href="#sec-literal-types"></emu-xref>), so an imaginary literal in a `complex64` position is a `complex64`. `complex64` and `complex128` convert to and from `complex` explicitly and not implicitly, exactly as `float32` and `float64` convert to and from `number`, and the treatment of a value outside the component type's range is <emu-xref href="#table-out-of-range-treatment"></emu-xref>'s as it is for that component.</p>
+
+    <emu-note>
+      <p>Bare `complex` has `number` components for the reason the language keeps `number` and `float64` distinct: `number` is what an untyped literal and every `Math` function produce, so a `complex` built from `Math.PI` composes without a cast, and the fixed widths exist for an interleaved buffer and for interop. Being a value type, a `complex` copies on assignment and lies inline, so a `[].&lt;complex128&gt;` is the interleaved buffer an FFT expects and <emu-xref href="#sec-memory-layout"></emu-xref> gives it the layout to be one.</p>
+    </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-ranges">
+    <h1>Ranges</h1>
+    <p>A range is a value type class over an ordered element type and an interval, `Range.&lt;`_T_`, `_I_`&gt;`, whose four intervals are the closed, half-open, and open forms an omitted or included endpoint gives. It is a value, so it allocates nothing and copies; and it is an expression, so it appears wherever one does, including a `case` label and an argument list, without further rule.</p>
+
+    <p>A `case` whose label is a range matches where the range contains the discriminant, which is what a `switch` over a float discriminant needs, since a float has no enumerable cases to list. Matching is by containment rather than by `===`, and the cases of such a `switch` are tested in source order, so overlapping ranges resolve to the first that contains the value rather than being an error.</p>
+
+    <p>A range iterates where it has a step, which over an integer element type is 1 and implicit. The counter of a `for` over a range has the range's element type refined by the range's interval (<emu-xref href="#sec-primitive-metadata"></emu-xref>), so `for (const i of 0..`_N_`)` binds `i` at a type bounded below by 0 and above by _N_ minus 1. Where _N_ is a compile-time constant that refinement is one too, and an index of a `[`_N_`].&lt;T&gt;` by that counter needs no check, which is the case <emu-xref href="#sec-check-elision"></emu-xref> names.</p>
+
+    <emu-note>
+      <p>The bound is the range's own interval, so nothing about the elision is special to a `for`: the counter's type carries the fact, and the ordinary subtyping of a bounded parameterization discharges the check the way it discharges any other. That the half-open form is the default is what makes `for (const i of 0..array.length)` right rather than off by one, and it is why the interval is part of the type rather than a convention a reader has to remember.</p>
+      <p>The nth value of a stepped range is the start plus n times the step rather than the previous value plus the step, and iteration stops against the value rather than a computed count. Both halves matter over a float element type, where a computed count can round up and yield one value too many and repeated addition accumulates error; specifying the arithmetic rather than the loop is what makes a float range give the same values on every implementation.</p>
+    </emu-note>
   </emu-clause>
 
 <emu-annex id="annex-evaluable-fragment" normative>
