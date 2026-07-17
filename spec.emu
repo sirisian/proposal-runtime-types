@@ -5,6 +5,8 @@
 <script src="./spec.js"></script>
 <pre class="metadata">
 title: Runtime Types
+shortname: runtime-types
+status: proposal
 stage: 0
 contributors: Sirisian
 </pre>
@@ -26,7 +28,20 @@ contributors: Sirisian
   <h1>Runtime Types</h1>
   <p>This clause and its subclauses define the runtime type system as a set of additions to and revisions of the ECMAScript specification. The work is organized into the phases described in the design repository's specification plan: the static type-checking framework; the grammar of type expressions; the type universe; conversions; runtime enforcement; typed declarations, operators, functions, and classes; the type-object and reflection API; and the numeric library. Extensions (SIMD, generics, decorators, primitive metadata, and the rest) are specified as independent additions layered on this core.</p>
 
-  <p>Each addition is expressed as an insertion into or revision of the referenced edition of ECMAScript, so that this document reads as a patch against that specification rather than a restatement of it. As clauses are written they will appear here in the order of the underlying ECMAScript specification, cross-referenced to the sections they modify.</p>
+  <p>Each addition is expressed as an insertion into or revision of the edition of ECMAScript that <emu-xref href="#sec-conventions"></emu-xref> pins, so that this document reads as a patch against that specification rather than a restatement of it. Clauses appear in the order of the underlying ECMAScript specification, cross-referenced to the sections they modify, and the extension clauses follow the core in the order <emu-xref href="#table-extension-hooks"></emu-xref> records.</p>
+
+  <emu-clause id="sec-conventions">
+    <h1>Conventions</h1>
+    <p>This document is a diff. It is written against ECMA-262, 16th edition (ES2025), which is the <dfn id="pinned-edition">pinned edition</dfn>, and it should be re-pinned and re-diffed at each subsequent edition rather than left to drift. Within a grammar block, a production shown with <ins>inserted text</ins> is that edition's production with the marked additions; a production shown entirely as an insertion is new to this proposal. A cross-reference whose target is not defined here is a reference to the pinned edition and resolves against it.</p>
+
+    <p>The <dfn id="the-design">design</dfn> is the collection of documents in the <a href="https://github.com/sirisian/ecmascript-types">ecmascript-types</a> repository: a README specifying the core and a set of extension documents specifying SIMD, generics, decorators, primitive metadata, memory layout, type programming, and the rest. This specification is that design rendered as a patch against the pinned edition. A note that cites the design is pointing at the source of a requirement, at a case the design works through, or at a question this specification decided and the design should record; as the proposal advances, each such citation should become a link to an issue in that repository, so that a reader can follow a decision to the discussion that settled it.</p>
+
+    <p>Three conventions govern the semantics. The relations of the type system, SameType, IsSubtype, IsAssignable, and the operations over Type Records, are abstract operations rather than syntax-directed operations, because they relate types to types and not Parse Nodes to values; the syntax-directed part of the type system is the Static Type of an expression (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>), which each clause that adds an expression form extends. The static semantics that attach to a production are Early Errors, and this document states one with the phrase &ldquo;it is a type error if&rdquo;, which <emu-xref href="#sec-type-errors"></emu-xref> defines as an Early Error rather than a thrown error; they are stated at the rule they belong to rather than gathered into one block, because a type error is a condition on types and reads where the types are. A thrown *TypeError* or *RangeError* is reserved for a check that could not be resolved statically.</p>
+
+    <emu-note>
+      <p>The editorial state of this document is worth stating plainly. Its structure, cross-references, and grammar are complete and it builds clean, and every obligation the design records is either specified here or named in <emu-xref href="#table-extension-hooks"></emu-xref> as belonging to an extension. What it has not had is the multi-editor review that turns a complete specification into an approved one, and the decisions it records, marked as such in the notes, are this specification's answers rather than the design's, offered so that a reader can disagree with a stated position instead of guessing at an unstated one.</p>
+    </emu-note>
+  </emu-clause>
 
   <emu-clause id="sec-type-system-foundations">
     <h1>Type System Foundations</h1>
@@ -542,7 +557,7 @@ contributors: Sirisian
       <p>A check that cannot be resolved statically, because a value reaches a typed position only as the ~any~ type, is deferred to run time. <emu-xref href="#sec-runtime-enforcement"></emu-xref> specifies where these deferred checks are inserted and what they throw: a *TypeError* when a value is not of the required type, and a *RangeError* when a numeric value is outside the range of its type.</p>
 
       <emu-note>
-        <p>The design documents sometimes describe a statically-determinable violation, such as assigning a `uint32` to a `uint8` binding, as a &ldquo;*TypeError*&rdquo;. This specification realizes such a violation as an Early Error, and reserves a thrown *TypeError* for the ~any~ boundary and other genuinely dynamic checks. The distinction is observable: an Early Error rejects the source text before any of it runs, whereas a thrown *TypeError* occurs during evaluation. Treating a statically-determinable type violation as a whole-source rejection matches a strict, check-before-run type system; whether some violations should instead be deferred to a thrown error at the offending operation is a decision to be settled as the feature clauses are written. That split is settled rather than provisional: the compile-time evaluation phase (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>) already commits every implementation to a per-module checking pass before evaluation, so the cost that once made deferral attractive is sunk, and a diagnostic at the declaration is strictly better than the same diagnostic at first execution.</p>
+        <p>The design documents sometimes describe a statically-determinable violation, such as assigning a `uint32` to a `uint8` binding, as a &ldquo;*TypeError*&rdquo;. This specification realizes such a violation as an Early Error, and reserves a thrown *TypeError* for the ~any~ boundary and other genuinely dynamic checks. The distinction is observable: an Early Error rejects the source text before any of it runs, whereas a thrown *TypeError* occurs during evaluation. Treating a statically-determinable type violation as a whole-source rejection matches a strict, check-before-run type system; whether some violations should instead be deferred to a thrown error at the offending operation was a decision left open when this clause was first written and is now settled, in this direction, for the reason that follows: the compile-time evaluation phase (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>) already commits every implementation to a per-module checking pass before evaluation, so the cost that once made deferral attractive is sunk, and a diagnostic at the declaration is strictly better than the same diagnostic at first execution.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
