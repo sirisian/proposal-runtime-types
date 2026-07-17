@@ -28,11 +28,11 @@ contributors: Sirisian
   <h1>Runtime Types</h1>
   <p>This clause and its subclauses define the runtime type system as a set of additions to and revisions of the ECMAScript specification. The work is organized into the phases described in the design repository's specification plan: the static type-checking framework; the grammar of type expressions; the type universe; conversions; runtime enforcement; typed declarations, operators, functions, and classes; the type-object and reflection API; and the numeric library. Extensions (SIMD, generics, decorators, primitive metadata, and the rest) are specified as independent additions layered on this core.</p>
 
-  <p>Each addition is expressed as an insertion into or revision of the edition of ECMAScript that <emu-xref href="#sec-conventions"></emu-xref> pins, so that this document reads as a patch against that specification rather than a restatement of it. Clauses appear in the order of the underlying ECMAScript specification, cross-referenced to the sections they modify, and the extension clauses follow the core in the order <emu-xref href="#table-extension-hooks"></emu-xref> records.</p>
+  <p>Each addition is expressed as an insertion into or revision of the edition of ECMAScript that <emu-xref href="#sec-conventions"></emu-xref> pins, so that this document reads as a patch against that specification rather than a restatement of it. Clauses appear in the order of the underlying ECMAScript specification, cross-referenced to the sections they modify, and the extension clauses follow the core, each of them named in <emu-xref href="#table-extension-hooks"></emu-xref>.</p>
 
   <emu-clause id="sec-conventions">
     <h1>Conventions</h1>
-    <p>This document is a diff. It is written against ECMA-262, 16th edition (ES2025), which is the <dfn id="pinned-edition">pinned edition</dfn>, and it should be re-pinned and re-diffed at each subsequent edition rather than left to drift. Within a grammar block, a production shown with <ins>inserted text</ins> is that edition's production with the marked additions; a production shown entirely as an insertion is new to this proposal. A cross-reference whose target is not defined here is a reference to the pinned edition and resolves against it.</p>
+    <p>This document is a diff. It is written against ECMA-262, 16th edition (ES2025), which is the <dfn id="pinned-edition">pinned edition</dfn>, and it should be re-pinned and re-diffed at each subsequent edition rather than left to drift. Within a grammar block, a production shown with <ins>inserted text</ins> is that edition's production with the marked additions; a production shown entirely as an insertion is new to this proposal. A cross-reference whose target is not defined here is a reference to the pinned edition and resolves against it. Where a later clause extends a production an earlier clause has already patched, the later block restates the production in full, marking only its own additions as inserted; the blocks are one production, and the latest restatement is its complete form.</p>
 
     <p>The <dfn id="the-design">design</dfn> is the collection of documents in the <a href="https://github.com/sirisian/ecmascript-types">ecmascript-types</a> repository: a README specifying the core and a set of extension documents specifying SIMD, generics, decorators, primitive metadata, memory layout, type programming, and the rest. This specification is that design rendered as a patch against the pinned edition. A note that cites the design is pointing at the source of a requirement, at a case the design works through, or at a question this specification decided and the design should record; as the proposal advances, each such citation should become a link to an issue in that repository, so that a reader can follow a decision to the discussion that settled it.</p>
 
@@ -2816,6 +2816,8 @@ contributors: Sirisian
 
     <emu-clause id="sec-meta-declarations">
       <h1>Meta Declarations</h1>
+      <p>The production below restates the |Declaration| of <emu-xref href="#sec-type-alias-declarations"></emu-xref> and carries the declaration forms the extensions add (<emu-xref href="#sec-conventions"></emu-xref>).</p>
+
       <emu-grammar type="definition">
         Declaration[Yield, Await] :
           HoistableDeclaration[?Yield, ?Await, ~Default]
@@ -2823,6 +2825,7 @@ contributors: Sirisian
           LexicalDeclaration[+In, ?Yield, ?Await]
           <ins>TypeAliasDeclaration[?Yield, ?Await]</ins>
           <ins>MetaDeclaration[?Yield, ?Await]</ins>
+          <ins>PrimitiveOperatorDeclaration[?Yield, ?Await]</ins>
 
         <ins>MetaDeclaration[Yield, Await] :
           `meta` [no LineTerminator here] TypeName[?Yield, ?Await] `{` MetaHookList[?Yield, ?Await]? `}`
@@ -3147,6 +3150,8 @@ contributors: Sirisian
     <h1>Checked Contracts</h1>
     <p>A function declaration may carry `where` clauses, the |WhereClauses| of <emu-xref href="#sec-where-clauses"></emu-xref>, between its return annotation and its body. On an ordinary function they are the compile-time bound over its generic parameters that <emu-xref href="#sec-generic-where"></emu-xref> describes. On a compile-time-evaluable function they are more, because such a function returns a type and a predicate over that type is a <dfn id="checked-contract">checked contract</dfn>: a fact about the type the builder returns, stated at the declaration and checked at every evaluation.</p>
 
+    <p>The production below restates the one <emu-xref href="#sec-type-annotations"></emu-xref> gives, with |WhereClauses| added (<emu-xref href="#sec-conventions"></emu-xref>).</p>
+
     <emu-grammar type="definition">
       FunctionDeclaration[Yield, Await, Default] :
         `function` BindingIdentifier[?Yield, ?Await] <ins>TypeParameters[?Yield, ?Await]?</ins> `(` FormalParameters[~Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> <ins>WhereClauses[?Yield, ?Await]?</ins> `{` FunctionBody[~Yield, ~Await] `}`
@@ -3220,7 +3225,9 @@ contributors: Sirisian
       OperatorDefinition[Yield, Await] :
         `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
         `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? `;`
-        `operator` Type[?Yield, ?Await] `(` `)` `{` FunctionBody[~Yield, ~Await] `}`
+        `operator` Type[?Yield, ?Await] `(` `)` TypeAnnotation[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
+        `*` `operator` `...` `(` `)` TypeAnnotation[?Yield, ?Await]? `{` GeneratorBody `}`
+        `*` `operator` `...` `(` `)` TypeAnnotation[?Yield, ?Await]? `;`
 
       OperatorTypeParameters[Yield, Await] :
         `.&lt;` TypeParameterList[?Yield, ?Await] `&gt;`
@@ -3229,7 +3236,20 @@ contributors: Sirisian
         `+` `-` `*` `/` `%` `**` `==` `&lt;` `&gt;` `&lt;=` `&gt;=` `&amp;` `|` `^` `~` `&lt;&lt;` `&gt;&gt;` `&gt;&gt;&gt;`</ins>
     </emu-grammar>
 
-    <p>An |OperatorDefinition| is a |ClassElement| and an interface member, so a class declares operators among its methods and an interface declares the operators a type must have, which is what makes an operator expressible as a constraint. The form without a body is the declaration-only one an interface and a metadata-only definition take. The third production is the implicit cast operator of <emu-xref href="#sec-primitive-operator-blocks"></emu-xref>.</p>
+    <p>A |PrimitiveOperatorDeclaration| is a |Declaration|; <emu-xref href="#sec-meta-declarations"></emu-xref> restates that production with it added. An |OperatorDefinition| is a |ClassElement|, restated below, and an interface member, so a class declares operators among its methods and an interface declares the operators a type must have, which is what makes an operator expressible as a constraint. The form without a body is the declaration-only one an interface and a metadata-only definition take. The cast production is the implicit cast operator of <emu-xref href="#sec-primitive-operator-blocks"></emu-xref>.</p>
+
+    <p>The `...` productions are the typed iteration protocol: a generator operator whose declared return type types the elements it yields, and whose declaration defines the class's `Symbol.iterator` method. Like any operator it may be overloaded on its return type, and untyped iteration uses the first declared overload. It yields values rather than references.</p>
+
+    <emu-grammar type="definition">
+      ClassElement[Yield, Await] :
+        MethodDefinition[?Yield, ?Await]
+        `static` MethodDefinition[?Yield, ?Await]
+        FieldDefinition[?Yield, ?Await] `;`
+        `static` FieldDefinition[?Yield, ?Await] `;`
+        ClassStaticBlock
+        `;`
+        <ins>OperatorDefinition[?Yield, ?Await]</ins>
+    </emu-grammar>
 
     <p>An operator's own type parameters are written `.&lt;`&hellip;`&gt;` rather than `&lt;`&hellip;`&gt;` because the operator name may itself end in `&lt;` or `&gt;`: `operator&lt;.&lt;D2: Dimensions&gt;` lexes where `operator&lt; &lt;D2: Dimensions&gt;` would collide with the `&lt;&lt;` token. This is the one place a declaration site uses the application spelling, and the reason is lexical rather than principled.</p>
 
