@@ -1077,7 +1077,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>`float64` and the Number type have the same set of values but are distinct types, so neither is assignable to the other without a conversion. This is the rule stated for every pair of value types and is not a special case: Number is the type an untyped program computes with, and `float64` is the type a program asks for when it wants that format by name.</p>
-        <p>`float80` is listed by the design but is deliberately not defined here. It is not an IEEE 754 interchange format. The 80-bit format it refers to is the x87 double-extended format, whose significand carries an explicit integer bit and therefore admits encodings, the unnormals and pseudo-denormals, that no interchange format has; its in-memory footprint is not 10 bytes on any common ABI but 12 or 16 depending on alignment; and it is unavailable on ARM and on most hardware that is not x86. Since the memory layout extension makes `byteLength` observable, a type whose size differs across platforms cannot be specified the way the other float types can. The options are to define `float80` as IEEE 754 double-extended with a fixed footprint, to drop it, or to admit it as a platform-dependent extension; this needs a decision before the type universe is final.</p>
+        <p>`float80` was listed by the design and is excluded by both documents: it is deliberately not defined here. It is not an IEEE 754 interchange format. The 80-bit format it refers to is the x87 double-extended format, whose significand carries an explicit integer bit and therefore admits encodings, the unnormals and pseudo-denormals, that no interchange format has; its in-memory footprint is not 10 bytes on any common ABI but 12 or 16 depending on alignment; and it is unavailable on ARM and on most hardware that is not x86. Since the memory layout extension makes `byteLength` observable, a type whose size differs across platforms cannot be specified the way the other float types can. Of the options, defining it as IEEE 754 double-extended with a fixed footprint, dropping it, or admitting it as a platform-dependent extension, the design and this specification take the second: both documents exclude it, and the type universe is final without it.</p>
       </emu-note>
     </emu-clause>
 
@@ -1478,7 +1478,7 @@ contributors: Sirisian
           <thead><tr><th>Rank</th><th>Types, in order</th></tr></thead>
           <tbody>
             <tr><td>1</td><td>`float64`</td></tr>
-            <tr><td>2</td><td>`float128`, `float80`, `float32`, `float16`</td></tr>
+            <tr><td>2</td><td>`float128`, `float32`, `float16`</td></tr>
             <tr><td>3</td><td>`decimal128`, `decimal64`, `decimal32`</td></tr>
             <tr><td>4</td><td>`uint128`, `uint64`, `uint32`, `uint16`, `uint8`</td></tr>
             <tr><td>5</td><td>`int128`, `int64`, `int32`, `int16`, `int8`</td></tr>
