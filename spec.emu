@@ -1165,9 +1165,9 @@ contributors: Sirisian
 
       <p>A parameterized type has exactly the representation of its [[Base]]. Metadata never changes layout, alignment, or size.</p>
 
-      <p>The default relation is the branding rule. A parameterized type is a subtype of its base, so the brand is shed freely on the way up; the base is not a subtype of the parameterization, so the way down is a crossing: calling the Type Object, as `UserId(7)`, is the construction boundary, and the metadata's validation judgment runs there where one is defined. Two parameterizations of one base with structurally equivalent metadata are one type by interning; two with different metadata are related only as the <dfn id="metadata-subtype-judgment">metadata subtype judgment</dfn> admits, and where the metadata's meta type defines none, they are unrelated. A meta type's subtype and validation judgments are required to be pure functions of their operands, compile-time evaluable under <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, and deterministic; their hook surface is the primitive metadata extension's (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+      <p>The default relation is the branding rule. A parameterized type is a subtype of its base, so the brand is shed freely on the way up; the base is not a subtype of the parameterization, so the way down is a crossing: calling the Type Object, as `UserId(7)`, is the construction boundary, and the metadata's validation judgment runs there where one is defined. Two parameterizations of one base with structurally equivalent metadata are one type by interning; two with different metadata are related only as the <dfn id="metadata-subtype-judgment">metadata subtype judgment</dfn> admits. A metadata value's fields are governed by the meta types that claim them, which supply that judgment and the validation judgment below, and which are required to be pure, compile-time evaluable, and deterministic; <emu-xref href="#sec-primitive-metadata"></emu-xref> defines them all.</p>
 
-      <p>A value is of a parameterized type when its runtime type is that type or a subtype of it, or when it is a value of the [[Base]] and the metadata's meta type defines a <dfn id="metadata-validation-judgment">validation judgment</dfn> that holds of the value and the metadata. A brand whose meta type defines no validation therefore admits no bare value of its base except through the construction boundary, which is the point of a brand.</p>
+      <p>A value is of a parameterized type when its runtime type is that type or a subtype of it, or when it is a value of the [[Base]] and the <dfn id="metadata-validation-judgment">validation judgment</dfn> holds of the value and the metadata (<emu-xref href="#sec-primitive-metadata"></emu-xref>). A brand, whose meta type defines no validation, therefore admits no bare value of its base except through the construction boundary, which is the point of a brand.</p>
 
       <p>The `StringPattern` meta type carries a RegExp as metadata. Its validation judgment holds of a String exactly when the entire String matches the pattern, the whole-string discipline <emu-xref href="#sec-parsing"></emu-xref> already uses; its subtype judgment holds only of patterns whose `source` and `flags` are identical, which structural equivalence already makes one type, so the floor is reflexivity and the conservatism is intentional. No template-literal type kind exists or is planned: a finite string family is ordinary code over a union of literal types, and an infinite one is a pattern.</p>
 
@@ -1262,7 +1262,7 @@ contributors: Sirisian
           <tbody>
             <tr><td>A literal in a typed position</td><td>The literal has no type of its own and takes the type its position requires (<emu-xref href="#sec-literal-propagation"></emu-xref>). This is not a conversion; nothing is converted from anything.</td></tr>
             <tr><td>A value of the `any` type in a typed position</td><td>The value is checked at the boundary and, if it is a numeric value the target represents exactly, converted; a value the target cannot represent raises a *RangeError*, and one of the wrong type a *TypeError* (<emu-xref href="#sec-requiretype"></emu-xref>). An untyped program has no typed boundaries and so behaves as it does today.</td></tr>
-            <tr><td>Two parameterizations of one primitive that differ only in their metadata</td><td>They convert by the meta protocol of the primitive metadata extension, whose hooks apply at the same boundaries. `Kilometer` and `Meter` are both `float32`, so this is a conversion within a type rather than between two.</td></tr>
+            <tr><td>Two parameterizations of one base that differ only in their metadata</td><td>They convert by ConvertParameterization (<emu-xref href="#sec-metadata-conversion"></emu-xref>), whose hooks apply at the same boundaries. `Kilometer` and `Meter` are both `float32`, so this is a conversion within a type rather than between two.</td></tr>
             <tr><td>A type that declares a conversion</td><td>The conversion applies at the boundary, because the declaring type opted in (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).</td></tr>
           </tbody>
         </table>
@@ -1815,6 +1815,7 @@ contributors: Sirisian
             <tr><td>`v is T` (<emu-xref href="#sec-is-operator"></emu-xref>)</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
             <tr><td>`v === e` or `v !== e`, where the Static Type of _e_ is a literal type _L_</td><td>NarrowTo(_s_, _L_)</td><td>NarrowFrom(_s_, _L_)</td></tr>
             <tr><td>`v.p === e` or `v.p !== e` under the same condition, where _s_ is a ~union~</td><td>NarrowTo(_s_, the union of the members of _s_ whose type at `p` admits _L_)</td><td>NarrowFrom(_s_, that union)</td></tr>
+            <tr><td>`v` _op_ `e`, where _op_ is a comparison, the Static Type of `v` is a ~parameterized~ type, and `e` is a compile-time constant _c_</td><td>NarrowTo(_s_, _s_ with its metadata replaced by NarrowMetadata(_s_'s metadata, _op_, _c_))</td><td>NarrowTo(_s_, _s_ with its metadata replaced by NarrowMetadata(_s_'s metadata, the negation of _op_, _c_))</td></tr>
             <tr><td>`typeof v === ` a String literal _k_</td><td>NarrowTo(_s_, the union of the types whose `typeof` is _k_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`v == null` or `v != null`, and the nullish operators `??`, `??=`, and `?.`</td><td>The nullish branch: NarrowTo(_s_, `null | undefined`)</td><td>The present branch: NarrowFrom(_s_, `null | undefined`)</td></tr>
             <tr><td>A `switch` on a value of an enum type or a sealed class hierarchy</td><td>In each case, NarrowTo(_s_, the case's type)</td><td>In the default, _s_ with every case's type removed</td></tr>
@@ -2631,14 +2632,14 @@ contributors: Sirisian
         <table>
           <thead><tr><th>Extension</th><th>Relied on for</th></tr></thead>
           <tbody>
-            <tr><td>primitive metadata</td><td>The meta protocol's judgments beyond the defaults of <emu-xref href="#sec-parameterized-types"></emu-xref>: `subtype` between two parameterizations, `validate`, `narrow`, and the `conversionFactor` that converts between two parameterizations of one base at a boundary; the `DecimalContext` that fixes a decimal's scale and rounding; and the declaration of operators on a parameterized primitive.</td></tr>
+            <tr><td>primitive metadata</td><td>The meta types the design ships over the protocol of <emu-xref href="#sec-primitive-metadata"></emu-xref>, which is where they are declared rather than specified: the `Dimensions` of units of measure with its unit aliases and dimensional algebra, the `NumberBounds` of the JSON Schema constraints, and the `DecimalContext` that fixes a decimal's scale and rounding. The protocol itself, its decomposition, its conversion, its narrowing, and the operator and cast declaration forms are delivered by that clause.</td></tr>
             <tr><td>memory layout</td><td>`byteLength`, alignment, and the layout of a value type class, which <emu-xref href="#sec-typed-classes"></emu-xref> and <emu-xref href="#sec-default-values"></emu-xref> depend on; and the bit-field widths that make an `int.&lt;N&gt;` for a small _N_ meaningful.</td></tr>
             <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; and the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>The reflection facility of which <emu-xref href="#sec-reflect-getreflection"></emu-xref> is one context, including the reflection of a declaration's members and a function's signatures.</td></tr>
             <tr><td>complex numbers</td><td>The type of an imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) and the conversions of the complex types.</td></tr>
-            <tr><td>operator overloading</td><td>The declaration syntax for an operator and the resolution of a case where the receiver is not the left operand.</td></tr>
+            <tr><td>operator overloading</td><td>The grammar of an operator definition and of the `primitive` block that <emu-xref href="#sec-primitive-operator-blocks"></emu-xref> gives the meaning of, including the `.&lt;&hellip;&gt;` form an operator's own type parameters take; the same definitions on a class; and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
             <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
             <tr><td>type programming</td><td>The `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, and symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>.</td></tr>
@@ -2753,7 +2754,7 @@ contributors: Sirisian
 
       <p>`type` _N_ `=` _T_ `where` _P_ `;` binds _N_ to the Type Record { [[Kind]]: ~parameterized~, [[Base]]: the Type Record _T_ denotes, [[Metadata]]: OrdinaryObjectCreate with a `where` property whose value is _P_ as a function of `this` }. Each further clause refines the type the clauses before it produced, so `_T_ where _A_ where _B_` is the refinement by _B_ of the refinement by _A_ of _T_, and conjunction, subtyping, and membership follow from that nesting rather than from a rule of their own.</p>
 
-      <p>The `where` meta type defines the validation judgment of <emu-xref href="#sec-parameterized-types"></emu-xref> and no subtype judgment. Its validation of a value against a metadata is the evaluation of the metadata's `where` with `this` bound to that value. A dependent record type therefore admits a value of its base only where every predicate holds of it, is a subtype of its base and sheds its predicates upward freely, and is reached from its base only by a crossing that runs them.</p>
+      <p>The `where` meta type (<emu-xref href="#sec-primitive-metadata"></emu-xref>) claims the `where` key. Its `validate` of a value against a constraint is the evaluation of the constraint's `where` with `this` bound to that value; its `subtype` holds where the required constraint is unconstrained, so a predicate is shed, or where both carry the same predicate; its `default` is the unconstrained constraint, and it defines no other hook. A dependent record type therefore admits a value of its base only where every predicate holds of it, is a subtype of its base and sheds its predicates upward freely, and is reached from its base only by a crossing that runs them.</p>
 
       <emu-note>
         <p>The refinement is <emu-xref href="#sec-parameterized-types"></emu-xref>'s, not a kind of its own, which is why nothing here restates layout, defaults, or the relations: a predicate changes no representation, and the branding rule of that clause is already the rule this one wants, that a `Payment` is usable wherever its bare object type is and that going the other way is a check. The design writes a postal code's pattern as `string.&lt;{ pattern: &hellip; }&gt;` in the same document that writes a payment's cross-field rule as `where`, and the two are one mechanism over two bases.</p>
@@ -2777,6 +2778,163 @@ contributors: Sirisian
       <emu-note>
         <p>This is what lets `if (addr.country == 'US')` narrow `addr.postalCode` to `USPostalCode` without the program writing a discriminated union, which is the case the design contrasts its `where` against. The chain is short and each link is already specified: the literal-equality row of <emu-xref href="#table-narrowing-forms"></emu-xref> gives `addr.country` the Static Type `'US'`, that fact makes `this.country == 'US'` a compile-time-evaluable expression over a known value, deciding it selects the `then` branch, and that branch's `this is { postalCode: USPostalCode }` narrows exactly as the `is` would if the program had written it.</p>
         <p>The rule is deliberately not a prover. Where a predicate is not decided, nothing is narrowed and the boundary check runs, which is the design's own account of the case where a `'strict'` name is assigned a `'loose'` mode: the checker cannot know that one pattern's language contains the other's, so the check at the next boundary is what catches it. Sharpening that particular case is the pattern subtype judgment's business (<emu-xref href="#sec-parameterized-types"></emu-xref>), not narrowing's.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-primitive-metadata">
+    <h1>The Metadata Protocol</h1>
+    <p>A metadata parameterization carries a value that <emu-xref href="#sec-parameterized-types"></emu-xref> gives one default meaning: a brand, shed upward freely and crossed downward only at a construction boundary. This clause is what lets that value mean more. A <dfn id="meta-type">meta type</dfn> teaches the checker the semantics of the fields it claims, so that `float32.&lt;{ m: 1, s: -2 }&gt;` is an acceleration whose dimensions combine under multiplication, `float32.&lt;{ minimum: 0 }&gt;` is a bound that a comparison can narrow, and `decimal128.&lt;{ scale: 2 }&gt;` is a price that rounds where it is stored and not before.</p>
+
+    <emu-clause id="sec-meta-declarations">
+      <h1>Meta Declarations</h1>
+      <emu-grammar type="definition">
+        Declaration[Yield, Await] :
+          HoistableDeclaration[?Yield, ?Await, ~Default]
+          ClassDeclaration[?Yield, ?Await, ~Default]
+          LexicalDeclaration[+In, ?Yield, ?Await]
+          <ins>TypeAliasDeclaration[?Yield, ?Await]</ins>
+          <ins>MetaDeclaration[?Yield, ?Await]</ins>
+
+        <ins>MetaDeclaration[Yield, Await] :
+          `meta` [no LineTerminator here] TypeName[?Yield, ?Await] `{` MetaHookList[?Yield, ?Await]? `}`
+
+        MetaHookList[Yield, Await] :
+          MetaHook[?Yield, ?Await]
+          MetaHookList[?Yield, ?Await] MetaHook[?Yield, ?Await]
+
+        MetaHook[Yield, Await] :
+          `default` `=` AssignmentExpression[+In, ?Yield, ?Await] `;`
+          MethodDefinition[?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>A |MetaDeclaration| names an object type, the meta type's <dfn id="constraint-shape">constraint shape</dfn>, and supplies hooks for it. The |MethodDefinition|s it may contain are exactly those named in <emu-xref href="#table-meta-hooks"></emu-xref>; a method of any other name is an early error, as is a second declaration for one type, a missing `default` or `subtype`, or a hook whose signature does not match the table.</p>
+
+      <emu-table id="table-meta-hooks" caption="The Meta Protocol">
+        <table>
+          <thead><tr><th>Hook</th><th>Required</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>`default`</td><td>Yes</td><td>The unconstrained constraint: what a value carries where it has no field of this meta type.</td></tr>
+            <tr><td>`subtype(sub, sup)`</td><td>Yes</td><td>Whether a value constrained by `sub` may be received where `sup` is required. This is the meta type's half of the metadata subtype judgment.</td></tr>
+            <tr><td>`validate(value, constraint)`</td><td>No</td><td>Whether a value of the base satisfies `constraint`. This is the meta type's half of the validation judgment.</td></tr>
+            <tr><td>`narrow(current, op, value)`</td><td>No</td><td>The constraint that a comparison `op` against `value` establishes, given `current` (<emu-xref href="#sec-metadata-narrowing"></emu-xref>).</td></tr>
+            <tr><td>`conversionFactor(from, to)`</td><td>No</td><td>The Number by which a value is multiplied when its constraint is converted from `from` to `to` (<emu-xref href="#sec-metadata-conversion"></emu-xref>).</td></tr>
+            <tr><td>`rescale(constraint, factor)`</td><td>No</td><td>The constraint `constraint` denotes once its value has been multiplied by `factor`, so that a bound in metres survives a conversion into kilometres.</td></tr>
+            <tr><td>`quantize(value, constraint)`</td><td>No</td><td>The value that `value` becomes under the representation `constraint` requires, such as a decimal rounded onto a scale.</td></tr>
+            <tr><td>`describe(constraint)`</td><td>No</td><td>A String naming the constraint, for a diagnostic.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>Every hook is required to be a pure function of its arguments, compile-time evaluable (<emu-xref href="#sec-iscompiletimeevaluable"></emu-xref>), and deterministic, the obligation <emu-xref href="#sec-parameterized-types"></emu-xref> states of the judgments they compose. It is an early error for a hook not to be compile-time evaluable.</p>
+
+      <emu-note>
+        <p>The obligation is what makes one hook serve two phases. `validate` decides a literal at compile time and a value at run time; `quantize` folds a constant and rounds a computed result; `subtype` runs in the checker and nowhere else. A hook that read the clock or a global would make a program's types depend on when it ran, which <emu-xref href="#sec-evaluation-budget"></emu-xref> already forbids of everything else in type position.</p>
+        <p>`meta` is a contextual keyword under the restriction `is` takes (<emu-xref href="#sec-is-operator"></emu-xref>) and for the same reason: `meta T` on one line is a Syntax Error today, and `meta` alone on a line is an expression statement that must stay one.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-metadata-decomposition">
+      <h1>Decomposition and the Judgments</h1>
+      <p>A meta type <dfn id="claims">claims</dfn> the property keys of its constraint shape. Claiming is global and flat: it is an early error, reported at the second |MetaDeclaration| rather than at any use, for two meta types to claim one key. A metadata object whose own key no meta type claims is a type error at the parameterization that writes it.</p>
+
+      <emu-clause id="sec-metadataportion" type="abstract operation">
+        <h1>
+          MetadataPortion (
+            _m_: an ECMAScript language value,
+            _M_: a meta type,
+          ): an Object
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the part of the metadata _m_ that _M_ governs.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _p_ be a copy of _M_'s `default`.
+          1. If _m_ is an Object, then
+            1. For each own property key _k_ of _m_ that _M_ claims, set _p_'s _k_ to _m_'s _k_.
+          1. Return _p_.
+        </emu-alg>
+      </emu-clause>
+
+      <p>The <emu-xref href="#metadata-subtype-judgment">metadata subtype judgment</emu-xref> holds of two metadata values _s_ and _t_ when, for every meta type _M_ declared in the surrounding realm, `subtype` of _M_ holds of MetadataPortion(_s_, _M_) and MetadataPortion(_t_, _M_).</p>
+
+      <p>The <emu-xref href="#metadata-validation-judgment">validation judgment</emu-xref> holds of a value _v_ and a metadata value _m_ when, for every meta type _M_ whose MetadataPortion(_m_, _M_) is not _M_'s `default`, _M_ defines `validate` and it holds of _v_ and that portion. A meta type that constrains and defines no `validate` therefore admits no bare value of the base at all, which is what makes a brand a brand and what makes `const v: Velocity = 10;` a type error until <emu-xref href="#sec-primitive-operator-blocks"></emu-xref> gives `number` a way in.</p>
+
+      <emu-note>
+        <p>Decomposition is why one flat object serves every meta type at once: `float32.&lt;{ m: 1, s: -2, minimum: 0 }&gt;` is read by the dimensions meta type as an acceleration and by the bounds meta type as a non-negative number, each seeing its own keys and the defaults of the rest, and neither seeing the other's. It also fixes what an omitted key means, since a portion is completed from `default` before any hook sees it: `float32.&lt;{ m: 1 }&gt;` is a metre because the remaining exponents default to zero, and a plain `float32` is every meta type's default at once, which is what makes it dimensionless and unbounded rather than untyped.</p>
+        <p>Claiming is global so that a key means one thing wherever it is written, and the diagnostic is at the declaration because that is where the collision is, not at the unlucky program that parameterized on `m` last. The cost is that a meta type cannot be extended by a third party: an extension ships as its own meta type with its own keys, and the Symbol keys of <emu-xref href="#sec-literal-types"></emu-xref> are what keep two libraries from colliding at all.</p>
+        <p>The `where` of a dependent record type (<emu-xref href="#sec-dependent-record-types"></emu-xref>), the brand, and the string pattern are meta types of this protocol declared by this specification rather than by a program, which is why nothing about them is special-cased above: a brand's `subtype` is the identity of its tag and it defines no `validate`, a pattern's `validate` is a full match and its `subtype` is the judgment <emu-xref href="#sec-parameterized-types"></emu-xref> sanctions, and a `where`'s `validate` runs its predicate while its `subtype` holds only where the required side is unconstrained or carries the same predicate.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-metadata-conversion">
+      <h1>Conversion at a Boundary</h1>
+      <p>Two parameterizations of one base that differ in their metadata convert by this clause, which is the fourth case of <emu-xref href="#table-implicit-conversions"></emu-xref> and applies at every boundary of <emu-xref href="#table-check-sites"></emu-xref>, an operator's argument among them.</p>
+
+      <emu-clause id="sec-convertparameterization" type="abstract operation">
+        <h1>
+          ConvertParameterization (
+            _value_: an ECMAScript language value,
+            _from_: an ECMAScript language value,
+            _to_: an ECMAScript language value,
+          ): either a normal completion containing an ECMAScript language value or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It converts _value_, whose metadata is _from_, to the metadata _to_.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _v_ be _value_.
+          1. For each meta type _M_ declared in the surrounding realm, do
+            1. Let _fp_ be MetadataPortion(_from_, _M_).
+            1. Let _tp_ be MetadataPortion(_to_, _M_).
+            1. If `subtype` of _M_ holds of _fp_ and _tp_, then
+              1. NOTE: _M_ admits the crossing, and requires nothing of the value.
+            1. Else if _fp_ is _M_'s `default` and an implicit cast operator into _M_ is declared on the base (<emu-xref href="#sec-primitive-operator-blocks"></emu-xref>), then
+              1. Set _v_ to the result of applying that operator to _v_.
+              1. If _M_ defines `validate` and it does not hold of _v_ and _tp_, throw a *TypeError* exception whose message names _M_ and, where _M_ defines `describe`, its description of _tp_.
+            1. Else,
+              1. Throw a *TypeError* exception whose message names _M_ and, where _M_ defines `describe`, its descriptions of _fp_ and _tp_.
+          1. Let _f_ be 1.
+          1. For each meta type _M_ declared in the surrounding realm that defines `conversionFactor`, set _f_ to _f_ &times; the result of `conversionFactor` of _M_ applied to MetadataPortion(_from_, _M_) and MetadataPortion(_to_, _M_).
+          1. If _f_ is not 1, set _v_ to _v_ &times; _f_.
+          1. For each meta type _M_ declared in the surrounding realm that defines `quantize`, set _v_ to the result of `quantize` of _M_ applied to _v_ and MetadataPortion(_to_, _M_).
+          1. Return _v_.
+        </emu-alg>
+      </emu-clause>
+
+      <p>Where the required metadata leaves a meta type unpinned, as an operator parameter typed `float32.&lt;D&gt;` leaves every meta type but the dimensions of its receiver, that meta type's portion of _from_ flows to the position rather than the target's: scaled, it is the result of `rescale` of _M_ applied to MetadataPortion(_from_, _M_) and _f_ where _M_ defines `rescale`, and _M_'s `default` where it does not.</p>
+
+      <p>Each meta type gates the crossing independently, and there are exactly two ways through: `subtype` admits it, or the value carries nothing of that meta type and a cast supplies what it lacks. `Meter` reaches `Kilometer` by the first, since the exponents agree and only the ratio differs; a bare `number` reaches `Velocity` only by the second, which is why the design says that without a cast on `number` the assignment is a type error, and why a brand, for which no cast is declared, is reachable only by construction. `validate` is what the second way costs, and it is where a bound is enforced: `subtype` cannot prove an unconstrained value non-negative, so the cast into the bounds meta type checks it.</p>
+
+      <p>The rest runs in the order above: the factor once, as the product over every meta type that contributes one; `rescale` on the portions that flow, so a bound stated in metres arrives stated in kilometres; and `quantize` after the scaling, so a value rounds onto the representation it will be stored in rather than one it passes through. Where every operand is a compile-time constant the whole of it folds and no check survives to run time (<emu-xref href="#sec-check-elision"></emu-xref>).</p>
+
+      <emu-note>
+        <p>`Kilometer(5) + Meter(300)` is the worked case. The parameter is the receiver's dimensions, so the argument's metre constraint must pass `subtype`, which it does since the exponents agree; `conversionFactor` yields 1/1000, so the value becomes 0.3; the argument's bounds are not pinned by the parameter and so flow through `rescale` with that factor, arriving in kilometre space; and the operator body adds 5 and 0.3 with both operands in one unit system, which is the point of doing all of this before the body runs. Had the bound not been rescaled, a sum of bounds would have added a metre-space number to a kilometre-space one and produced a bound that means nothing.</p>
+        <p>Taking the factor as a product over the meta types that contribute one, rather than applying each in turn, is a decision this specification makes where the design leaves an order: sequential application would make the result depend on the order meta types were declared in whenever a `rescale` is not linear, and an order-dependent type is the one thing the determinism invariant cannot have. Only the dimensions meta type contributes a factor in the design's own examples, so the two readings agree there and differ only where a second one appears.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-metadata-narrowing">
+      <h1>Narrowing a Constraint</h1>
+      <p>A comparison against a compile-time constant narrows the metadata of a parameterized value, as <emu-xref href="#table-narrowing-forms"></emu-xref> records. The metadata it narrows to is NarrowMetadata(_m_, _op_, _c_), where _m_ is the value's metadata, _op_ the comparison, and _c_ the constant: the metadata whose portion for each meta type _M_ defining `narrow` is the result of `narrow` of _M_ applied to MetadataPortion(_m_, _M_), the String naming _op_, and _c_, and whose portion for each other meta type is unchanged. The false branch narrows by the negation of _op_, pairing `&gt;=` with `&lt;`, `&gt;` with `&lt;=`, and `==` with `!=`, in both directions.</p>
+      <emu-note>
+        <p>This is what lets `if (v &gt;= 0)` give `v` the type `float32.&lt;{ &hellip;, minimum: 0 }&gt;` inside the branch, and a further `if (v &lt;= 343)` give it a maximum too, so that a `return v` into a type requiring both bounds passes `subtype` and needs no check at all. It is a narrowing and not a proof: a meta type that defines no `narrow` learns nothing from a comparison and keeps the constraint it had, which costs a check at the next boundary and nothing else.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-primitive-operator-blocks">
+      <h1>Operators on a Parameterized Primitive</h1>
+      <p>A declaration of the form `primitive` _T_ _P_ `{` &hellip; `}`, where _T_ names a primitive type and _P_ is an optional |TypeParameters| constrained by a meta type, declares operators on _T_ for each parameterization its parameters admit, and is the form that <emu-xref href="#sec-user-defined-operators"></emu-xref> allows an extension to supply. Its grammar, and that of the operator definitions within it, is the operator overloading extension's, which declares the same definitions on a class (<emu-xref href="#table-extension-hooks"></emu-xref>). What this clause fixes is what those definitions mean for metadata, which is this specification's to say because the metadata is.</p>
+
+      <p>An operator body evaluates on raw values: no operator declared by any block is re-entered within one, so `return this + rhs;` inside `operator+` is the primitive addition rather than itself. The metadata of a result comes from the return type annotations alone. For one operator invocation: at most one definition with a body may match, and two that do is an early error; any number of definitions without a body may match, each contributing its own meta type's portion of the result through its return type; where no definition with a body matches, the primitive operation runs; and the portions the matching return types evaluate to are merged into one flat metadata object, each meta type contributing its `default` where no matching definition mentions it.</p>
+
+      <p>Such a declaration may also define an <dfn id="implicit-cast-operator">implicit cast operator</dfn>, written as an operator whose name is a parameterization of the primitive, which supplies the conversion of <emu-xref href="#table-implicit-conversions"></emu-xref> from the bare primitive into a parameterization. At a boundary, one is invoked for each meta type the required metadata constrains and the supplied value's does not, and its absence is why such a boundary is otherwise a type error: `const v: Velocity = 10;` compiles exactly where `number` declares a cast into the dimensions meta type, and a bare number reaches a bounded type only through a cast whose boundary runs `validate`.</p>
+
+      <emu-note>
+        <p>The raw-body rule is what makes the whole protocol terminate: an operator body is the definition of the operation, so an expression inside it cannot mean the thing being defined. It is also why the boundary conversion of <emu-xref href="#sec-metadata-conversion"></emu-xref> happens before the body and not within it: a body sees operands already converted, quantized, and in one unit system, and needs to know nothing about metadata to be correct.</p>
+        <p>Splitting a value definition from metadata-only definitions is what lets two meta types share an operator without either knowing of the other. The dimensions block computes the sum and says the exponents are unchanged; the bounds block says the sum's bounds are the sum of the bounds and computes nothing; the result carries both. A meta type that has nothing to say about an operator says nothing, and its portion of that result is its `default`, which is the correct answer for a constraint that the operation does not preserve.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
