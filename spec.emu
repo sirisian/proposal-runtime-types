@@ -47,7 +47,7 @@ contributors: Sirisian
             <tr><td>~any~</td><td>(none)</td><td>The dynamic type. Any value is assignable to it, and a value of the ~any~ type is assignable to any type subject to a run-time check (<emu-xref href="#sec-requiretype"></emu-xref>).</td></tr>
             <tr><td>~void~</td><td>(none)</td><td>The type of the absence of a value.</td></tr>
             <tr><td>~primitive~</td><td>[[Name]] (a String), [[Arguments]] (a List of Type Records and other values)</td><td>A built-in value type such as `uint8` or `float64`, together with any type or value arguments, for example the width of `int.&lt;N&gt;`. The primitive types are enumerated in the type universe clause.</td></tr>
-            <tr><td>~literal~</td><td>[[Value]] (a String, Number, Boolean, or BigInt), [[Base]] (a Type Record)</td><td>A literal type: the type whose one value is [[Value]], a subtype of its [[Base]] (<emu-xref href="#sec-literal-types"></emu-xref>).</td></tr>
+            <tr><td>~literal~</td><td>[[Value]] (a String, Number, Boolean, BigInt, or Symbol), [[Base]] (a Type Record)</td><td>A literal type: the type whose one value is [[Value]], a subtype of its [[Base]] (<emu-xref href="#sec-literal-types"></emu-xref>).</td></tr>
             <tr><td>~parameterized~</td><td>[[Base]] (a Type Record), [[Metadata]] (an ECMAScript language value)</td><td>A metadata parameterization of any base type, such as `float32.&lt;{ m: 1 }&gt;` or a brand: a refinement of its [[Base]] (<emu-xref href="#sec-parameterized-types"></emu-xref>).</td></tr>
             <tr><td>~nominal~</td><td>[[Declaration]] (a Parse Node), [[Arguments]] (a List of Type Records and other values)</td><td>A class, interface, or enum type, identified by the declaration that introduced it, together with the arguments of a generic instantiation. [[Arguments]] is empty where the declaration is not generic.</td></tr>
             <tr><td>~union~</td><td>[[Members]] (a List of Type Records)</td><td>A union type. A value belongs to it if it belongs to any member.</td></tr>
@@ -737,7 +737,9 @@ contributors: Sirisian
             1. If _t_.[[Kind]] is ~object~, then
               1. Let _keys_ be a new empty List.
               1. For each element _p_ of _t_.[[Properties]], do
-                1. If _p_.[[Key]] is a String, append the Type Record { [[Kind]]: ~literal~, [[Value]]: _p_.[[Key]], [[Base]]: the Type Record of the String type } to _keys_.
+                1. If _p_.[[Key]] is a String, let _base_ be the Type Record of the String type.
+                1. Else, let _base_ be the Type Record of the Symbol type.
+                1. Append the Type Record { [[Kind]]: ~literal~, [[Value]]: _p_.[[Key]], [[Base]]: _base_ } to _keys_.
               1. For each element _x_ of _t_.[[IndexSignatures]], append _x_.[[KeyType]] to _keys_.
               1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _keys_ }).
             1. If _t_.[[Kind]] is ~intersection~, then
@@ -757,10 +759,11 @@ contributors: Sirisian
                 1. If _k_ is ~empty~, return ~empty~.
                 1. Remove from _kept_ each element that is not assignable (IsAssignable) to _k_.
               1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
+            1. If _t_.[[Kind]] is ~parameterized~, return KeyTypesOf(_t_.[[Base]]).
             1. Return ~empty~.
           </emu-alg>
           <emu-note>
-            <p>These are the rules of the design's `keysOf`, which computes the same function over a Type Object held in a variable, so the operator and the kit function cannot drift apart. A union's keys are the common keys, computed by keeping the first arm's keys that remain assignable to each further arm's, which is what lets the literal `'x'` survive against an arm whose keys come from a `string`-keyed index signature. An intersection's keys are the union of its members' keys. A Symbol key contributes nothing, pending the design's symbol literal types. A kind with no keys is ~empty~ and a type error, matching the kit's authored throw; `keyof never` is `never` by the empty-union step, a case the kit's fold does not reach and the design should state.</p>
+            <p>These are the rules of the design's `keysOf`, which computes the same function over a Type Object held in a variable, so the operator and the kit function cannot drift apart. A union's keys are the common keys, computed by keeping the first arm's keys that remain assignable to each further arm's, which is what lets the literal `'x'` survive against an arm whose keys come from a `string`-keyed index signature. An intersection's keys are the union of its members' keys. A Symbol key contributes its own literal type (<emu-xref href="#sec-literal-types"></emu-xref>), so the operation is total over the keys an object type can have. A refinement has its base's keys, so `keyof` sees through a brand and through the `where` of a dependent record type (<emu-xref href="#sec-dependent-record-types"></emu-xref>) to the properties underneath, which is the only reading on which `keyof` and the property mappers agree about a refined object. A kind with no keys is ~empty~ and a type error, matching the kit's authored throw; `keyof never` is `never` by the empty-union step, a case the kit's fold does not reach and the design should state.</p>
           </emu-note>
         </emu-clause>
       </emu-clause>
@@ -995,12 +998,14 @@ contributors: Sirisian
           [+In] RelationalExpression[+In, ?Yield, ?Await] `in` ShiftExpression[?Yield, ?Await]
           [+In] PrivateIdentifier `in` ShiftExpression[?Yield, ?Await]
           <ins>RelationalExpression[?In, ?Yield, ?Await] `:=` Type[?Yield, ?Await]</ins>
+          <ins>RelationalExpression[?In, ?Yield, ?Await] [no LineTerminator here] `is` Type[?Yield, ?Await]</ins>
       </emu-grammar>
 
       <emu-note>
         <p>Placing a conversion at |RelationalExpression| gives it the precedence of `instanceof`, so `a + b := uint8` converts the sum, and the right operand being a |Type| means `x := A | B` converts to the union rather than taking the bitwise or of a conversion.</p>
         <p>`type` is a contextual keyword, since a program may already bind the name `type`, and this leaves an ambiguity the design must settle: `type (uint8) =&gt; uint8` is a type operator applied to a function type, while `type (x)` is a call of a function named `type`, and the two agree until the token after the closing parenthesis. An implementation can resolve it with a cover grammar, as it does for arrow parameters, but the committee may prefer a rule that avoids the ambiguity, such as restricting the operand or requiring the operator only where a type cannot otherwise be written. The same question does not arise for the `type` declaration form, whose `type` is followed by a binding identifier. Nor do the computed types of <emu-xref href="#sec-computed-types"></emu-xref> widen the ambiguity: `type f(x)` was a syntax error and is now the operator applied to a computed type, and the unresolved case remains exactly an operand that begins with `(`.</p>
-        <p>The operand of `type` is a full |Type| and so extends as far as one reaches: `type A | B` is the union of `A` and `B`, not the bitwise or of `type A` and `B`. A bare name is a type expression, so `type uint8` is a redundant spelling of `uint8`. The extensions that introduce type-position operators, including the `is` operator of the dependent record types extension, use the |Type| production defined here.</p>
+        <p>The operand of `type` is a full |Type| and so extends as far as one reaches: `type A | B` is the union of `A` and `B`, not the bitwise or of `type A` and `B`. A bare name is a type expression, so `type uint8` is a redundant spelling of `uint8`. The extensions that introduce type-position operators use the |Type| production defined here, as `is` (<emu-xref href="#sec-is-operator"></emu-xref>) does above, sharing this precedence so that `x is A | B` tests the union.</p>
+        <p>`is` is a contextual keyword rather than a reserved word, and the [no LineTerminator here] restriction is what that costs. `a is b` on one line is a Syntax Error today, so the new production takes syntax no program can be using; but `a`, `is`, and `b` on three lines is three statements today, by automatic semicolon insertion, and must stay three. The restriction keeps it so, at the price that a program cannot break the line before `is`. This is the treatment `async` already receives before an arrow's parameters, and the alternative, reserving the word, is not available.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
@@ -1143,14 +1148,14 @@ contributors: Sirisian
 
     <emu-clause id="sec-literal-types">
       <h1>Literal Types</h1>
-      <p>A literal type has exactly one value. It is described by the Type Record { [[Kind]]: ~literal~, [[Value]]: _v_, [[Base]]: _b_ }, where _v_ is a String, Number, Boolean, or BigInt and _b_ is the Type Record of the existing language type of which _v_ is a value. A |LiteralType| (<emu-xref href="#sec-type-expressions"></emu-xref>) denotes the literal type of the value it writes: a |StringLiteral| with base `string`, a |NumericLiteral| with base `number` or `bigint` as the literal is written, and `true` or `false` with base `boolean`.</p>
+      <p>A literal type has exactly one value. It is described by the Type Record { [[Kind]]: ~literal~, [[Value]]: _v_, [[Base]]: _b_ }, where _v_ is a String, Number, Boolean, BigInt, or Symbol and _b_ is the Type Record of the existing language type of which _v_ is a value. A |LiteralType| (<emu-xref href="#sec-type-expressions"></emu-xref>) denotes the literal type of the value it writes: a |StringLiteral| with base `string`, a |NumericLiteral| with base `number` or `bigint` as the literal is written, and `true` or `false` with base `boolean`. A Symbol has no literal syntax, so no |LiteralType| writes a symbol literal type: one arises through construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>) or through `keyof` over a symbol-keyed object type (<emu-xref href="#sec-keyof"></emu-xref>), and a program names it with an ordinary binding.</p>
 
       <p>The one value of a literal type is a value of its base, so the type is a subtype of its base (<emu-xref href="#sec-issubtype"></emu-xref>), `'on'` is usable where a `string` is required, and a value is of a literal type exactly when it is that value. A union of literal types is the closed set the design's discriminated unions select on, and `keyof` produces one (<emu-xref href="#sec-keyof"></emu-xref>). `boolean` and `true | false` have the same values and are distinct types: `true | false` is a subtype of `boolean` through the literal rule, and `boolean` is deliberately not a subtype of the pair, because completing the relation over value-set equality is the road to deciding language equivalence, which the pattern judgment already declines.</p>
 
       <p>A literal expression whose contextual type (<emu-xref href="#sec-contextual-types"></emu-xref>) is a literal type, or a union or intersection with a literal type among its members, takes the literal type of its own value where that literal type is assignable to the contextual type, so `let a: 'on' | 'off' = 'on';` gives `a` the literal type `'on'`. A contextual type of any other shape leaves the literal to the rules already given for untyped literals, so `let s: string = 'on';` still gives `s` a `string` and `let x: uint8 = 5;` is unchanged.</p>
 
       <emu-note>
-        <p>The base of a numeric literal is `number` however the literal will be used, matching the Static Type a literal takes with no contextual type; a literal type over another numeric type, the `uint8` 3 as a type, is expressible through construction but not through syntax, and its interaction with literal propagation is settled where it was needed: a `:` constraint naming a value type gives a literal argument the literal type over that base, the contextual rule above extended to the constraint's context, so `W: uint32` binds the literal type of 4 over `uint32` with 4 as its value view, and propagation elsewhere keeps base `number`. A Symbol cannot be a literal type's value: a symbol has no literal syntax, and admitting computed symbol keys as types is an extension the design records (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+        <p>The base of a numeric literal is `number` however the literal will be used, matching the Static Type a literal takes with no contextual type; a literal type over another numeric type, the `uint8` 3 as a type, is expressible through construction but not through syntax, and its interaction with literal propagation is settled where it was needed: a `:` constraint naming a value type gives a literal argument the literal type over that base, the contextual rule above extended to the constraint's context, so `W: uint32` binds the literal type of 4 over `uint32` with 4 as its value view, and propagation elsewhere keeps base `number`. A Symbol is a literal type's value like any other, compared by SameValue, which for a Symbol is identity, so a symbol's identity is already its type's identity and the `unique symbol` of an erased system has nothing left to do. Any Symbol qualifies, well-known, registered, or freshly created, and no declaration form distinguishes them because none is needed. A symbol literal type is reproducible outside its Agent exactly when its Symbol is: one from `Symbol.for` names itself by its key, while one from `Symbol` is Agent-local, so a type carrying it cannot be shared, and the extension that shares types across Agents reports that rather than inventing an identity (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
       </emu-note>
     </emu-clause>
 
@@ -1704,7 +1709,7 @@ contributors: Sirisian
           <ins>TypeAliasDeclaration[?Yield, ?Await]</ins>
 
         <ins>TypeAliasDeclaration[Yield, Await] :
-          `type` [no LineTerminator here] BindingIdentifier[?Yield, ?Await] TypeParameters[?Yield, ?Await]? `=` Type[?Yield, ?Await] `;`</ins>
+          `type` [no LineTerminator here] BindingIdentifier[?Yield, ?Await] TypeParameters[?Yield, ?Await]? `=` Type[?Yield, ?Await] WhereClauses[?Yield, ?Await]? `;`</ins>
       </emu-grammar>
 
       <p>A type alias declaration with no |TypeParameters| creates an immutable binding for its |BindingIdentifier|, initialized to GetTypeObject of the Type Record its |Type| denotes. The name is therefore usable in expression position, where it evaluates to that Type Object, and in type position, where it denotes the type. A declaration with |TypeParameters| creates no binding and is usable only in type position, since a generic alias denotes a type for each list of arguments rather than one type.</p>
@@ -1807,7 +1812,9 @@ contributors: Sirisian
           <tbody>
             <tr><td>`v instanceof T`</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
             <tr><td>`#f in v`, a brand check</td><td>NarrowTo(_s_, the class declaring `#f`)</td><td>NarrowFrom(_s_, the class declaring `#f`)</td></tr>
-            <tr><td>`v is T`, the structural test of the dependent record types extension</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
+            <tr><td>`v is T` (<emu-xref href="#sec-is-operator"></emu-xref>)</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
+            <tr><td>`v === e` or `v !== e`, where the Static Type of _e_ is a literal type _L_</td><td>NarrowTo(_s_, _L_)</td><td>NarrowFrom(_s_, _L_)</td></tr>
+            <tr><td>`v.p === e` or `v.p !== e` under the same condition, where _s_ is a ~union~</td><td>NarrowTo(_s_, the union of the members of _s_ whose type at `p` admits _L_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`typeof v === ` a String literal _k_</td><td>NarrowTo(_s_, the union of the types whose `typeof` is _k_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`v == null` or `v != null`, and the nullish operators `??`, `??=`, and `?.`</td><td>The nullish branch: NarrowTo(_s_, `null | undefined`)</td><td>The present branch: NarrowFrom(_s_, `null | undefined`)</td></tr>
             <tr><td>A `switch` on a value of an enum type or a sealed class hierarchy</td><td>In each case, NarrowTo(_s_, the case's type)</td><td>In the default, _s_ with every case's type removed</td></tr>
@@ -1815,13 +1822,17 @@ contributors: Sirisian
         </table>
       </emu-table>
 
-      <p>_s_ above is the Static Type of `v` where the test occurs. A narrowing fact holds in any position the test governs, not only in the body of an `if`: the two branches of a conditional expression are narrowed by its condition, the right operand of `&amp;&amp;` is narrowed by the truth of its left operand, and the right operand of `||` by the falsity of its left. A fact about a binding holds until the binding is assigned a value whose type is not within the narrowed type.</p>
+      <p>`v` above is a reference to a binding or a chain of property accesses over one, a <dfn id="narrowing-path">path</dfn>, and _s_ is its Static Type where the test occurs. A narrowing fact holds in any position the test governs, not only in the body of an `if`: the two branches of a conditional expression are narrowed by its condition, the right operand of `&amp;&amp;` is narrowed by the truth of its left operand, and the right operand of `||` by the falsity of its left. A fact about a path holds until the path or a prefix of it is assigned a value whose type is not within the narrowed type. `==` and `!=` narrow as `===` and `!==` do wherever the Static Types of both operands make the two agree, which a union of literal types over one base always does, so the design's `this.country == 'US'` narrows and a comparison that could coerce does not.</p>
+
+      <emu-note>
+        <p>Facts reach paths because the types this proposal narrows are about fields as much as bindings, and `if (addr.country == 'US')` is the design's own example. Assignment to a prefix discards a fact about everything under it, which is the design's account of a `mode` reassigned after a `name` was narrowed by it. What does not discard a fact is an intervening call that could reach the path, and that is the same shallow reading of a function value that <emu-xref href="#sec-isoftype"></emu-xref> takes and the same hole, admitted in the same place: the boundary check is the backstop, since a value that has drifted out of its type is caught where it next crosses (<emu-xref href="#table-check-sites"></emu-xref>).</p>
+      </emu-note>
 
       <emu-clause id="sec-canonical-total-order">
         <h1>The Canonical Total Order</h1>
-        <p>The total order over canonical Type Records that CanonicalizeType invokes is fixed as follows, so that the member order a program observes through reflection is the same on every host. Records of different [[Kind]] order by the row order of <emu-xref href="#table-type-record-kinds"></emu-xref>. Records of one kind order by their fields in that table's order, compared as: a Type Record recursively by this order; a List element-wise and then shorter first; a String by code units; a Number by numeric value with *-0*<sub>𝔽</sub> before *+0*<sub>𝔽</sub> and *NaN* greatest; a BigInt by value; a Boolean with *false* before *true*; a Symbol by the order of its creation during the program, which the determinism of the evaluable fragment fixes; a function, as an ~application~'s [[Builder]], by the source position of its declaration, module before offset; and a metadata value by the structural comparison of <emu-xref href="#sec-deferred-applications"></emu-xref> with its leaves ordered by these same rules.</p>
+        <p>The total order over canonical Type Records that CanonicalizeType invokes is fixed as follows, so that the member order a program observes through reflection is the same on every host. Records of different [[Kind]] order by the row order of <emu-xref href="#table-type-record-kinds"></emu-xref>. Records of one kind order by their fields in that table's order, compared as: a Type Record recursively by this order; a List element-wise and then shorter first; a String by code units; a Number by numeric value with *-0*<sub>𝔽</sub> before *+0*<sub>𝔽</sub> and *NaN* greatest; a BigInt by value; a Boolean with *false* before *true*; a Symbol by the order in which each is first interned into a Type Record within the surrounding Agent; a function, as an ~application~'s [[Builder]], by the source position of its declaration, module before offset; and a metadata value by the structural comparison of <emu-xref href="#sec-deferred-applications"></emu-xref> with its leaves ordered by these same rules. Where one field holds values of two different ECMAScript language types, as a ~literal~'s [[Value]] does, they order by type, in the order String, Number, BigInt, Boolean, Symbol.</p>
         <emu-note>
-          <p>The order is arbitrary and load-bearing at once: nothing about it matters except that every host computes the same one, because canonical order is observable, a union's arms reflect in it and a builder that turns a union into a tuple inherits it, and the determinism invariant of <emu-xref href="#sec-evaluation-budget"></emu-xref> therefore reaches it. A builder wanting a different order sorts.</p>
+          <p>The order is arbitrary and load-bearing at once: nothing about it matters except that every host computes the same one, because canonical order is observable, a union's arms reflect in it and a builder that turns a union into a tuple inherits it, and the determinism invariant of <emu-xref href="#sec-evaluation-budget"></emu-xref> therefore reaches it. A builder wanting a different order sorts. The order among Symbols is Agent-local, because a Symbol is, and it is stable within a program because the same source interns the same symbols in the same sequence; a Symbol never reaches a comparison in another Agent, since a type carrying one cannot be shared.</p>
         </emu-note>
       </emu-clause>
 
@@ -2433,7 +2444,7 @@ contributors: Sirisian
           <thead><tr><th>`kind`</th><th>Further properties</th></tr></thead>
           <tbody>
             <tr><td>*"primitive"*</td><td>`type`, the Type Object itself; `generic`, either *undefined* or a record with `base` (a Type Object) and `arguments` (a List of Type Objects and values), the decomposition of a generic instantiation. This one node covers every named leaf: the built-in primitives, classes, interfaces, enums, and the `any`, `void`, and `type` types.</td></tr>
-            <tr><td>*"literal"*</td><td>`value`, a String, Number, Boolean, or BigInt; `base`, a Type Object.</td></tr>
+            <tr><td>*"literal"*</td><td>`value`, a String, Number, Boolean, BigInt, or Symbol; `base`, a Type Object.</td></tr>
             <tr><td>*"parameterized"*</td><td>`base`, a Type Object; `metadata`, an object: the metadata half of a parameterization such as `float32.&lt;{ m: 1 }&gt;`.</td></tr>
             <tr><td>*"union"*</td><td>`arms`, a List of Type Objects, in the canonical order; empty for the `never` type.</td></tr>
             <tr><td>*"intersection"*</td><td>`members`, a List of Type Objects, in the canonical order.</td></tr>
@@ -2460,12 +2471,12 @@ contributors: Sirisian
       <emu-alg>
         1. If _node_ is not an Object matching a node's shape in <emu-xref href="#table-reflection-nodes"></emu-xref>, throw a *TypeError* exception.
         1. Let _record_ be the Type Record that _node_, read as a description, describes.
-        1. If _record_ describes a type that no declaration could introduce, throw a *TypeError* exception with the message the equivalent source declaration produces.
+        1. If _record_ is not a valid type, throw a *TypeError* exception with the message the equivalent source declaration produces, or, where no declaration can write the type, a message naming the rule it violates.
         1. Return GetTypeObject(_record_).
       </emu-alg>
       <p>For every type _T_, `Reflect.makeType(Reflect.getReflection.&lt;Reflect.Type&gt;(`_T_`))` is _T_. Construction canonicalizes and interns by <emu-xref href="#sec-canonicalizetype"></emu-xref> and <emu-xref href="#sec-gettypeobject"></emu-xref>, the same operations that give a source-written type its identity, which is what makes the round trip the identity function rather than an equivalence.</p>
       <emu-note>
-        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, an intersection of distinct value types, or an index signature with an illegal key type fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
+        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, an intersection of distinct value types, or an index signature with an illegal key type fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. Validity is not syntactic reachability: an index signature and a symbol literal type are valid types with no declaration form at all, which is why they are constructed rather than written. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
       </emu-note>
     </emu-clause>
 
@@ -2624,13 +2635,13 @@ contributors: Sirisian
             <tr><td>memory layout</td><td>`byteLength`, alignment, and the layout of a value type class, which <emu-xref href="#sec-typed-classes"></emu-xref> and <emu-xref href="#sec-default-values"></emu-xref> depend on; and the bit-field widths that make an `int.&lt;N&gt;` for a small _N_ meaningful.</td></tr>
             <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; and the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
-            <tr><td>dependent record types</td><td>The `is` operator, which <emu-xref href="#table-narrowing-forms"></emu-xref> lists as a narrowing form, and the `where` clauses whose run-time check is inserted at the boundaries of <emu-xref href="#table-check-sites"></emu-xref>.</td></tr>
+            <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>The reflection facility of which <emu-xref href="#sec-reflect-getreflection"></emu-xref> is one context, including the reflection of a declaration's members and a function's signatures.</td></tr>
             <tr><td>complex numbers</td><td>The type of an imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) and the conversions of the complex types.</td></tr>
             <tr><td>operator overloading</td><td>The declaration syntax for an operator and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
             <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
-            <tr><td>type programming</td><td>Symbol values as literal types, which <emu-xref href="#sec-literal-types"></emu-xref> excludes and whose adoption the acceptance corpus already assumes; the `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, and the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>.</td></tr>
+            <tr><td>type programming</td><td>The `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, and symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -2716,6 +2727,60 @@ contributors: Sirisian
     </emu-clause>
   </emu-clause>
 
+  <emu-clause id="sec-dependent-record-types">
+    <h1>Dependent Record Types</h1>
+    <p>A type alias declaration may carry `where` clauses, each a predicate over the value the type describes. What they state is what a property's own type cannot: that a credit card and a billing address are present together, or that a postal code's pattern follows from a country. The narrowing form `v is T` (<emu-xref href="#table-narrowing-forms"></emu-xref>) and the boundary checks of <emu-xref href="#table-check-sites"></emu-xref> are what this clause makes real.</p>
+
+    <emu-clause id="sec-where-clauses">
+      <h1>The where Clause</h1>
+      <p>The |WhereClauses| that <emu-xref href="#sec-type-alias-declarations"></emu-xref> admits after a type alias's |Type| are given by:</p>
+
+      <emu-grammar type="definition">
+        <ins>WhereClauses[Yield, Await] :
+          WhereClause[?Yield, ?Await]
+          WhereClauses[?Yield, ?Await] WhereClause[?Yield, ?Await]
+
+        WhereClause[Yield, Await] :
+          `where` RefinementPredicate[?Yield, ?Await]
+
+        RefinementPredicate[Yield, Await] :
+          AssignmentExpression[+In, ?Yield, ?Await]
+          `if` `(` AssignmentExpression[+In, ?Yield, ?Await] `)` `{` RefinementPredicate[?Yield, ?Await] `}`
+          `if` `(` AssignmentExpression[+In, ?Yield, ?Await] `)` `{` RefinementPredicate[?Yield, ?Await] `}` `else` `{` RefinementPredicate[?Yield, ?Await] `}`</ins>
+      </emu-grammar>
+
+      <p>A |RefinementPredicate| is evaluated with `this` bound to the value under test, and it holds when ToBoolean of its result is *true*. The conditional form evaluates its |AssignmentExpression| and then the predicate of the branch taken, and holds vacuously where that expression is falsy and no `else` is present. It is an early error for a |RefinementPredicate| not to be compile-time evaluable (<emu-xref href="#sec-iscompiletimeevaluable"></emu-xref>) as a function of `this`, which is what admits the same predicate at compile time, where it decides a constant, and at run time, where it checks a value.</p>
+
+      <p>`type` _N_ `=` _T_ `where` _P_ `;` binds _N_ to the Type Record { [[Kind]]: ~parameterized~, [[Base]]: the Type Record _T_ denotes, [[Metadata]]: OrdinaryObjectCreate with a `where` property whose value is _P_ as a function of `this` }. Each further clause refines the type the clauses before it produced, so `_T_ where _A_ where _B_` is the refinement by _B_ of the refinement by _A_ of _T_, and conjunction, subtyping, and membership follow from that nesting rather than from a rule of their own.</p>
+
+      <p>The `where` meta type defines the validation judgment of <emu-xref href="#sec-parameterized-types"></emu-xref> and no subtype judgment. Its validation of a value against a metadata is the evaluation of the metadata's `where` with `this` bound to that value. A dependent record type therefore admits a value of its base only where every predicate holds of it, is a subtype of its base and sheds its predicates upward freely, and is reached from its base only by a crossing that runs them.</p>
+
+      <emu-note>
+        <p>The refinement is <emu-xref href="#sec-parameterized-types"></emu-xref>'s, not a kind of its own, which is why nothing here restates layout, defaults, or the relations: a predicate changes no representation, and the branding rule of that clause is already the rule this one wants, that a `Payment` is usable wherever its bare object type is and that going the other way is a check. The design writes a postal code's pattern as `string.&lt;{ pattern: &hellip; }&gt;` in the same document that writes a payment's cross-field rule as `where`, and the two are one mechanism over two bases.</p>
+        <p>Because a predicate is a function, the structural equivalence of <emu-xref href="#sec-deferred-applications"></emu-xref> compares it by SameValue, so a dependent record type's identity is its declaration's identity: two modules that write the same `where` text declare two types, where two that write `stringPattern(/^[0-9]{5}$/)` declare one. That asymmetry is deliberate and is not an accident of the encoding. A predicate is code and may close over its scope, so `where this.total &lt; LIMIT` in two modules means two things whenever their `LIMIT` differs; comparing predicate source would make those one type and would be unsound. A regular expression is data and carries no scope, so comparing it structurally is safe. A program that wants one dependent record type across modules declares it once and imports it, as it would a class.</p>
+        <p>Conjunction by nesting also gives the diagnostics: a value failing `_T_ where _A_ where _B_` fails at the innermost refinement whose predicate is false, so the clause that rejected it is the clause named.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-is-operator">
+      <h1>The is Operator</h1>
+      <p>`v is T` is *true* when the value of `v` is of the type _T_ denotes and *false* otherwise. It performs IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) and never throws for a value the type rejects, which is the difference between it and the check a boundary performs: a boundary requires, and `is` asks. Its grammar is given with the conversion operator (<emu-xref href="#sec-types-in-expression-position"></emu-xref>), whose precedence it shares.</p>
+      <emu-note>
+        <p>`is` is the branch a program takes instead of the throw: `if (payment is Payment)` tests what `example(payment)` would have required. Against a dependent record type it runs the predicates, so it is also the only way to ask whether a value the program has been mutating is valid again. Against any other type it is the same structural test every boundary makes, so `v is uint8` and `v is { x: float32 }` are ordinary questions with ordinary answers, and the accessor and higher-order reading of <emu-xref href="#sec-isoftype"></emu-xref> is the reading here too.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-refinement-narrowing">
+      <h1>Narrowing Through a Refinement</h1>
+      <p>Where the Static Type of `v` is a dependent record type whose predicate is the conditional form, and the narrowing facts in force at a position decide that predicate's |AssignmentExpression|, the assertions of the branch so taken contribute their narrowing facts at that position: an assertion `this is T` contributes what `v is T` contributes, and an assertion `this.p is T` contributes what `v.p is T` contributes (<emu-xref href="#table-narrowing-forms"></emu-xref>).</p>
+      <p>An expression is decided by the narrowing facts when evaluating it is compile-time evaluable given them, reading `this` as `v` and reading a path whose narrowed type is a literal type as that type's [[Value]]. No other means of deciding it is specified: a predicate the facts leave open contributes nothing, and the boundary check stands.</p>
+      <emu-note>
+        <p>This is what lets `if (addr.country == 'US')` narrow `addr.postalCode` to `USPostalCode` without the program writing a discriminated union, which is the case the design contrasts its `where` against. The chain is short and each link is already specified: the literal-equality row of <emu-xref href="#table-narrowing-forms"></emu-xref> gives `addr.country` the Static Type `'US'`, that fact makes `this.country == 'US'` a compile-time-evaluable expression over a known value, deciding it selects the `then` branch, and that branch's `this is { postalCode: USPostalCode }` narrows exactly as the `is` would if the program had written it.</p>
+        <p>The rule is deliberately not a prover. Where a predicate is not decided, nothing is narrowed and the boundary check runs, which is the design's own account of the case where a `'strict'` name is assigned a `'loose'` mode: the checker cannot know that one pattern's language contains the other's, so the check at the next boundary is what catches it. Sharpening that particular case is the pattern subtype judgment's business (<emu-xref href="#sec-parameterized-types"></emu-xref>), not narrowing's.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
 <emu-annex id="annex-evaluable-fragment" normative>
   <h1>The Compile-Time Evaluable Fragment</h1>
   <p>This annex fixes the compile-time-evaluable subset of the language as an implementation target in its own right, so that a tool that is not an ECMAScript engine can evaluate types and prove that it agrees with one. The determinism this specification already requires, one result or failure and never a different result (<emu-xref href="#sec-evaluation-budget"></emu-xref>), is what makes that agreement a checkable claim.</p>
@@ -2734,7 +2799,7 @@ contributors: Sirisian
 
   <emu-annex id="sec-fragment-library">
     <h1>The Library Surface</h1>
-    <p>A built-in is within the fragment when its result is determined by its arguments, it performs no observable mutation outside values the call created, and it depends on no host or ambient state. The floor the fragment guarantees: the type operations of <emu-xref href="#sec-reflection"></emu-xref>, Type Object identity and `toString`, regular expression construction and matching, `Map` and `Set`, whose keys Type Objects serve as by interned identity, and the pure methods and functions of String, Number, BigInt, Math, Array, Object, and JSON. Excluded by the same rule: `Math.random`, Date, every locale-sensitive method, Atomics and shared memory, and weak references and finalization. The conformance suite fixes the exact enumeration.</p>
+    <p>A built-in is within the fragment when its result is determined by its arguments, it performs no observable mutation outside values the call created, and it depends on no host or ambient state. The floor the fragment guarantees: the type operations of <emu-xref href="#sec-reflection"></emu-xref>, Type Object identity and `toString`, regular expression construction and matching, `Map` and `Set`, whose keys Type Objects serve as by interned identity, `Symbol` and its registry, and the pure methods and functions of String, Number, BigInt, Math, Array, Object, and JSON. `Symbol` is within the fragment although a fresh symbol is not determined by its argument: a fresh symbol is a value the call creates, as a fresh array or `Map` is, and the determinism the fragment requires is of the types a program computes and the order it observes them in, both of which the same source fixes by creating the same symbols in the same sequence. `Symbol.for` is within it by the ordinary rule, its result determined by its key. Excluded by the same rule: `Math.random`, Date, every locale-sensitive method, Atomics and shared memory, and weak references and finalization. The conformance suite fixes the exact enumeration.</p>
   </emu-annex>
 
   <emu-annex id="sec-fragment-semantics">
@@ -2749,7 +2814,7 @@ contributors: Sirisian
     <h1>The Conformance Suite and the Acceptance Corpus</h1>
     <p>A conformance suite accompanies this annex, and conformance to the fragment is conformance to it together with this annex's text. Its seed is the design's acceptance corpus: one hundred and ninety programs, the whole of the type-challenges repository, the warm-up, thirteen easy, one hundred and four medium, fifty-five hard, and seventeen extreme, each pairing the erased-language solution with a builder solution whose assertions must hold under this specification's semantics. The assertions include type identity written `===`, which interning supplies and which the erased corpus can only imitate through unspecified checker behaviour.</p>
     <emu-note>
-      <p>The corpus is maintained with the design and runs ahead of this specification in one respect: it exercises symbol values as literal types, which <emu-xref href="#sec-literal-types"></emu-xref> excludes pending the design's extension, so the affected challenges are gated on that adoption. The questions and divergences the corpus surfaced are recorded in its own notes and tracked with the design documents.</p>
+      <p>The corpus is maintained with the design, and the symbol literal types its eleventh challenge exercises are now those of <emu-xref href="#sec-literal-types"></emu-xref>, so no challenge is gated on an unadopted extension. The questions and divergences the corpus surfaced are recorded in its own notes and tracked with the design documents.</p>
     </emu-note>
   </emu-annex>
 </emu-annex>
