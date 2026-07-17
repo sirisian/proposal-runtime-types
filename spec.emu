@@ -2053,7 +2053,7 @@ contributors: Sirisian
       <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), an [[Initial]] field (an ECMAScript language value or ~none~, the declared default), and a [[Reference]] field (a Boolean). [[Reference]] is *true* exactly when [[Type]].[[Kind]] is ~reference~: the flag restates the type for convenience, and reflection reads the fact from the type.</p>
 
       <emu-note>
-        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity. A parameter's [[Initial]] and a signature's [[ThisType]] are part of the identity, compared by SameValue and as a type; the name remains the one non-canonical field, carried from the first occurrence interned, so two structurally identical declarations reflect the first's names, an order-of-loading fact that is deterministic within a program and is the reason no further non-canonical field is admitted. The rules that consume [[ThisType]], its contravariant place in subtyping and the contextual adoption of an expected `this` by a function literal, are parked with the design's declarative checker facts alongside declared narrowing (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity. A parameter's [[Initial]] and a signature's [[ThisType]] are part of the identity, compared by SameValue and as a type; the name remains the one non-canonical field, carried from the first occurrence interned, so two structurally identical declarations reflect the first's names, an order-of-loading fact that is deterministic within a program and is the reason no further non-canonical field is admitted. A decorator's metadata is the case that tests this and does not become an exception to it: two functions of one signature are one type however differently their parameters are decorated, so metadata cannot ride a Signature Record, and <emu-xref href="#sec-decorators"></emu-xref> reads it from the declaration instead. The rules that consume [[ThisType]], its contravariant place in subtyping and the contextual adoption of an expected `this` by a function literal, are parked with the design's declarative checker facts alongside declared narrowing (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
       </emu-note>
     </emu-clause>
 
@@ -2452,7 +2452,7 @@ contributors: Sirisian
             <tr><td>*"tuple"*</td><td>`elements`, a List of records with `type` (a Type Object), `rest`, and `initial`.</td></tr>
             <tr><td>*"array"*</td><td>`element`, a Type Object; `extent`, a non-negative integer or *undefined* for a dynamic length.</td></tr>
             <tr><td>*"object"*</td><td>`properties`, a List of records with `name` (a String or Symbol), `type` (a Type Object), `optional`, `readonly`, and `initial`; `indexSignatures`, a List of records with `key` and `value` (Type Objects).</td></tr>
-            <tr><td>*"function"*</td><td>`signatures`, in declaration order, each a record with `parameters` (records with `type`, `name`, `index`, `optional`, `rest`, `initial`, and `metadata`), `return` (a record with `type` and `metadata`), and `thisType` (a Type Object or *undefined*). The `metadata` properties are supplied by the decorators extension.</td></tr>
+            <tr><td>*"function"*</td><td>`signatures`, in declaration order, each a record with `parameters` (records with `type`, `name`, `index`, `optional`, `rest`, `initial`, and `metadata`), `return` (a record with `type` and `metadata`), and `thisType` (a Type Object or *undefined*). The `metadata` properties are always *undefined* here and are populated only where the same shape reflects a declaration (<emu-xref href="#sec-decorators"></emu-xref>).</td></tr>
             <tr><td>*"reference"*</td><td>`target`, a Type Object: the `ref` borrow type of <emu-xref href="#sec-type-expressions"></emu-xref>.</td></tr>
             <tr><td>*"cycle"*</td><td>`name`, a String: the reader-facing back-edge at which a recursive type closes. It appears in reflection output only and is not accepted by construction.</td></tr>
           </tbody>
@@ -2461,7 +2461,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>The node kinds and the Type Record kinds of <emu-xref href="#table-type-record-kinds"></emu-xref> correspond, and the correspondence now round-trips: every kind is readable, and writable through <emu-xref href="#sec-reflect-maketype"></emu-xref>, with two deliberate wrinkles. The named leaves, ~primitive~ and ~nominal~ alike and with them `any`, `void`, and `type`, share the one *"primitive"* node, whose payload is the interned Type Object itself with a generic instantiation additionally decomposed, so a leaf is opaque to a walker exactly as <emu-xref href="#sec-type-object-opacity"></emu-xref> requires and a nominal type never exposes its declaration. And the ~application~ kind has no node at all, because specialization evaluates every deferred application before any code runs, so reflection cannot encounter one.</p>
-        <p>The same `Reflect.getReflection` reflects a declaration's members, keyed on the declaration rather than on a type, which is how a class's fields, a function's parameters, and an enum's enumerators are exposed. That context and the rest of the reflection facility, including its metadata and a `Reflect.ClassConstructor` context for construct signatures, are defined by the decorators extension. This clause defines only the type-object context it operates on.</p>
+        <p>The same `Reflect.getReflection` reflects a declaration's members, keyed on the declaration rather than on a type, which is how a class's fields, a function's parameters, and an enum's enumerators are exposed. That context and the rest of the reflection facility, including its metadata, are defined by <emu-xref href="#sec-decorators"></emu-xref>. This clause defines only the type-object context it operates on.</p>
         <p>A union's arms are reflected in the canonical order rather than in the order written, since canonicalization has already reordered them and the Type Object is shared with every other spelling of the same type. A function's signatures are reflected in declaration order, which <emu-xref href="#sec-samefunctiontype"></emu-xref> preserves for this reason.</p>
       </emu-note>
     </emu-clause>
@@ -2637,7 +2637,7 @@ contributors: Sirisian
             <tr><td>SIMD</td><td>The comparison operators of the vector types, overloaded on their return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and the lane counts an implementation can hold in a register.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; and the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
-            <tr><td>decorators</td><td>The reflection facility of which <emu-xref href="#sec-reflect-getreflection"></emu-xref> is one context, including the reflection of a declaration's members and a function's signatures.</td></tr>
+            <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
             <tr><td>complex numbers</td><td>The type of an imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) and the conversions of the complex types.</td></tr>
             <tr><td>operator overloading</td><td>The grammar of an operator definition and of the `primitive` block that <emu-xref href="#sec-primitive-operator-blocks"></emu-xref> gives the meaning of, including the `.&lt;&hellip;&gt;` form an operator's own type parameters take; the same definitions on a class; and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
@@ -2935,6 +2935,63 @@ contributors: Sirisian
       <emu-note>
         <p>The raw-body rule is what makes the whole protocol terminate: an operator body is the definition of the operation, so an expression inside it cannot mean the thing being defined. It is also why the boundary conversion of <emu-xref href="#sec-metadata-conversion"></emu-xref> happens before the body and not within it: a body sees operands already converted, quantized, and in one unit system, and needs to know nothing about metadata to be correct.</p>
         <p>Splitting a value definition from metadata-only definitions is what lets two meta types share an operator without either knowing of the other. The dimensions block computes the sum and says the exponents are unchanged; the bounds block says the sum's bounds are the sum of the bounds and computes nothing; the result carries both. A meta type that has nothing to say about an operator says nothing, and its portion of that result is its `default`, which is the correct answer for a constraint that the operation does not preserve.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-decorators">
+    <h1>Declaration Reflection and Decorators</h1>
+    <p>The reflection of <emu-xref href="#sec-reflect-getreflection"></emu-xref> reads a type. This clause reads a <em>declaration</em>: the fields a class declares, the parameters a function takes, the enumerators an enum lists, and what a decorator has recorded about any of them. The two are one facility under one name, selected by a first type argument, and they answer different questions: a type is shared by everything of that shape, and a declaration is the one place a program wrote it down.</p>
+
+    <emu-clause id="sec-decorator-contexts">
+      <h1>Reflection Contexts</h1>
+      <p>A <dfn id="reflection-context">reflection context</dfn> is a type in the `Reflect` namespace naming a kind of declaration or a part of one. `Reflect.getReflection.&lt;`_C_`, `_T_`&gt;(&hellip;)` reflects the part of _T_ that the context _C_ names, and is resolved by the specialized overloads of <emu-xref href="#sec-generics"></emu-xref>: the first argument selects among the signatures and the second is the declaration reflected, which is why one name serves every context with no `any` in it.</p>
+
+      <emu-table id="table-reflection-contexts" caption="Reflection Contexts by Family">
+        <table>
+          <thead><tr><th>Family</th><th>Contexts</th><th>Reflects</th></tr></thead>
+          <tbody>
+            <tr><td>Type</td><td>`Type`</td><td>A type's structure (<emu-xref href="#sec-reflect-getreflection"></emu-xref>). This is the one context this specification defines; the rest are the decorators extension's.</td></tr>
+            <tr><td>Class</td><td>`Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassGetterReturn`, `ClassSetter`, `ClassSetterParameter`, `ClassMethod`, `ClassMethodParameter`, `ClassMethodReturn`, `ClassOperator`, `ClassOperatorParameter`</td><td>A class and each part of one. A constructor is a `ClassMethod` whose name is *"constructor"*, and its parameters are that method's, so a construct signature needs no context of its own.</td></tr>
+            <tr><td>Function</td><td>`Function`, `FunctionParameter`, `FunctionReturn`</td><td>A function declaration, its parameters, and its return.</td></tr>
+            <tr><td>Binding</td><td>`Let`, `Const`</td><td>A declared binding.</td></tr>
+            <tr><td>Object</td><td>`Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, `ObjectMethodReturn`</td><td>An object literal and its members, keyed on the instance rather than on a declaration, since that is where an object's metadata lives.</td></tr>
+            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`</td><td>A statement's block.</td></tr>
+            <tr><td>Enum</td><td>`Enum`, `EnumEnumerator`</td><td>An enum and its enumerators, parameterized by the underlying type.</td></tr>
+            <tr><td>Structural</td><td>`Tuple`, `Record`</td><td>A tuple or record declaration.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>A context that names a set of members has two signatures: one taking no name, returning an object keyed by member name, and one taking a name, returning that member alone. Where a position rather than a name is wanted, as for a parameter list, `Reflect.getReflectionByIndex` returns the same reflections as a tuple in declaration order. Reflection of a class includes inherited members; passing `{ own: *true* }` restricts it to the members the class declares itself.</p>
+
+      <emu-note>
+        <p>The contexts are the reason the facility needs no separate function per kind of declaration: `getReflection.&lt;Reflect.ClassField, Point&gt;('x')` and `getReflection.&lt;Reflect.Type&gt;(Point)` are the same call resolved by its selector, and the selector is an ordinary type. It is also the design's own demonstration of specialized overloads, one signature per context, which is why <emu-xref href="#sec-generics"></emu-xref> records that form as the thing this extension needs from it.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-decorator-metadata">
+      <h1>The Metadata Channel</h1>
+      <p>Every reflection context has a `metadata` property holding the <dfn id="metadata-object">metadata object</dfn> of what it names. A metadata object is an instance of the intrinsic class corresponding to its context, `%ClassMetadata%` for `Reflect.Class`, `%ClassFieldMetadata%` for `Reflect.ClassField`, and so on for each row above. A program adds to one by declaring a `partial class` over it whose fields are typed and Symbol-keyed, and the fields it adds are the only ones there are: the intrinsic classes declare none.</p>
+
+      <p>`Reflect.getMetadata.&lt;`_C_`, `_T_`&gt;(&hellip;)` returns the metadata object that `Reflect.getReflection` of the same context and arguments would report, and is the reading half of what a decorator writes.</p>
+
+      <p>A metadata object is inherited through the prototype chain. Where a derived class does not redeclare an inherited member, the member's metadata object is the base's, so a Symbol lookup finds what the base's decorators wrote. Where it redeclares the member and decorates it, the member's metadata object is a new one whose prototype is the base's, so what the derived class's decorators write shadows the base's without mutating it.</p>
+
+      <emu-note>
+        <p>Typed Symbol-keyed fields on a partial class are what make this a channel rather than a property bag: a key cannot collide, because a Symbol cannot; a value cannot be of the wrong type, because the field is declared; and nothing is reachable that was not declared, so a reader of `%ClassFieldMetadata%` sees exactly the vocabulary the program's decorators established. This is the same discipline the metadata protocol takes for a meta type's keys (<emu-xref href="#sec-metadata-decomposition"></emu-xref>), reached from the other direction.</p>
+        <p>Prototypal inheritance of the metadata object is what makes `@tag('base')` on a field of `A` visible on `B`'s inherited copy and invisible once `B` redeclares and retags it, without either class knowing of the other. It also means metadata is read the way a property is read, so a key absent from a derived member's own object is not absent but inherited, which is usually what a decorator's reader wants and is worth knowing when it is not.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-decorator-application">
+      <h1>Applying a Decorator</h1>
+      <p>A decorator is an ordinary function whose last parameter is annotated with a reflection context. Which function a decoration applies is decided by the overload resolution of <emu-xref href="#sec-resolveoverload"></emu-xref> over the arguments written and the context of the position decorated, so `@f`, `@f(0)`, and `@f('a')` may name three declarations of `f` and select among them the way any call does. `@f` and `@f()` are one form: both resolve with no explicit argument, and a signature taking the context alone is preferred over one whose remaining parameters are satisfied by defaults. Where no such signature exists and more than one is satisfied by defaults alone, the decoration is ambiguous and a *TypeError* is thrown where the decorated declaration is evaluated.</p>
+
+      <p>A decorator runs when the declaration it decorates is evaluated, and what it may do there is write to the `metadata` of its context, register an initializer, and return a replacement for what it decorated. The replacement a context admits, the initializer registration, and the order in which decorators of one declaration run are the decorators extension's (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+
+      <emu-note>
+        <p>Types are what remove the `(value, context)` return from a decorator that takes arguments: an erased system cannot tell `@f` from `@f(0)` without one, since it cannot see which `f` is meant, and this proposal resolves it by the annotation on the last parameter. So a decorator looks the same whether or not it takes arguments, and giving one an argument is editing its parameter list rather than rewriting it into a factory.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
