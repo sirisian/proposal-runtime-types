@@ -656,6 +656,7 @@ contributors: Sirisian
           IntersectionType[?Yield, ?Await] `&amp;` PrimaryType[?Yield, ?Await]
 
         PrimaryType[Yield, Await] :
+          `shared` PrimaryType[?Yield, ?Await]
           PredefinedType
           LiteralType
           TypeReference[?Yield, ?Await]
@@ -814,6 +815,7 @@ contributors: Sirisian
           <p>`[]` alone is the array of `any`, which is the bound of the array and tuple family, so a type parameter constrained by it is satisfied by any array or tuple. `[].&lt;T&gt;` is a dynamic array, `[N].&lt;T&gt;` a fixed one, and `[T1, T2]` a tuple. A tuple's trailing position may carry a default through |Initializer|, and a tuple may spread another tuple or an array type at either end.</p>
           <p>The first three alternatives and the fourth are distinguished only after the closing `]`, by whether a |TypeArguments| follows, and their bracketed contents belong to different grammars: an extent is an expression and a tuple element list is a list of types. A single-element case such as `[uint8]` therefore cannot be resolved by bounded lookahead. An implementation may parse the bracketed text under a cover grammar and refine it once the following token is known, as the specification already does for parenthesized expressions and arrow parameters. Whether the two forms should instead be distinguished by their opening bracket is a question worth settling before the syntax is final.</p>
         </emu-note>
+        <p>`shared` before a type marks a type whose values may live in memory shared between agents, as `let a: shared [4].&lt;uint8&gt;`, a fixed-length array backed by a `SharedArrayBuffer`. It is a type error if the operand of `shared` is itself `shared`. Which types admit `shared`, and every rule of construction, publication, and access that follows, belongs to the threading extension and is recorded at its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
       </emu-clause>
 
       <emu-clause id="sec-object-types">
@@ -833,16 +835,22 @@ contributors: Sirisian
             `,` `;`
 
           TypeMember[Yield, Await] :
-            PropertyName[?Yield, ?Await] `?`? TypeAnnotation[?Yield, ?Await]
+            PropertyName[?Yield, ?Await] `?`? TypeAnnotation[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]?
             PropertyName[?Yield, ?Await] `?`? MethodSignature[?Yield, ?Await]
+            IndexSignature[?Yield, ?Await]
 
           MethodSignature[Yield, Await] :
-            TypeParameters[?Yield, ?Await]? `(` FunctionTypeParameterList[?Yield, ?Await]? `,`? `)` TypeAnnotation[?Yield, ?Await]?</ins>
+            TypeParameters[?Yield, ?Await]? `(` FunctionTypeParameterList[?Yield, ?Await]? `,`? `)` TypeAnnotation[?Yield, ?Await]?
+
+          IndexSignature[Yield, Await] :
+            `[` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await] `]` TypeAnnotation[?Yield, ?Await]</ins>
         </emu-grammar>
 
         <emu-note>
           <p>Members are separated by either `,` or `;`, and a trailing separator is permitted, so both `{ x: float32, y: float32 }` and `{ x: float32; y: float32; }` are written. A `?` marks an optional member.</p>
         </emu-note>
+
+        <p>An |IndexSignature| constrains the properties an object type does not declare by name: `{ [key: string]: uint32 }` is the type whose remaining string-keyed properties, beyond those declared, are `uint32`. It is a type error if a |TypeMember|'s |Initializer| appears without `?`, since a default belongs to an optional member; where an object lacking the member is checked against the type, the default supplies its value, the design's `c?: any = []`. It is a type error if the key type of an |IndexSignature| is not `string`, `symbol`, `uint32`, or a union of these, and a type error if a member declared in the same |ObjectType| is not assignable to the signature's value type. Each signature contributes an Index Signature Record to the [[IndexSignatures]] field of the ~object~ Type Record the type constructs (<emu-xref href="#sec-object-types-semantics"></emu-xref>).</p>
       </emu-clause>
 
       <emu-clause id="sec-function-types">
@@ -938,7 +946,7 @@ contributors: Sirisian
           `:=` AssignmentExpression[?In, ?Yield, ?Await]</ins>
       </emu-grammar>
 
-      <p>A binding may carry an annotation, or a typed initializer that infers the binding's type from its initializer.</p>
+      <p>A binding may carry an annotation, or a typed initializer that infers the binding's type from its initializer. The binding of a `for`-`of` or `for`-`in` head takes the same annotation, as `for (const a: int32 of f())`, and a |BindingPattern| in any of these positions annotates its elements through |SingleNameBinding|.</p>
 
       <emu-grammar type="definition">
         LexicalBinding[In, Yield, Await] :
@@ -950,6 +958,10 @@ contributors: Sirisian
           BindingIdentifier[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins> Initializer[?In, ?Yield, ?Await]?
           <ins>BindingIdentifier[?Yield, ?Await] TypedInitializer[?In, ?Yield, ?Await]</ins>
           BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+
+        ForBinding[Yield, Await] :
+          BindingIdentifier[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins>
+          BindingPattern[?Yield, ?Await]
       </emu-grammar>
 
       <p>A parameter may carry an annotation, an optional marker, and a `ref` modifier.</p>
@@ -978,7 +990,7 @@ contributors: Sirisian
       </emu-grammar>
 
       <emu-note>
-        <p>The positions above are representative rather than exhaustive: the remaining function forms, including methods, arrow functions, generators, and class constructors, take the same annotations and are patched by the clauses that specify them. An arrow function's parameter list and return annotation interact with the arrow cover grammar and are given by <emu-xref href="#sec-typed-arrow-functions"></emu-xref>.</p>
+        <p>The positions above are representative rather than exhaustive: the remaining function forms, including methods, arrow functions, generators, and class constructors, take the same annotations and are patched by the clauses that specify them (<emu-xref href="#sec-annotations-on-the-remaining-function-forms"></emu-xref>). An arrow function's parameter list and return annotation interact with the arrow cover grammar and are given by <emu-xref href="#sec-typed-arrow-functions"></emu-xref>.</p>
         <p>`ref` before a parameter is a contextual keyword. A parameter named `ref` remains valid, since an identifier that is not followed by a token that can begin a binding element is a parameter name; `function f(ref)` therefore continues to declare a parameter named `ref`, while `function f(ref a: int32)` declares a reference parameter named `a`.</p>
       </emu-note>
     </emu-clause>
@@ -1027,6 +1039,45 @@ contributors: Sirisian
         <p>`is` is a contextual keyword rather than a reserved word, and the [no LineTerminator here] restriction is what that costs. `a is b` on one line is a Syntax Error today, so the new production takes syntax no program can be using; but `a`, `is`, and `b` on three lines is three statements today, by automatic semicolon insertion, and must stay three. The restriction keeps it so, at the price that a program cannot break the line before `is`. This is the treatment `async` already receives before an arrow's parameters, and the alternative, reserving the word, is not available.</p>
       </emu-note>
     </emu-clause>
+      <emu-clause id="sec-type-arguments-and-placement-new-in-expression-position">
+        <h1>Type Arguments and Placement `new` in Expression Position</h1>
+        <p>A specialization such as `f.&lt;uint8&gt;(x)` and a placement allocation such as `new(buffer, byteOffset) Type(0)` are member-expression forms. The productions below restate |MemberExpression| and |CallExpression| with the added alternatives (<emu-xref href="#sec-conventions"></emu-xref>).</p>
+
+        <emu-grammar type="definition">
+        MemberExpression[Yield,Await] :
+          PrimaryExpression[?Yield, ?Await]
+          MemberExpression[?Yield, ?Await] `[` Expression[+In, ?Yield, ?Await] `]`
+          MemberExpression[?Yield, ?Await] `.` IdentifierName
+          MemberExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
+          SuperProperty[?Yield, ?Await]
+          MetaProperty
+          `new` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+          MemberExpression[?Yield, ?Await] `.` PrivateIdentifier
+          <ins>MemberExpression[?Yield, ?Await] TypeArguments[?Yield, ?Await]</ins>
+          <ins>`new` `(` AssignmentExpression[+In, ?Yield, ?Await] `)` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
+          <ins>`new` `(` AssignmentExpression[+In, ?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await] `)` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
+          <ins>`new` `(` AssignmentExpression[+In, ?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await] `)` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
+
+        CallExpression[Yield,Await] :
+          CoverCallExpressionAndAsyncArrowHead[?Yield, ?Await] #callcover
+          SuperCall[?Yield, ?Await]
+          ImportCall[?Yield, ?Await]
+          CallExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+          CallExpression[?Yield, ?Await] `[` Expression[+In, ?Yield, ?Await] `]`
+          CallExpression[?Yield, ?Await] `.` IdentifierName
+          CallExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
+          CallExpression[?Yield, ?Await] `.` PrivateIdentifier
+          <ins>CallExpression[?Yield, ?Await] TypeArguments[?Yield, ?Await]</ins>
+        </emu-grammar>
+
+        <p>A |MemberExpression| or |CallExpression| followed by |TypeArguments| evaluates the expression and specializes the result by the listed types. The value must be generic: a generic function, a generic class, or a parameterized type; the selection and substitution are those of <emu-xref href="#sec-generic-specialization"></emu-xref>, of which this production is the explicit written form. Where the expression's Static Type shows a value that is not generic it is a type error, and otherwise a specialization of a non-generic value throws a *TypeError* exception. The |OptionalChain| productions are not extended; a specialization does not follow `?.`.</p>
+
+        <p>The placement forms allocate into an existing buffer rather than into fresh storage. The first argument is the buffer, the second, when present, is the byte offset and otherwise 0, and the third, when present, is the byte length reserved for each element and otherwise the constructed type's `byteLength`. Construction stores each field of each instance at its laid-out position (<emu-xref href="#table-extension-hooks"></emu-xref>, memory layout); a third argument larger than `byteLength` leaves padding between elements, a smaller one makes elements overlap, and bytes the layout does not assign keep the buffer's contents, since reusing storage is what the form is for and the zero-fill rule of fresh allocation does not apply. It is a *RangeError* exception when the extent so computed exceeds the buffer's length. Over a resizable buffer the extent is recorded: shrinking the buffer below a live allocation's extent detaches those instances, touching a detached instance throws a *TypeError* exception, and growing never invalidates.</p>
+
+        <emu-note>
+          <p>`new` `(` begins both a placement form and an ordinary `new` whose constructor is parenthesized. Source that continues with a |MemberExpression| after the closing parenthesis is the placement form; under the base grammar such source has no parse as a single expression, so the added reading changes no existing program. The array form of the design, `new(buffer, byteOffset, byteElementLength) [10].&lt;Type&gt;(0)`, needs no further production: `[10].&lt;Type&gt;` is an |ArrayLiteral| specialized by |TypeArguments|, which the alternative above already admits as the target |MemberExpression|.</p>
+        </emu-note>
+      </emu-clause>
   </emu-clause>
 
   <emu-clause id="sec-type-universe">
@@ -1710,6 +1761,33 @@ contributors: Sirisian
         <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is an instance of the corresponding dynamic-length array type, and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which <emu-xref href="#sec-narrowing"></emu-xref> specifies.</p>
       </emu-note>
     </emu-clause>
+    <emu-clause id="sec-typed-catch">
+      <h1>Typed `catch` Clauses</h1>
+      <p>A `catch` clause may name the type it handles, and a `try` may then carry more than one. The productions below restate their ECMAScript definitions (<emu-xref href="#sec-conventions"></emu-xref>).</p>
+
+      <emu-grammar type="definition">
+        TryStatement[Yield,Await,Return] :
+          <del>`try` Block[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return]</del>
+          <ins>`try` Block[?Yield, ?Await, ?Return] CatchClauses[?Yield, ?Await, ?Return]</ins>
+          `try` Block[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]
+          <del>`try` Block[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]</del>
+          <ins>`try` Block[?Yield, ?Await, ?Return] CatchClauses[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]</ins>
+
+        <ins>CatchClauses[Yield, Await, Return] :
+          Catch[?Yield, ?Await, ?Return]
+          CatchClauses[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return]</ins>
+
+        Catch[Yield,Await,Return] :
+          `catch` `(` CatchParameter[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins> `)` Block[?Yield, ?Await, ?Return]
+          `catch` Block[?Yield, ?Await, ?Return]
+      </emu-grammar>
+
+      <p>It is a type error if a |Catch| other than the last of its |CatchClauses| has no |TypeAnnotation|. When a value _v_ is thrown, the clauses are tried in order, and the first runs whose declared type _v_ satisfies, in the sense in which RequireType (<emu-xref href="#sec-requiretype"></emu-xref>) would accept _v_ at that type; a |Catch| with no annotation satisfies every value. Within a clause the binding's Static Type is the declared type, the narrowing of <emu-xref href="#sec-narrowing"></emu-xref> applied to the catch binding. A value no clause accepts propagates as if the `try` had no `catch`: typed clauses filter, they do not swallow, so the completion is rethrown after |Finally|, when present, runs as it does today.</p>
+
+      <emu-note>
+        <p>This is the design's error handling document made normative: ordered dispatch, first match, an untyped tail for the rest. A rejected promise reaches a typed clause through `await` unchanged, since `await` rethrows the rejection reason and the dispatch above neither knows nor cares that the throw crossed an async boundary. The errors this proposal itself raises, *RangeError* at a checked numeric conversion and at an out-of-bounds access, *TypeError* at a dynamic boundary, are ordinary values here, so `catch (e: RangeError)` handles every range failure in one clause (design, errorhandling.md).</p>
+      </emu-note>
+    </emu-clause>
   </emu-clause>
 
   <emu-clause id="sec-declarations">
@@ -2291,6 +2369,64 @@ contributors: Sirisian
         <p>`(x: uint8): uint8 =&gt; x * x` is therefore an arrow function of one `uint8` parameter returning a `uint8`. The return annotation sits between the parameters and the `=&gt;`, which is the only position available, and it is what distinguishes an annotated arrow from a function type: `(uint8) =&gt; uint8` in a type position is a type, while `(x: uint8): uint8 =&gt; x * x` in an expression position is a function. An arrow function is not overloadable, since it has no name to overload.</p>
       </emu-note>
     </emu-clause>
+
+    <emu-clause id="sec-annotations-on-the-remaining-function-forms">
+      <h1>Annotations on the Remaining Function Forms</h1>
+      <p>Every function-shaped production takes the return annotation the same way: a |TypeAnnotation| between the parameter list and the body. The productions below restate their ECMAScript definitions with that insertion (<emu-xref href="#sec-conventions"></emu-xref>); parameter annotations need no insertion here, since a parameter of any of these forms is a |FormalParameter| or |BindingElement| and carries its annotation there.</p>
+
+      <emu-grammar type="definition">
+        MethodDefinition[Yield,Await] :
+          ClassElementName[?Yield, ?Await] `(` UniqueFormalParameters[~Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` FunctionBody[~Yield, ~Await] `}`
+          GeneratorMethod[?Yield, ?Await]
+          AsyncMethod[?Yield, ?Await]
+          AsyncGeneratorMethod[?Yield, ?Await]
+          `get` ClassElementName[?Yield, ?Await] `(` `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` FunctionBody[~Yield, ~Await] `}`
+          `set` ClassElementName[?Yield, ?Await] `(` PropertySetParameterList `)` `{` FunctionBody[~Yield, ~Await] `}`
+
+        GeneratorMethod[Yield,Await] :
+          `*` ClassElementName[?Yield, ?Await] `(` UniqueFormalParameters[+Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` GeneratorBody `}`
+
+        AsyncMethod[Yield,Await] :
+          `async` [no LineTerminator here] ClassElementName[?Yield, ?Await] `(` UniqueFormalParameters[~Yield, +Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` AsyncFunctionBody `}`
+
+        AsyncGeneratorMethod[Yield,Await] :
+          `async` [no LineTerminator here] `*` ClassElementName[?Yield, ?Await] `(` UniqueFormalParameters[+Yield, +Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` AsyncGeneratorBody `}`
+
+        GeneratorDeclaration[Yield,Await,Default] :
+          `function` `*` BindingIdentifier[?Yield, ?Await] `(` FormalParameters[+Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` GeneratorBody `}`
+          [+Default] `function` `*` `(` FormalParameters[+Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` GeneratorBody `}`
+
+        AsyncFunctionDeclaration[Yield,Await,Default] :
+          `async` [no LineTerminator here] `function` BindingIdentifier[?Yield, ?Await] `(` FormalParameters[~Yield, +Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` AsyncFunctionBody `}`
+          [+Default] `async` [no LineTerminator here] `function` `(` FormalParameters[~Yield, +Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` AsyncFunctionBody `}`
+
+        AsyncGeneratorDeclaration[Yield,Await,Default] :
+          `async` [no LineTerminator here] `function` `*` BindingIdentifier[?Yield, ?Await] `(` FormalParameters[+Yield, +Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` AsyncGeneratorBody `}`
+          [+Default] `async` [no LineTerminator here] `function` `*` `(` FormalParameters[+Yield, +Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` AsyncGeneratorBody `}`
+
+        FunctionExpression :
+          `function` BindingIdentifier[~Yield, ~Await]? `(` FormalParameters[~Yield, ~Await] `)` <ins>TypeAnnotation[~Yield, ~Await]?</ins> `{` FunctionBody[~Yield, ~Await] `}`
+
+        GeneratorExpression :
+          `function` `*` BindingIdentifier[+Yield, ~Await]? `(` FormalParameters[+Yield, ~Await] `)` <ins>TypeAnnotation[+Yield, ~Await]?</ins> `{` GeneratorBody `}`
+
+        AsyncFunctionExpression :
+          `async` [no LineTerminator here] `function` BindingIdentifier[~Yield, +Await]? `(` FormalParameters[~Yield, +Await] `)` <ins>TypeAnnotation[~Yield, +Await]?</ins> `{` AsyncFunctionBody `}`
+
+        AsyncGeneratorExpression :
+          `async` [no LineTerminator here] `function` `*` BindingIdentifier[+Yield, +Await]? `(` FormalParameters[+Yield, +Await] `)` <ins>TypeAnnotation[+Yield, +Await]?</ins> `{` AsyncGeneratorBody `}`
+
+        AsyncArrowFunction[In,Yield,Await] :
+          `async` [no LineTerminator here] AsyncArrowBindingIdentifier[?Yield] <ins>TypeAnnotation[?Yield, ?Await]?</ins> [no LineTerminator here] `=>` AsyncConciseBody[?In]
+          CoverCallExpressionAndAsyncArrowHead[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins> [no LineTerminator here] `=>` AsyncConciseBody[?In] #callcover
+      </emu-grammar>
+
+      <p>A `set` accessor declares no return type, so its production is restated unchanged; its single parameter is annotated through |PropertySetParameterList|. When |CoverCallExpressionAndAsyncArrowHead| is refined using |AsyncArrowHead|, a parameter may carry the annotations of <emu-xref href="#sec-type-annotations"></emu-xref>, exactly as the synchronous cover is refined in <emu-xref href="#sec-typed-arrow-functions"></emu-xref>. The static and runtime semantics of an annotation on any of these forms are those of <emu-xref href="#sec-functions"></emu-xref>: the annotation gives the declared return type, an `async` function's annotation types the promise the call returns, and a generator's annotation types the values the iterator yields.</p>
+
+      <emu-note>
+        <p>The design writes `async function f(): Promise.&lt;uint8, Error&gt;` and typed generator methods throughout; this clause is where those parses come from. A class constructor is the one method that takes no return annotation, which <emu-xref href="#sec-typed-classes"></emu-xref> states.</p>
+      </emu-note>
+    </emu-clause>
   </emu-clause>
 
   <emu-clause id="sec-classes-interfaces-and-enums">
@@ -2386,7 +2522,7 @@ contributors: Sirisian
 
       <p>A typed class is a <dfn id="value-type-class">value type class</dfn> when every one of its fields has a type that is a value type. Instances of a value type class are values in the sense of <emu-xref href="#sec-value-types"></emu-xref>: they are laid out contiguously, they are stored inline in a field or an array element of that type, and assigning one copies it. It is a type error for a value type class to contain itself, directly or through a cycle of value type fields, since the layout would have no finite size (<emu-xref href="#sec-layout-finiteness"></emu-xref>). A field that closes such a cycle is written `T | null`, which is a reference.</p>
 
-      <p>A field with no initializer holds the default value of its type (<emu-xref href="#sec-defaultvalueof"></emu-xref>), and it is a type error to declare a field whose type has no default and give it no initializer.</p>
+      <p>A constructor declares no return type, since the class is the type a construction yields. A field with no initializer holds the default value of its type (<emu-xref href="#sec-defaultvalueof"></emu-xref>), and it is a type error to declare a field whose type has no default and give it no initializer.</p>
 
       <p>`===` on two instances of a value type class compares them field by field, since the identity of a value type is its value. `===` on two instances of a class that is not a value type compares references.</p>
 
@@ -2395,8 +2531,67 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-abstract-classes">
+      <h1>Abstract Classes</h1>
+      <p>A class may be declared `abstract`, `sealed`, or `dynamic`. The productions below restate their ECMAScript definitions with the modifier list (<emu-xref href="#sec-conventions"></emu-xref>); `sealed` is specified by <emu-xref href="#sec-sealed-classes"></emu-xref>, `dynamic` by <emu-xref href="#sec-typed-classes"></emu-xref>, and the abstract method form is an alternative of the |ClassElement| restatement in <emu-xref href="#sec-operator-declarations"></emu-xref>. It is a type error if a modifier is repeated, and a type error if `sealed` and `dynamic` are declared together.</p>
+
+      <emu-grammar type="definition">
+        ClassDeclaration[Yield,Await,Default] :
+          <ins>ClassModifiers?</ins> `class` BindingIdentifier[?Yield, ?Await] ClassTail[?Yield, ?Await]
+          [+Default] <ins>ClassModifiers?</ins> `class` ClassTail[?Yield, ?Await]
+
+        ClassExpression[Yield,Await] :
+          <ins>ClassModifiers?</ins> `class` BindingIdentifier[?Yield, ?Await]? ClassTail[?Yield, ?Await]
+
+        <ins>ClassModifiers :
+          ClassModifier
+          ClassModifiers ClassModifier
+
+        ClassModifier : one of
+          `abstract` `sealed` `dynamic`</ins>
+      </emu-grammar>
+
+      <p>An abstract method is a signature with no body, and its annotation types the implementations: it is a type error if a subclass implements an inherited abstract method with a signature the abstract declaration does not accept. It is a type error if a |ClassElement| of the abstract form appears in a class not declared `abstract`, and a type error if a class not declared `abstract` leaves an inherited abstract method unimplemented. Where the Static Type of the constructor in `new C(&hellip;)` is an abstract class it is a type error; the [[Construct]] internal method of an abstract class's constructor throws a *TypeError* exception when NewTarget is that constructor itself, so a dynamic construction fails at run time while `super()` from a concrete subclass, arriving with a concrete NewTarget, runs the abstract constructor as a constructor body should.</p>
+
+      <p>An abstract class is never a value type class (<emu-xref href="#value-type-class"></emu-xref>). Its purpose is polymorphic dispatch through the hierarchy, which is reference behaviour, so an abstract class and every subclass reached through an abstract-typed binding are reference types.</p>
+
+      <emu-note>
+        <p>The design's `Shape` declares `abstract area(): number;` beside a concrete `describe()`, which is the division of labour: an interface is pure signature, while an abstract class carries the partial implementation a family of subclasses completes (design, README, Abstract Classes).</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-interfaces-semantics">
       <h1>Interfaces</h1>
+      <p>An interface is declared with the productions below; |InterfaceDeclaration| is an alternative of the |Declaration| restatement of <emu-xref href="#sec-meta-declarations"></emu-xref>, and |ClassTail| is restated with the `implements` clause (<emu-xref href="#sec-conventions"></emu-xref>).</p>
+
+      <emu-grammar type="definition">
+        <ins>InterfaceDeclaration[Yield, Await] :
+          `interface` BindingIdentifier[?Yield, ?Await] TypeParameters[?Yield, ?Await]? `{` InterfaceBody[?Yield, ?Await]? `}`
+
+        InterfaceBody[Yield, Await] :
+          InterfaceMemberList[?Yield, ?Await] TypeMemberSeparator?
+
+        InterfaceMemberList[Yield, Await] :
+          InterfaceMember[?Yield, ?Await]
+          InterfaceMemberList[?Yield, ?Await] TypeMemberSeparator InterfaceMember[?Yield, ?Await]
+
+        InterfaceMember[Yield, Await] :
+          TypeMember[?Yield, ?Await]
+          OperatorDefinition[?Yield, ?Await]</ins>
+
+        ClassTail[Yield,Await] :
+          ClassHeritage[?Yield, ?Await]? <ins>ImplementsClause[?Yield, ?Await]?</ins> `{` ClassBody[?Yield, ?Await]? `}`
+
+        <ins>ImplementsClause[Yield, Await] :
+          `implements` ImplementsList[?Yield, ?Await]
+
+        ImplementsList[Yield, Await] :
+          TypeReference[?Yield, ?Await]
+          ImplementsList[?Yield, ?Await] `,` TypeReference[?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>An interface's members are the |TypeMember| forms of an object type, index signatures and optional members with defaults included, and additionally operator members, as `interface Ordered.&lt;T&gt; { operator&lt;(other: T): boolean; }` written with declaration-site `&lt;`&hellip;`&gt;`; a type satisfies an operator member by declaring the operator. It is a type error if a class whose |ClassTail| carries an |ImplementsClause| does not satisfy every member, operator members included, of every listed interface.</p>
+
       <p>An interface declares a contract. Its type is a ~nominal~ type whose [[Declaration]] is the interface declaration, and a class that implements it is a subtype of it by <emu-xref href="#sec-issubtype"></emu-xref>, which follows the declared hierarchy. An interface may also type an object, an array, or a function structurally.</p>
 
       <p>A class that implements an interface cannot remove the contract: deleting a member the interface requires throws a *TypeError* exception, and this holds through a subclass, a reference, and reflection.</p>
@@ -2408,9 +2603,25 @@ contributors: Sirisian
 
     <emu-clause id="sec-enums">
       <h1>Enums</h1>
+      <p>An enum is declared with the productions below; |EnumDeclaration| is an alternative of the |Declaration| restatement of <emu-xref href="#sec-meta-declarations"></emu-xref>.</p>
+
+      <emu-grammar type="definition">
+        <ins>EnumDeclaration[Yield, Await] :
+          `enum` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]? `{` EnumMemberList[?Yield, ?Await]? `,`? `}`
+
+        EnumMemberList[Yield, Await] :
+          EnumMember[?Yield, ?Await]
+          EnumMemberList[?Yield, ?Await] `,` EnumMember[?Yield, ?Await]
+
+        EnumMember[Yield, Await] :
+          IdentifierName Initializer[+In, ?Yield, ?Await]?</ins>
+      </emu-grammar>
+
+      <p>It is a type error if two enumerators of one declaration have the same name. Every initializer is evaluated in the compile-time evaluable fragment (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>), since an enumerator is a constant of the program.</p>
+
       <p>An enum declaration introduces a ~nominal~ type whose values are its enumerators. The type after `:` is the enum's <dfn id="underlying-type">underlying type</dfn>, and an enum declared without one has the underlying type `int32`. Any type may be an underlying type, including a function type and `symbol`.</p>
 
-      <p>An enumerator with no initializer takes the value after the one before it, and the first takes 0. An enumerator initialized with a function of two parameters is given the result of calling that function with the enumerator's index and its name as a String, and a following enumerator with no initializer is given the result of calling the same function with its own index and name. Such a function is not a closure.</p>
+      <p>The first enumerator, when it has no initializer, takes 0, and it is a type error when the underlying type is not numeric, since a non-numeric enumeration must define its starting value. A later enumerator with no initializer takes the result of applying the underlying type's prefix increment operator `operator++` to the previous enumerator's value, with the previous enumerator itself unmodified; where the underlying type declares no prefix increment, it takes a value equal to the previous one. An enumerator initialized with a function of two parameters is given the result of calling that function with the enumerator's index and its name as a String, and a following enumerator with no initializer is given the result of calling the most recently given such function with its own index and name, until an initializer replaces it; an initializer that is not such a function sets its enumerator's value without disturbing the function for those after it. Such a function is not a closure.</p>
 
       <p>An enum type is a subtype of its underlying type, so a value of an enum type is usable wherever the underlying type is required and no conversion is written. The reverse is explicit: calling the enum type with a value of the underlying type returns the enumerator whose value it is, and throws a *TypeError* when it is not one of them.</p>
 
@@ -2504,7 +2715,7 @@ contributors: Sirisian
       </emu-alg>
       <p>For every type _T_, `Reflect.makeType(Reflect.getReflection.&lt;Reflect.Type&gt;(`_T_`))` is _T_. Construction canonicalizes and interns by <emu-xref href="#sec-canonicalizetype"></emu-xref> and <emu-xref href="#sec-gettypeobject"></emu-xref>, the same operations that give a source-written type its identity, which is what makes the round trip the identity function rather than an equivalence.</p>
       <emu-note>
-        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, an intersection of distinct value types, or an index signature with an illegal key type fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. Validity is not syntactic reachability: an index signature and a symbol literal type are valid types with no declaration form at all, which is why they are constructed rather than written. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
+        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, an intersection of distinct value types, or an index signature with an illegal key type fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. Validity is not syntactic reachability: a symbol literal type is a valid type with no declaration form at all, which is why it is constructed rather than written; an index signature has the declaration form of <emu-xref href="#sec-object-types"></emu-xref>, and the declaration and a builder's construction reach the same Record. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
       </emu-note>
     </emu-clause>
 
@@ -2679,6 +2890,43 @@ contributors: Sirisian
         <p>The dependency now runs in one direction without exception. The metadata parameterization that <emu-xref href="#sec-issubtype"></emu-xref> once forward-referenced is core (<emu-xref href="#sec-parameterized-types"></emu-xref>), as the refinement relation it shares with an enum's underlying type and a class's base always suggested it should be. What remains with the primitive metadata extension is the protocol's hook surface: the judgments beyond the branding default, and the conversion machinery.</p>
       </emu-note>
     </emu-clause>
+
+    <emu-clause id="sec-coverage-of-the-design-documents">
+      <h1>Coverage of the Design Documents</h1>
+      <p>Every document of the design has a disposition here: it is specified by clauses of this document, it is deferred to its own future clauses with a hook already named, or it is deferred outright, in which case whatever it adds must fit the mechanism above. The examples directory is a corpus this specification is checked against rather than a source of requirements.</p>
+
+      <emu-table id="table-design-document-coverage" caption="Disposition of the design documents">
+        <table>
+          <thead><tr><th>Document</th><th>Disposition</th></tr></thead>
+          <tbody>
+            <tr><td>README</td><td>The core; specified throughout this document.</td></tr>
+            <tr><td>typeobjects.md</td><td>Specified: the Type Object and the computed types of <emu-xref href="#sec-computed-types"></emu-xref>.</td></tr>
+            <tr><td>typeprogramming.md</td><td>Specified: builders, canonicalization, and the evaluation budget.</td></tr>
+            <tr><td>generics.md</td><td>Specified: <emu-xref href="#sec-generics"></emu-xref>.</td></tr>
+            <tr><td>dependentrecordtypes.md</td><td>Specified: <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
+            <tr><td>primitivemetadata.md</td><td>Specified: <emu-xref href="#sec-primitive-metadata"></emu-xref>.</td></tr>
+            <tr><td>memorylayout.md</td><td>Specified: <emu-xref href="#sec-memory-layout"></emu-xref>, with placement `new` in <emu-xref href="#sec-type-arguments-and-placement-new-in-expression-position"></emu-xref>.</td></tr>
+            <tr><td>operatoroverloading.md</td><td>Specified: <emu-xref href="#sec-operators"></emu-xref> and <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
+            <tr><td>decorators.md</td><td>Specified as reflection: <emu-xref href="#sec-decorators"></emu-xref>; decorator syntax itself rides the decorators proposal.</td></tr>
+            <tr><td>complex.md</td><td>Specified: <emu-xref href="#sec-complex-types"></emu-xref>, <emu-xref href="#sec-complex-numbers"></emu-xref>, and the imaginary literal.</td></tr>
+            <tr><td>rational.md</td><td>Specified: <emu-xref href="#sec-rational-types"></emu-xref>.</td></tr>
+            <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
+            <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
+            <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
+            <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
+            <tr><td>references.md</td><td>Partially specified: the `ref` type is in the grammar; the borrowing rules remain the document's.</td></tr>
+            <tr><td>threading.md</td><td>Partially specified: `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative; the rest is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
+            <tr><td>ranges.md</td><td>Deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
+            <tr><td>serialization.md</td><td>Deferred; <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
+            <tr><td>soa.md</td><td>Deferred; the memory layout hook is its attachment point.</td></tr>
+            <tr><td>regexp.md</td><td>Deferred; it adds pattern-typed literals atop the core and needs no core hook.</td></tr>
+            <tr><td>random.md</td><td>Deferred; a library extension.</td></tr>
+            <tr><td>temporal.md</td><td>Deferred; a library extension.</td></tr>
+            <tr><td>specnotes.md</td><td>The plan this document follows; not itself a source of requirements.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+    </emu-clause>
   </emu-clause>
 </emu-clause>
 
@@ -2825,6 +3073,8 @@ contributors: Sirisian
           <ins>TypeAliasDeclaration[?Yield, ?Await]</ins>
           <ins>MetaDeclaration[?Yield, ?Await]</ins>
           <ins>PrimitiveOperatorDeclaration[?Yield, ?Await]</ins>
+          <ins>InterfaceDeclaration[?Yield, ?Await]</ins>
+          <ins>EnumDeclaration[?Yield, ?Await]</ins>
 
         <ins>MetaDeclaration[Yield, Await] :
           `meta` [no LineTerminator here] TypeName[?Yield, ?Await] `{` MetaHookList[?Yield, ?Await]? `}`
@@ -3248,7 +3498,10 @@ contributors: Sirisian
         ClassStaticBlock
         `;`
         <ins>OperatorDefinition[?Yield, ?Await]</ins>
+        <ins>`abstract` ClassElementName[?Yield, ?Await] `(` UniqueFormalParameters[?Yield, ?Await] `)` TypeAnnotation[?Yield, ?Await]? `;`</ins>
     </emu-grammar>
+
+    <p>The `abstract` alternative is the abstract method of <emu-xref href="#sec-abstract-classes"></emu-xref>, restated here because a later restatement carries a production's complete form (<emu-xref href="#sec-conventions"></emu-xref>).</p>
 
     <p>An operator's own type parameters are written `.&lt;`&hellip;`&gt;` rather than `&lt;`&hellip;`&gt;` because the operator name may itself end in `&lt;` or `&gt;`: `operator&lt;.&lt;D2: Dimensions&gt;` lexes where `operator&lt; &lt;D2: Dimensions&gt;` would collide with the `&lt;&lt;` token. This is the one place a declaration site uses the application spelling, and the reason is lexical rather than principled.</p>
 
