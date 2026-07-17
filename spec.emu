@@ -1077,7 +1077,6 @@ contributors: Sirisian
 
       <emu-note>
         <p>`float64` and the Number type have the same set of values but are distinct types, so neither is assignable to the other without a conversion. This is the rule stated for every pair of value types and is not a special case: Number is the type an untyped program computes with, and `float64` is the type a program asks for when it wants that format by name.</p>
-        <p>`float80` was listed by the design and is excluded by both documents: it is deliberately not defined here. It is not an IEEE 754 interchange format. The 80-bit format it refers to is the x87 double-extended format, whose significand carries an explicit integer bit and therefore admits encodings, the unnormals and pseudo-denormals, that no interchange format has; its in-memory footprint is not 10 bytes on any common ABI but 12 or 16 depending on alignment; and it is unavailable on ARM and on most hardware that is not x86. Since the memory layout extension makes `byteLength` observable, a type whose size differs across platforms cannot be specified the way the other float types can. Of the options, defining it as IEEE 754 double-extended with a fixed footprint, dropping it, or admitting it as a platform-dependent extension, the design and this specification take the second: both documents exclude it, and the type universe is final without it.</p>
       </emu-note>
     </emu-clause>
 
