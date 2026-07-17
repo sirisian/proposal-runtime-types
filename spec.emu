@@ -1281,6 +1281,7 @@ contributors: Sirisian
             <tr><td>An argument of a call whose callee has a single applicable signature</td><td>The declared type of the corresponding parameter.</td></tr>
             <tr><td>An argument whose corresponding parameter's declared type is a generic parameter</td><td>That parameter's evaluated constraint (<emu-xref href="#sec-computed-constraints"></emu-xref>), or ~none~ where it has none.</td></tr>
             <tr><td>The operand of a `return` in a function with a return annotation</td><td>The annotated return type.</td></tr>
+            <tr><td>`this` within the body of a non-arrow function literal whose contextual type is a ~function~ type</td><td>The [[ThisType]] of that type's applicable signature, where it is not ~none~ (<emu-xref href="#sec-this-adoption"></emu-xref>).</td></tr>
             <tr><td>The right operand of an assignment to a target of a known type</td><td>The type of the target.</td></tr>
             <tr><td>An operand of a binary operator whose other operand has a known value type</td><td>The type of the other operand.</td></tr>
             <tr><td>An element of an array or tuple literal in a position of a known array or tuple type</td><td>The element type of that position.</td></tr>
@@ -1816,6 +1817,8 @@ contributors: Sirisian
             <tr><td>`v === e` or `v !== e`, where the Static Type of _e_ is a literal type _L_</td><td>NarrowTo(_s_, _L_)</td><td>NarrowFrom(_s_, _L_)</td></tr>
             <tr><td>`v.p === e` or `v.p !== e` under the same condition, where _s_ is a ~union~</td><td>NarrowTo(_s_, the union of the members of _s_ whose type at `p` admits _L_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`v` _op_ `e`, where _op_ is a comparison, the Static Type of `v` is a ~parameterized~ type, and `e` is a compile-time constant _c_</td><td>NarrowTo(_s_, _s_ with its metadata replaced by NarrowMetadata(_s_'s metadata, _op_, _c_))</td><td>NarrowTo(_s_, _s_ with its metadata replaced by NarrowMetadata(_s_'s metadata, the negation of _op_, _c_))</td></tr>
+            <tr><td>A call of a signature whose [[Narrows]] holds a Narrowing Record for the position `v` is passed in, where the signature's [[Return]] is `boolean`</td><td>NarrowTo(_s_, that Record's [[Type]])</td><td>NarrowFrom(_s_, that Record's [[Type]])</td></tr>
+            <tr><td>The same, where the signature's [[Return]] is ~void~</td><td colspan="2">NarrowTo(_s_, that Record's [[Type]]) in every position the call dominates, rather than in a branch (<emu-xref href="#sec-declared-narrowing"></emu-xref>).</td></tr>
             <tr><td>`typeof v === ` a String literal _k_</td><td>NarrowTo(_s_, the union of the types whose `typeof` is _k_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`v == null` or `v != null`, and the nullish operators `??`, `??=`, and `?.`</td><td>The nullish branch: NarrowTo(_s_, `null | undefined`)</td><td>The present branch: NarrowFrom(_s_, `null | undefined`)</td></tr>
             <tr><td>A `switch` on a value of an enum type or a sealed class hierarchy</td><td>In each case, NarrowTo(_s_, the case's type)</td><td>In the default, _s_ with every case's type removed</td></tr>
@@ -2044,6 +2047,7 @@ contributors: Sirisian
             <tr><td>[[Parameters]]</td><td>a List of Parameter Records</td><td>The parameters, in order.</td></tr>
             <tr><td>[[Return]]</td><td>a Type Record</td><td>The declared return type, or the `any` type where none is declared.</td></tr>
             <tr><td>[[ThisType]]</td><td>a Type Record or ~none~</td><td>The declared `this` type, or ~none~ where none is declared.</td></tr>
+            <tr><td>[[Narrows]]</td><td>a List of Narrowing Records</td><td>The narrowings a call of this signature declares (<emu-xref href="#sec-declared-narrowing"></emu-xref>). Empty where none is declared.</td></tr>
             <tr><td>[[TypeParameters]]</td><td>a List of Parse Nodes</td><td>The type parameters the signature declares, empty when it is not generic.</td></tr>
             <tr><td>[[Untyped]]</td><td>a Boolean</td><td>*true* when the signature declares no parameter type and no return type, in which case it is a catch-all.</td></tr>
           </tbody>
@@ -2053,7 +2057,7 @@ contributors: Sirisian
       <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), an [[Initial]] field (an ECMAScript language value or ~none~, the declared default), and a [[Reference]] field (a Boolean). [[Reference]] is *true* exactly when [[Type]].[[Kind]] is ~reference~: the flag restates the type for convenience, and reflection reads the fact from the type.</p>
 
       <emu-note>
-        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity. A parameter's [[Initial]] and a signature's [[ThisType]] are part of the identity, compared by SameValue and as a type; the name remains the one non-canonical field, carried from the first occurrence interned, so two structurally identical declarations reflect the first's names, an order-of-loading fact that is deterministic within a program and is the reason no further non-canonical field is admitted. A decorator's metadata is the case that tests this and does not become an exception to it: two functions of one signature are one type however differently their parameters are decorated, so metadata cannot ride a Signature Record, and <emu-xref href="#sec-decorators"></emu-xref> reads it from the declaration instead. The rules that consume [[ThisType]], its contravariant place in subtyping and the contextual adoption of an expected `this` by a function literal, are parked with the design's declarative checker facts alongside declared narrowing (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+        <p>A signature is identified by its parameter types and its return type, so two declarations of one name may differ in the return type alone (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). A parameter's name is carried because the design's named arguments select by it, and is not part of the signature's identity. A parameter's [[Initial]] and a signature's [[ThisType]] are part of the identity, compared by SameValue and as a type; the name remains the one non-canonical field, carried from the first occurrence interned, so two structurally identical declarations reflect the first's names, an order-of-loading fact that is deterministic within a program and is the reason no further non-canonical field is admitted. A decorator's metadata is the case that tests this and does not become an exception to it: two functions of one signature are one type however differently their parameters are decorated, so metadata cannot ride a Signature Record, and <emu-xref href="#sec-decorators"></emu-xref> reads it from the declaration instead. [[ThisType]] and [[Narrows]] are the design's declarative checker facts: data the checker reads and never code it runs. Both are part of a signature's identity, and both are consumed by <emu-xref href="#sec-declarative-checker-facts"></emu-xref>.</p>
       </emu-note>
     </emu-clause>
 
@@ -2123,6 +2127,11 @@ contributors: Sirisian
             1. Let _p_ be the element of _a_.[[Parameters]] that receives the argument at index _j_.
             1. If _p_.[[Reference]] is not _q_.[[Reference]], return *false*.
             1. If IsSubtype(_q_.[[Type]], _p_.[[Type]], _assumptions_) is *false*, return *false*.
+          1. If _a_.[[ThisType]] is not ~none~, then
+            1. If _b_.[[ThisType]] is ~none~, return *false*.
+            1. If IsSubtype(_b_.[[ThisType]], _a_.[[ThisType]], _assumptions_) is *false*, return *false*.
+          1. For each Narrowing Record _n_ of _b_.[[Narrows]], do
+            1. If _a_.[[Narrows]] contains no Narrowing Record whose [[Target]] is _n_.[[Target]] and whose [[Type]] is a subtype (IsSubtype) of _n_.[[Type]] under _assumptions_, return *false*.
           1. If _b_.[[Return]].[[Kind]] is ~void~, return *true*.
           1. Return IsSubtype(_a_.[[Return]], _b_.[[Return]], _assumptions_).
         </emu-alg>
@@ -2452,7 +2461,7 @@ contributors: Sirisian
             <tr><td>*"tuple"*</td><td>`elements`, a List of records with `type` (a Type Object), `rest`, and `initial`.</td></tr>
             <tr><td>*"array"*</td><td>`element`, a Type Object; `extent`, a non-negative integer or *undefined* for a dynamic length.</td></tr>
             <tr><td>*"object"*</td><td>`properties`, a List of records with `name` (a String or Symbol), `type` (a Type Object), `optional`, `readonly`, and `initial`; `indexSignatures`, a List of records with `key` and `value` (Type Objects).</td></tr>
-            <tr><td>*"function"*</td><td>`signatures`, in declaration order, each a record with `parameters` (records with `type`, `name`, `index`, `optional`, `rest`, `initial`, and `metadata`), `return` (a record with `type` and `metadata`), and `thisType` (a Type Object or *undefined*). The `metadata` properties are always *undefined* here and are populated only where the same shape reflects a declaration (<emu-xref href="#sec-decorators"></emu-xref>).</td></tr>
+            <tr><td>*"function"*</td><td>`signatures`, in declaration order, each a record with `parameters` (records with `type`, `name`, `index`, `optional`, `rest`, `initial`, and `metadata`), `return` (a record with `type` and `metadata`), `thisType` (a Type Object or *undefined*), and `narrows` (a List of records with `target`, a String or the String *"this"*, and `type`, a Type Object). The `metadata` properties are always *undefined* here and are populated only where the same shape reflects a declaration (<emu-xref href="#sec-decorators"></emu-xref>).</td></tr>
             <tr><td>*"reference"*</td><td>`target`, a Type Object: the `ref` borrow type of <emu-xref href="#sec-type-expressions"></emu-xref>.</td></tr>
             <tr><td>*"cycle"*</td><td>`name`, a String: the reader-facing back-edge at which a recursive type closes. It appears in reflection output only and is not accepted by construction.</td></tr>
           </tbody>
@@ -2642,7 +2651,7 @@ contributors: Sirisian
             <tr><td>operator overloading</td><td>The grammar of an operator definition and of the `primitive` block that <emu-xref href="#sec-primitive-operator-blocks"></emu-xref> gives the meaning of, including the `.&lt;&hellip;&gt;` form an operator's own type parameters take; the same definitions on a class; and the resolution of a case where the receiver is not the left operand.</td></tr>
             <tr><td>threading</td><td>The sharing of a value across Agents, which <emu-xref href="#sec-gettypeobject"></emu-xref> notes is the only route by which a Type Object leaves its Agent.</td></tr>
             <tr><td>ranges</td><td>The case ranges a `switch` over a float discriminant requires, and the bounded `for` whose counter <emu-xref href="#sec-check-elision"></emu-xref> relies on to prove an index in range.</td></tr>
-            <tr><td>type programming</td><td>The `matchType` convenience; and the contextual rules that consume a signature's [[ThisType]] and a declared narrowing, the data half of which <emu-xref href="#sec-signature-records"></emu-xref> now carries for `this`. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, and symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>.</td></tr>
+            <tr><td>type programming</td><td>The `matchType` convenience. Every other obligation recorded here previously is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>, and the declarative checker facts by <emu-xref href="#sec-declarative-checker-facts"></emu-xref>.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -2992,6 +3001,36 @@ contributors: Sirisian
 
       <emu-note>
         <p>Types are what remove the `(value, context)` return from a decorator that takes arguments: an erased system cannot tell `@f` from `@f(0)` without one, since it cannot see which `f` is meant, and this proposal resolves it by the annotation on the last parameter. So a decorator looks the same whether or not it takes arguments, and giving one an argument is editing its parameter list rather than rewriting it into a factory.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-declarative-checker-facts">
+    <h1>Declarative Checker Facts</h1>
+    <p>A signature carries two facts that no rule of the language computes and that a program states instead: the `this` a function expects, and what a call of it establishes about its arguments. They are data the checker reads, never code it runs, which is what distinguishes them from the meta protocol's hooks (<emu-xref href="#sec-primitive-metadata"></emu-xref>) and keeps them outside the boundary <emu-xref href="#sec-compile-time-evaluability"></emu-xref> draws: nothing evaluates, and each is consumed by machinery that already exists.</p>
+
+    <emu-clause id="sec-this-adoption">
+      <h1>The Expected this Type</h1>
+      <p>A signature's [[ThisType]] is the type its `this` is required to have. It is contravariant, as a parameter is, so a signature with a [[ThisType]] is usable where one requiring a wider `this` is required and never the reverse, and a signature with none is usable nowhere a `this` is required at all (<emu-xref href="#sec-issignaturesubtype"></emu-xref>). A method extracted from its class and called free of it is the case this decides: its `this` is not of the type its body assumes, and the extraction is a type error at the boundary that took it rather than a *TypeError* inside it.</p>
+
+      <p>Where a non-arrow function literal's contextual type (<emu-xref href="#table-contextual-types"></emu-xref>) is a ~function~ type whose applicable signature has a [[ThisType]], the literal adopts it: `this` within the body has that type, and the literal's own signature has that [[ThisType]]. An arrow adopts nothing, since it has no `this` of its own to give a type to, and the `this` it closes over is already typed where it was written.</p>
+
+      <emu-note>
+        <p>This is the whole of what an erased system's `ThisType&lt;T&gt;` marker does, said as data rather than as a marker the checker recognizes by name. It is also why the design's `options(Data, Methods)` builder is three lines: it constructs an intersection of the data and the methods, and calls `withThisType` to put it on every method's signature, at which point a method written in the object literal has `this` typed as the finished object. Nothing about that reaches into inference; the type is built first and the literal is checked against it, which is the order <emu-xref href="#sec-compile-time-evaluability"></emu-xref> requires of everything.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-declared-narrowing">
+      <h1>Declared Narrowing</h1>
+      <p>A <dfn id="narrowing-record">Narrowing Record</dfn> has a [[Target]], a String naming a parameter of the signature or *"this"*, and a [[Type]], a Type Record. A signature's [[Narrows]] is a List of them, and it says what a call establishes: that the argument passed at [[Target]] is of [[Type]]. Two forms follow from the signature's [[Return]], and no third is defined.</p>
+
+      <p>Where the [[Return]] is `boolean`, the call is a test and its narrowings apply where its result is *true*, exactly as `v is T` applies (<emu-xref href="#table-narrowing-forms"></emu-xref>), so `if (isFish(pet))` narrows `pet` in the branch it guards and narrows it away in the other. Where the [[Return]] is ~void~, the call establishes its narrowings by returning at all, since there is no result to condition on, so they apply in every position the call dominates. Where the [[Return]] is any other type, a non-empty [[Narrows]] is a type error: nothing would consume it.</p>
+
+      <p>A narrowing declared by a signature is checked against nothing. It is a claim the declaration makes and the body is not required to honour, in the way that `v is T` is a question the language answers. This is the same reading a declared type of an unchecked boundary gets, and the same one an erased system's type predicate gets; what makes it sound here is that a value crossing a boundary is checked against its declared type regardless (<emu-xref href="#table-check-sites"></emu-xref>), so a narrowing that lied costs a check that fails rather than a value that was never what it claimed.</p>
+
+      <emu-note>
+        <p>The two forms are the type predicate and the assertion function of an erased system, and they are one field here rather than two spellings, because the difference between them is not in the fact declared but in what the declaration returns. A function that answers a question returns the answer, and its narrowing applies where the answer was yes; a function that establishes a fact returns nothing, and its narrowing applies once it has returned. Deriving the two from [[Return]] is why no `asserts` operator appears here.</p>
+        <p>Neither [[ThisType]] nor [[Narrows]] has a source spelling. A signature acquires them by construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>), which is how the design's `withThisType` writes one, and a program uses the result by annotating with it: a binding declared of a constructed guard type narrows at every call through it. They join the index signature and the symbol literal type as types this specification admits and no declaration writes (<emu-xref href="#sec-reflect-maketype"></emu-xref>), and giving them one is a question for the syntax the design has not yet posed, not a gap in what they mean.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
