@@ -1180,6 +1180,9 @@ contributors: Sirisian
 
       <emu-note>
         <p>A vector's lane type may itself be a vector, which is how the boolean vectors of the design are built: `boolean8` is `vector.&lt;uint.&lt;1&gt;, 8&gt;`, eight one-bit lanes, and `boolean8x16` is `vector.&lt;boolean8, 16&gt;`. The lane counts an implementation can hold in a register are a matter for the SIMD extension; the type exists for every positive _N_.</p>
+
+        <p>It is a type error to form `vector.&lt;T, N&gt;` where _T_ is not a lane type or _N_ is not a positive integer, since neither denotes a vector type. Where the lane type is itself a vector, this applies to it in turn.</p>
+
       </emu-note>
     </emu-clause>
 
