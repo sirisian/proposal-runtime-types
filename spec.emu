@@ -2330,6 +2330,19 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-named-arguments">
+      <h1>Named Arguments</h1>
+      <p>An argument at a call site may be written as a name and a value, `name: AssignmentExpression`, which supplies the value for the parameter of that name rather than for the parameter at that position. A named argument is a compact way to supply a later parameter while omitting earlier ones that have a default. The parameter names a signature carries (<emu-xref href="#sec-signature-records"></emu-xref>) are what a named argument selects by.</p>
+      <p>The |Arguments| grammar admits a named argument alongside the positional and spread forms. A named argument is an |IdentifierName| followed by `:` and an |AssignmentExpression|, at the top of an argument. This is new syntax: a call argument that is an identifier followed by `:` is a syntax error in the base language, so no existing call changes meaning, and the form is available only where the runtime types feature is enabled.</p>
+      <p>A call is bound to the parameters of the selected signature as follows. A positional argument fills the next unfilled parameter position, left to right. A named argument fills the parameter of its name. A parameter filled by neither takes its default where it has one, and it is a type error if a parameter that has no default and is neither optional nor the rest parameter is left unfilled. It is a type error if a named argument's name is not a parameter of the signature.</p>
+      <p>The rest parameter is filled by name as well as by position. A named argument whose name is the rest parameter's supplies a value of the rest, and the positional arguments that follow it join the same rest in the order written, so `function f(a: uint8, b: string = '', ...args: [].&lt;string&gt;) {}` called `f(8, args: 'a', 'b')` binds `a` to 8, leaves `b` its default, and gives `args` the elements 'a' and 'b'.</p>
+      <p>A spread of an object, `...AssignmentExpression` where the value is an object with no `Symbol.iterator` method, binds each of the object's own enumerable String-keyed properties by parameter name, as though each were written as a named argument. A spread whose value is iterable fills positions in order, as in the base language. Because the two are distinguished by the presence of an iterator, an object used to supply arguments by name is one that is not iterable; an iterable, including an Array, spreads by position.</p>
+      <p>Where the called value is overloaded (<emu-xref href="#sec-overload-resolution"></emu-xref>), the parameter names are those of the selected signature, and a named or object-spread call that no signature can bind is a type error by the same rule as a positional call that matches no signature.</p>
+      <emu-note>
+        <p>Named arguments do not change a signature's identity: a parameter's name is carried but is not compared (<emu-xref href="#sec-signature-records"></emu-xref>), so the same function reached through two declarations with different parameter names is one type, and a named call selects by whichever names the interned signature carries.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-overloading-on-return-type">
       <h1>Overloading on Return Type</h1>
       <p>Because a signature is identified by its return type as well as its parameter types, two signatures may differ only in their return. The return type does not participate in ranking; it participates in viability, through the contextual type of the call (<emu-xref href="#sec-contextual-types"></emu-xref>).</p>
@@ -2536,6 +2549,10 @@ contributors: Sirisian
 
       <p>`===` on two instances of a value type class compares them field by field, since the identity of a value type is its value. `===` on two instances of a class that is not a value type compares references.</p>
 
+      <p>A field may be declared `readonly`, a modifier written before the field name and after `static` where both appear. A `readonly` field may be assigned only in its own initializer and in a body of a constructor of the declaring class. Every other assignment is a type error: at compile time where the type is known, and at run time otherwise, so an assignment from a method a constructor calls, from a constructor or method of a subclass, through a reference, or through reflection is a *TypeError*. The permission is the running constructor's, not the constructor's presence on the stack, so a method the constructor invokes cannot write the field even though a constructor is executing. `readonly` is shallow: it fixes the binding, not the object the field refers to, so a `readonly` field holding an object may have that object mutated.</p>
+
+      <p>Performing SetIntegrityLevel with `frozen` on an instance of a typed class, as `Object.freeze` does, makes every field of the instance `readonly` at run time in addition to making its properties non-writable. A subsequent assignment to any field is therefore a *TypeError* in every mode, rather than the silent failure a non-writable property gives outside strict mode. This applies to an instance of a typed class, the same instances that are automatically sealed; freezing an ordinary object is unchanged.</p>
+
       <emu-note>
         <p>That a value type class defaults field by field means an instance can come into existence without its constructor running, which <emu-xref href="#sec-default-values"></emu-xref> flags. This clause endorses it, because the design already requires it in two places and the alternative would break both. `let d: [10].&lt;A&gt;;` must hold ten zero-filled instances for the memory layout extension's contiguous array to exist at all, and a conversion from a matching object literal, `{ ... } := Vector3`, is specified to fill the layout directly and run no constructor. A value type class is therefore a shape with a zero, not an object with an invariant its constructor establishes, and a class that needs its constructor to run states that by holding a field whose type has no default, which makes the zero-filled form a type error. This is a real constraint on what a value type class can promise, and it should be stated in the design rather than left to follow from the array case.</p>
       </emu-note>
@@ -2558,7 +2575,7 @@ contributors: Sirisian
           ClassModifiers ClassModifier
 
         ClassModifier : one of
-          `abstract` `sealed` `dynamic`</ins>
+          `abstract` `sealed` `dynamic` `partial`</ins>
       </emu-grammar>
 
       <p>An abstract method is a signature with no body, and its annotation types the implementations: it is a type error if a subclass implements an inherited abstract method with a signature the abstract declaration does not accept. It is a type error if a |ClassElement| of the abstract form appears in a class not declared `abstract`, and a type error if a class not declared `abstract` leaves an inherited abstract method unimplemented. Where the Static Type of the constructor in `new C(&hellip;)` is an abstract class it is a type error; the [[Construct]] internal method of an abstract class's constructor throws a *TypeError* exception when NewTarget is that constructor itself, so a dynamic construction fails at run time while `super()` from a concrete subclass, arriving with a concrete NewTarget, runs the abstract constructor as a constructor body should.</p>
@@ -2635,6 +2652,8 @@ contributors: Sirisian
 
       <p>An enum type is a subtype of its underlying type, so a value of an enum type is usable wherever the underlying type is required and no conversion is written. The reverse is explicit: calling the enum type with a value of the underlying type returns the enumerator whose value it is, and throws a *TypeError* when it is not one of them.</p>
 
+      <p>A `switch` whose discriminant is a value of an enum type is checked at compile time. Each case label must be an enumerator of that enum, and it is a type error for a label that is not one; and where the `switch` has no `default`, it is a type error unless it has a case for every enumerator. This is the enum row of the narrowing and exhaustiveness rules (<emu-xref href="#sec-narrowing"></emu-xref>), the same closed-set reasoning a sealed hierarchy uses (<emu-xref href="#sec-sealed-classes"></emu-xref>): the enumerators are a fixed set the declaration owns, so covering them is a claim the checker can prove.</p>
+
       <emu-note>
         <p>The one-way rule is the rule of C#, Rust, and Swift. It is what lets a bitmask index such as `comp / 32` read directly while `Component(id)` remains a deliberate and validated step, and it is why an enum can be used for arithmetic, indexing, and comparison without a cast.</p>
         <p>An enum's subtyping is a further case of the ~primitive~ and ~nominal~ rules in <emu-xref href="#sec-issubtype"></emu-xref>, which follow a declared class hierarchy and a metadata parameterization but do not reach an enum's underlying type. It is stated here rather than there because it is the same shape of relation, a type that refines another and is subsumed into it, and the specification should ultimately give the three one rule rather than three.</p>
@@ -2652,6 +2671,16 @@ contributors: Sirisian
       <emu-note>
         <p>This is the algebraic data type, assembled from parts the proposal has for other reasons rather than from a new construct. The cases are the subclasses, the case labels are their type objects, which are values because types are values, and the match is the `switch` the control structures section already defines. What makes it work is that the set is closed: exhaustiveness is a claim about a hierarchy no other module can extend, which is why it is reserved to a sealed class and an enum and is deliberately not available for a union of literal types, whose members are not a declaration anyone owns.</p>
         <p>That a sealed class is a reference type is what lets a field hold a subclass instance polymorphically. A value type class cannot, since its field embeds the base slice of the layout and has no room for a subclass, which is why the two forms differ and why holding a value type class polymorphically is spelled `T | null`.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-partial-classes">
+      <h1>Partial Classes</h1>
+      <p>A class declared `partial` re-opens a class that is already declared, whether earlier in the same program, in another module, or as an intrinsic, and adds methods and operators to it. A `partial` declaration names an existing class; it declares no binding of its own, and its members are merged into the named class so that its instances and the class itself gain them. An instance method is added to the class's prototype, a static method to the constructor, and a named operator registers in the class's operator table, each as a fresh declaration of the member would place it.</p>
+      <p>The `partial` keyword is required to extend a class this way. A class declaration whose name is already declared, and which is not `partial`, is an error, so a program cannot fork a class's behaviour by an accidental re-declaration. It is a type error if a `partial` declaration names a value that is not a class.</p>
+      <p>A `partial` declaration adds behaviour and no cases: it introduces no subclass and no instance state, so it does not enlarge the closed set of a sealed hierarchy and does not change a class's layout. Extending a class with a `partial` declaration is therefore available from any module, including on a `sealed` class, which is the difference between it and a mixin: applying a mixin to a sealed class from outside its declaring module would create a subclass and is refused (<emu-xref href="#sec-sealed-classes"></emu-xref>), while a `partial` extension adds no subclass and is allowed. A `partial` declaration does not re-open the constructor or add fields; it is a channel for methods and operators.</p>
+      <emu-note>
+        <p>The metadata channel of the decorators and metadata extension is the principal use: a program adds typed Symbol-keyed members to an intrinsic metadata class by declaring a `partial class` over it, which is how a type's reflected metadata is extended without owning the class that carries it.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
@@ -2678,6 +2707,8 @@ contributors: Sirisian
       <p>A Type Object exposes no property that reveals the structure of the type it denotes. Given the Type Object for `Player | null` no property yields its members, and given the one for `[].&lt;uint32&gt;` no property yields its element type or its extent. A Type Object's [[TypeRecord]] is an internal slot and is reachable only through <emu-xref href="#sec-reflect-getreflection"></emu-xref>.</p>
 
       <p>One exception is display: a Type Object has a `toString` method returning the canonical source form of the type it denotes, so calling `String` on the Type Object for `'a' | 'b'` yields the String *"'a' | 'b'"*. The printed form exists for diagnostics and authored error messages, not for inspection: its format follows the canonical form and is therefore stable, but parsing it is not the supported way to read a type's structure, which remains <emu-xref href="#sec-reflect-getreflection"></emu-xref>.</p>
+
+      <p>A Type Object is callable: it has a [[Call]] internal method, so a type may be applied to an argument as `T(v)`. For a plain type the call is the explicit conversion of <emu-xref href="#sec-conversions"></emu-xref>, the same operation as `v := T`. For an enum type the call is the reverse conversion of <emu-xref href="#sec-enums"></emu-xref>, returning the enumerator whose underlying value the argument is. This does not make a Type Object a function to `typeof`, which reports *"object"* for it (<emu-xref href="#sec-reflect-typeof"></emu-xref>); the callability is the conversion surface, not a change of kind. Callability does not affect a Type Object's identity, so the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> is unchanged and two mentions of one type remain one callable object.</p>
 
       <emu-note>
         <p>Opacity is what lets the interning of <emu-xref href="#sec-gettypeobject"></emu-xref> be an implementation strategy rather than an obligation to materialize a graph. An engine that represents `[].&lt;uint32&gt;` as a tag rather than as an object with an `element` property is conforming, and a program cannot tell. It also keeps the type-object surface from becoming a second, weaker reflection API alongside the real one: there is one way to inspect a type, and it is named.</p>
@@ -2758,6 +2789,14 @@ contributors: Sirisian
       <emu-note>
         <p>Reflection is a boundary in the sense of <emu-xref href="#table-check-sites"></emu-xref>, not an exception to it. A value entering a typed position through `Reflect.set` is checked exactly as one entering through an assignment, which is what keeps a typed field's type a fact about its storage: were reflection able to write past the check, an engine could not lay the field out on the strength of its type, and the proposal's premise would not hold. That a typed property cannot be deleted is the same guarantee in the other direction, since a layout with a hole in it is not the layout the type described.</p>
         <p>A Proxy reporting the type it was constructed with rather than its target's shape is what makes the trap checks meaningful: the contract a proxy enforces is the one it was given, and reporting anything else would describe a value the program never promised.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-weak-references-and-typed-objects">
+      <h1>Weak References and Typed Objects</h1>
+      <p>An instance of a typed class cannot be held weakly. Passing one to the WeakRef constructor, using one as a key of a WeakMap or a member of a WeakSet, or registering one as the target of a FinalizationRegistry throws a *TypeError* exception. This is CanBeHeldWeakly returning false for such a value: a value type has no identity (<emu-xref href="#sec-value-types"></emu-xref>), so there is no object whose liveness a weak reference could observe, and no cell a weak collection could key on. The value rejected here is the same one that cannot be the target of a Proxy (<emu-xref href="#sec-reflection-and-declared-types"></emu-xref>): the instance of a typed class that seals its instances, a value backed by a layout whose identity its type, not the reference, governs.</p>
+      <emu-note>
+        <p>A reference type, an ordinary object or a class that carries no typed field and is therefore not sealed, is held weakly as before, since it has the identity a weak reference is about. A class becomes ineligible exactly when it becomes a typed, sealed class, the same point at which it becomes ineligible to be proxied, so the two restrictions have one cause and one boundary.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
