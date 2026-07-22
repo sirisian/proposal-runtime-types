@@ -2971,7 +2971,7 @@ contributors: Sirisian
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; the deferred forms (a location-consuming return, a destructuring `ref` member, a user iterator or callback yielding references, and the `SoA` substrate) are noted there.</td></tr>
             <tr><td>threading.md</td><td>Partially specified: `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative; the rest is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>ranges.md</td><td>Partially specified: the range literals, the Range value, and its iteration are <emu-xref href="#sec-range-literals"></emu-xref> atop the hook of <emu-xref href="#sec-ranges"></emu-xref>; the interval in the type and its specialization, the `uint8.&lt;1..=6&gt;` bounds desugaring, slicing to a view, and the random and Temporal integrations are deferred.</td></tr>
-            <tr><td>serialization.md</td><td>Deferred; <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
+            <tr><td>serialization.md</td><td>Partially specified: typed JSON parsing (the `JSON.parse.&lt;_T_&gt;` overload and its converting, validating walk) is <emu-xref href="#sec-typed-json-parsing"></emu-xref>, atop the boundary and metadata machinery the core already gives; the deferred surface (class targets, the exact wide numerics, typed `JSON.stringify`, streaming, typed JSON modules, `structuredClone`, and the binary layout) is noted there. <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
             <tr><td>soa.md</td><td>Deferred; the memory layout hook is its attachment point.</td></tr>
             <tr><td>regexp.md</td><td>Partially specified: the capture-type inference of a literal is <emu-xref href="#sec-typed-regular-expressions"></emu-xref>; the match-result surface it enables (the typed exec result and group-name checking, the typed String methods, the flag-dependent shapes, composition, and string narrowing) is deferred and noted there.</td></tr>
             <tr><td>random.md</td><td>Deferred; a library extension.</td></tr>
@@ -3721,6 +3721,104 @@ contributors: Sirisian
     <emu-note>
       <p>The proposal makes no claim to prove races away. A race here is a stale value and never a corrupted heap, which is the position Java and Go take rather than Rust's; what the types offer in place of a proof is the discipline that `shared` marks what crosses and that mutable shared state is reached through an atomic or a lock. Retrofitting a `Send`/`Sync` proof onto a shared mutable heap without a borrow checker would make this a different language, and the memory safety the core guarantees is unconditional either way.</p>
       <p>That tearing is possible is worth stating next to the value type rules rather than only here, since it is the one place the core's "a value type copies" meets a second thread. It is also why the layout extension's guarantees are the ones a concurrent program leans on: a `shared SoA.&lt;T&gt;` allocates each field its own column, so two threads writing two fields of one element never contend for a cache line, which no interleaved layout can promise.</p>
+    </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-typed-json-parsing">
+    <h1>Typed JSON Parsing</h1>
+    <p>`JSON.parse` gains a generic overload, written `JSON.parse.&lt;_T_&gt;(_text_)`, that parses and validates in one pass. It parses _text_ as JSON, which is a *SyntaxError* on malformed input exactly as the untyped `JSON.parse` is, and then converts the resulting value against _T_ by <emu-xref href="#sec-coercejsonvalue"></emu-xref>. Well-formed JSON that does not satisfy _T_ is a *TypeError* naming the path at which the mismatch occurred, so a typed `catch (_e_: SyntaxError)` and `catch (_e_: TypeError)` separate a malformed document from a well-formed one of the wrong shape.</p>
+    <p>Validation is layered as any other boundary in this specification: a leaf is checked against its type as it is reached, a parameterized type consults its metadata's validation judgment (<emu-xref href="#sec-isoftype"></emu-xref>), and a class or record `where` clause runs once the target is filled, as the construction boundary check. Unlike the general boundary of <emu-xref href="#sec-requiretype"></emu-xref>, which distinguishes a *RangeError* for a numeric value the target cannot represent, every failure here is a *TypeError*: in a parsed document the type is the schema, so a value outside a field's range violates the schema rather than overflowing an arithmetic. The overload takes no reviver, since a reviver observes the intermediate untyped graph this feature exists not to build.</p>
+    <emu-clause id="sec-coercejsonvalue" type="abstract operation">
+      <h1>
+        CoerceJSONValue (
+          _value_: an ECMAScript language value,
+          _type_: a Type Record,
+          _path_: a String,
+        ): either a normal completion containing an ECMAScript language value or a throw completion
+      </h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd>It converts the JSON _value_ into _type_, or returns a throw completion whose value is a *TypeError* describing _path_. It may call user code, since converting a structural type reads and writes properties.</dd>
+      </dl>
+      <emu-alg>
+        1. If _type_.[[Kind]] is ~any~, return _value_.
+        1. If _type_.[[Kind]] is ~reference~, return ? CoerceJSONValue(_value_, _type_.[[Target]], _path_).
+        1. If _type_.[[Kind]] is ~primitive~, then
+          1. If _type_ is a numeric type, then
+            1. If _value_ is not a Number, throw a *TypeError* exception.
+            1. If _type_ is a sized integer type and the mathematical value of _value_ is not an integer in the range of _type_, throw a *TypeError* exception.
+            1. If _type_ is the `number` type, return _value_.
+            1. Return _value_ converted to _type_ by <emu-xref href="#table-numeric-conversions"></emu-xref>.
+          1. If _type_ is the `string` type, then
+            1. If _value_ is not a String, throw a *TypeError* exception.
+            1. Return _value_.
+          1. If _type_ is the `boolean` type, then
+            1. If _value_ is not a Boolean, throw a *TypeError* exception.
+            1. Return _value_.
+          1. Throw a *TypeError* exception.
+        1. If _type_.[[Kind]] is ~literal~, then
+          1. If SameValue(_value_, _type_.[[Value]]) is *true*, return _value_.
+          1. Throw a *TypeError* exception.
+        1. If _type_.[[Kind]] is ~union~, then
+          1. For each element _m_ of _type_.[[Members]], do
+            1. Let _r_ be Completion(CoerceJSONValue(_value_, _m_, _path_)).
+            1. If _r_ is a normal completion, return _r_.[[Value]].
+          1. Throw a *TypeError* exception.
+        1. If _type_.[[Kind]] is ~array~, then
+          1. If _value_ is not an Array, throw a *TypeError* exception.
+          1. Let _len_ be ? LengthOfArrayLike(_value_).
+          1. If _type_.[[Extent]] is not ~dynamic~ and _type_.[[Extent]] &ne; _len_, throw a *TypeError* exception.
+          1. Let _elements_ be a new empty List.
+          1. Let _i_ be 0.
+          1. Repeat, while _i_ &lt; _len_,
+            1. Let _element_ be the element of _value_ at index _i_.
+            1. Let _elementPath_ be the string-concatenation of _path_, the code unit 0x005B (LEFT SQUARE BRACKET), the decimal representation of _i_ as a String, and the code unit 0x005D (RIGHT SQUARE BRACKET).
+            1. Let _converted_ be ? CoerceJSONValue(_element_, _type_.[[Element]], _elementPath_).
+            1. Append _converted_ to _elements_.
+            1. Set _i_ to _i_ + 1.
+          1. Return CreateArrayFromList(_elements_).
+        1. If _type_.[[Kind]] is ~object~, then
+          1. If _value_ is not an Object or _value_ is an Array, throw a *TypeError* exception.
+          1. Let _result_ be OrdinaryObjectCreate(%Object.prototype%).
+          1. Let _keys_ be ? _value_.[[OwnPropertyKeys]]().
+          1. For each element _k_ of _keys_ such that _k_ is a String and no Property Type Record of _type_.[[Properties]] has key _k_, do
+            1. Let _accepted_ be *false*.
+            1. For each index signature _s_ of _type_, do
+              1. If _accepted_ is *false* and _s_ accepts _k_, then
+                1. Let _kv_ be ? Get(_value_, _k_).
+                1. Let _keyPath_ be the string-concatenation of _path_, the code unit 0x002E (FULL STOP), and _k_.
+                1. Let _converted_ be ? CoerceJSONValue(_kv_, _s_'s value type, _keyPath_).
+                1. Perform ! CreateDataPropertyOrThrow(_result_, _k_, _converted_).
+                1. Set _accepted_ to *true*.
+            1. If _accepted_ is *false*, throw a *TypeError* exception.
+          1. For each Property Type Record _p_ of _type_.[[Properties]], do
+            1. Let _present_ be ? HasProperty(_value_, _p_'s key).
+            1. If _present_ is *true*, then
+              1. Let _pv_ be ? Get(_value_, _p_'s key).
+              1. Let _fieldPath_ be the string-concatenation of _path_, the code unit 0x002E (FULL STOP), and _p_'s key.
+              1. Let _converted_ be ? CoerceJSONValue(_pv_, _p_'s type, _fieldPath_).
+              1. Perform ! CreateDataPropertyOrThrow(_result_, _p_'s key, _converted_).
+            1. Else if _p_ is optional, then
+              1. Let _d_ be the default value of _p_'s type, if one is defined; otherwise ~empty~.
+              1. If _d_ is not ~empty~, perform ! CreateDataPropertyOrThrow(_result_, _p_'s key, _d_).
+            1. Else,
+              1. Throw a *TypeError* exception.
+          1. Return _result_.
+        1. If _type_.[[Kind]] is ~parameterized~, then
+          1. Let _base_ be ? CoerceJSONValue(_value_, _type_.[[Base]], _path_).
+          1. If ? IsOfType(_base_, _type_) is *false*, throw a *TypeError* exception.
+          1. Return _base_.
+        1. If _type_.[[Kind]] is ~nominal~, then
+          1. If _type_ is an enum type, then
+            1. If _value_ equals the value of an enumerator of _type_, return that enumerator.
+            1. Throw a *TypeError* exception.
+          1. If _type_ has a structural form, return ? CoerceJSONValue(_value_, that form, _path_).
+        1. Throw a *TypeError* exception.
+      </emu-alg>
+    </emu-clause>
+    <emu-note>
+      <p>The physical form the extension describes, writing straight into contiguous typed storage with no intermediate graph, is an implementation strategy and not observable, so an implementation that parses to the untyped JSON value and then converts it conforms.</p>
+      <p>The conversions this operation does not perform are the deferred part of the extension: a class target that fills a sealed layout without running its constructor, the exact wide numeric types (the 64-bit integers, `decimal128`, and `bigint`) whose digits must convert without first rounding through a Number, and the enforcement of the built-in refinement judgments, which parameterized validation consults but which are themselves specified with the primitive metadata they belong to.</p>
     </emu-note>
   </emu-clause>
 
