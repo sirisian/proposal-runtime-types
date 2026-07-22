@@ -2973,7 +2973,7 @@ contributors: Sirisian
             <tr><td>ranges.md</td><td>Deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>serialization.md</td><td>Deferred; <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
             <tr><td>soa.md</td><td>Deferred; the memory layout hook is its attachment point.</td></tr>
-            <tr><td>regexp.md</td><td>Deferred; it adds pattern-typed literals atop the core and needs no core hook.</td></tr>
+            <tr><td>regexp.md</td><td>Partially specified: the capture-type inference of a literal is <emu-xref href="#sec-typed-regular-expressions"></emu-xref>; the match-result surface it enables (the typed exec result and group-name checking, the typed String methods, the flag-dependent shapes, composition, and string narrowing) is deferred and noted there.</td></tr>
             <tr><td>random.md</td><td>Deferred; a library extension.</td></tr>
             <tr><td>temporal.md</td><td>Deferred; a library extension.</td></tr>
             <tr><td>specnotes.md</td><td>The plan this document follows; not itself a source of requirements.</td></tr>
@@ -3018,6 +3018,25 @@ contributors: Sirisian
         <p>The two liveness rules are the whole of what the borrow needs, in place of a borrow checker with lifetimes. A reference cannot dangle in the Rust sense because the array it points into is a garbage-collected object that stays alive as long as any reference to it exists; what remains to prevent is a reference into storage that moves, which is a length change while a reference is live, and a reference escaping its location, which the absence of identity (<emu-xref href="#sec-reference-values"></emu-xref>) already forecloses. Both are local checks and neither needs a lifetime system. This specification checks the length rule at run time; the design also permits a static rejection wherever the array's type makes the offending operation visible, which an implementation may add as a diagnostic without changing the meaning of any program this clause accepts.</p>
       </emu-note>
     </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-typed-regular-expressions">
+    <h1>Typed Regular Expressions</h1>
+    <p>A regular expression literal is a compile-time constant whose pattern an engine already parses before the program runs. This clause puts that parse into the type system: the Static Type (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>) of a regular expression literal records the number and kind of its capture groups and the names of its named groups. This is the core of the design's regular expression types (<emu-xref href="#table-extension-hooks"></emu-xref>); the fuller surface it enables, the typed match result and the group-name checking on it, the typed String methods, the flag-dependent result shapes, pattern composition, and string narrowing by pattern, is that extension's to complete and is specified in terms of this core.</p>
+
+    <p>The Static Type of a regular expression literal is a ~nominal~ Type Record whose [[LibraryName]] is *"RegExp"* and whose [[Arguments]] are two Type Records, the <dfn id="regexp-captures">Captures</dfn> and the <dfn id="regexp-groups">Groups</dfn>, derived from the pattern:</p>
+    <ul>
+      <li>Captures is a ~tuple~ Type Record with one element per capturing group, in the order the groups' opening parentheses appear, each element the type of that capture. Where the pattern has no capturing group, Captures is the empty array type rather than an empty tuple, so that it is the type a bare `[]` denotes (<emu-xref href="#sec-arrays"></emu-xref>).</li>
+      <li>Groups is an ~object~ Type Record with one property per named group, its key the group's name and its type the type of that capture. A name that occurs on more than one capturing group, which the pattern grammar admits only across alternatives, contributes one property.</li>
+      <li>The type of a capture is the *"string"* ~primitive~ where every path through the pattern that produces a match enters the group exactly once, and the union of *"string"* with the ~void~ type otherwise. A group is in the second case when it is quantified with a minimum of zero, when it lies within a disjunction of more than one alternative, or when it lies within a lookahead or lookbehind, and when any group that encloses it is.</li>
+    </ul>
+
+    <p>A non-capturing group, a lookaround, and a backreference add no capture and contribute nothing to Captures or Groups. Because the type is a parameterization of the *"RegExp"* library type, it is invariant in Captures and Groups (<emu-xref href="#sec-issubtype"></emu-xref>): a `RegExp.&lt;Captures, Groups&gt;` annotation whose arguments differ from a literal's inferred shape is a type error. A bare `RegExp`, the raw library type, is the supertype of every such parameterization, so it holds a literal of any shape while a written parameterization does not hold a value of another.</p>
+
+    <emu-note>
+      <p>The analysis is syntactic and reads only the pattern, which is why it costs nothing an engine does not already spend: the same parse that reports an invalid pattern yields the capture count, the group names, and the nesting that decides optionality. The rule for optionality is the design's, that a group is required exactly when every matching path enters it once; a group behind `?`, `*`, or `{0,`_n_`}`, a group in one arm of an alternation whose other arm a match may take instead, and a group inside a lookaround are the cases a match may complete without entering, and each widens the capture with the ~void~ type.</p>
+      <p>The empty-capture case is written as the array type rather than an empty tuple only to agree with the type a bare `[]` denotes in this grammar, so that the common `RegExp.&lt;[], {}&gt;` annotation holds a no-capture literal. A pattern with captures is a tuple, so its arity is exact and a capture-count mismatch is caught. The flag-dependent result shapes, in particular the `indices` a `d` flag adds and the `match` overload a `g` flag selects, are part of the deferred match-result surface, so the inferred type carries the two arguments the annotation forms in common use write and not a third for the flags.</p>
+    </emu-note>
   </emu-clause>
 
   <emu-clause id="sec-generics">
