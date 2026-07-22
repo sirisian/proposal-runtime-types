@@ -2968,7 +2968,7 @@ contributors: Sirisian
             <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
-            <tr><td>references.md</td><td>Partially specified: the `ref` type is in the grammar; the borrowing rules remain the document's.</td></tr>
+            <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; the deferred forms (a location-consuming return, a destructuring `ref` member, a user iterator or callback yielding references, and the `SoA` substrate) are noted there.</td></tr>
             <tr><td>threading.md</td><td>Partially specified: `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative; the rest is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>ranges.md</td><td>Deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>serialization.md</td><td>Deferred; <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
@@ -2983,6 +2983,42 @@ contributors: Sirisian
     </emu-clause>
   </emu-clause>
 </emu-clause>
+
+  <emu-clause id="sec-references-and-borrowing">
+    <h1>References and Borrowing</h1>
+    <p>A reference is a borrow: a handle to a storage location, a variable, an object property, or an array element, that reads and writes through to the original rather than to a copy. It is what lets a function mutate its caller's value and a loop write into an array in place. This clause specifies the borrowing forms of the design's references extension (<emu-xref href="#table-extension-hooks"></emu-xref>): the `ref` argument and `ref` return, the `ref` parameter, the `ref` lexical binding and its rebinding, and the reference `for`-`of` loop. The `ref` <emu-xref href="#sec-type-references">type</emu-xref> is already in the grammar; this clause adds the runtime that the type describes.</p>
+
+    <emu-clause id="sec-reference-values">
+      <h1>Reference Values and the Absence of Identity</h1>
+      <p>A <dfn id="reference-value">Reference Value</dfn> is a value produced by a `ref` expression that holds a storage location: a Reference Record (in the sense of the base specification) whose base is an Environment Record for a variable or an Object for a property or an array element. A Reference Value is a primitive value in the sense that it is not an Object; nothing is allocated when one is created.</p>
+      <p>A Reference Value has no observable identity. Every operation that reads a binding holding one dereferences to the value at the location, and a Reference Value that reaches any position consuming a value <dfn id="reference-decay">decays</dfn> to the value at its location first. In consequence `typeof`, `Reflect.typeOf`, `===`, and `instanceof` see the referenced value and never the reference, and a Reference Value cannot be stored in a binding that outlives its location, a property, an array, or a collection: the only bindings that hold one are the `ref` parameter and `ref` lexical binding below, which alias the location rather than store the reference. There is therefore no way to distinguish a reference from the value it refers to, which is what keeps it a location and an index rather than an object.</p>
+      <emu-note>
+        <p>Decay is where the absence of identity is realized. A reference reaches a value position at an ordinary call boundary, an operand of an operator, an argument to a non-`ref` parameter, or a conversion, and at each the value at the location is taken. The reference is observable only through the aliasing behaviour of the binding that holds it, not as a value in its own right, so no reflected type and no equality can name it.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reference-parameters-and-arguments">
+      <h1>Reference Parameters and Arguments</h1>
+      <p>A `ref` argument `f(ref e)` evaluates _e_ to a storage location and passes a Reference Value holding it. It is a *TypeError* exception if _e_ does not denote a location: a value, a private member, a super property, and a property of a primitive have no location a borrow could alias. A `ref` parameter binds its name to the location the argument carries, so a read in the callee reads through to the referent and a write in the callee writes through to it. It is a *TypeError* exception if the argument to a `ref` parameter is not a Reference Value, since a plain value has no location to borrow, and a Reference Value passed to a parameter that is not `ref` decays to its referent.</p>
+      <p>A type annotation on a `ref` parameter is checked against the referent and never converts it. The referent is of the annotated type or a *TypeError* exception is thrown; the value at the caller's location is not rewritten, because a borrow that converted its referent would silently change storage it does not own. A `ref` parameter's binding is not re-enforced by the parameter type pass of <emu-xref href="#sec-runtime-enforcement"></emu-xref> for the same reason.</p>
+      <p>A function may return a reference with `return ref e`, evaluated as a `ref` argument is. At an ordinary call the returned reference decays to its referent, so a caller that consumes the call as a value observes the referent. Consuming a returned reference as a location, so that `first(a)++` writes through to the element, requires the assignment-target rules the design defers, and is not specified here (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+    </emu-clause>
+
+    <emu-clause id="sec-reference-bindings">
+      <h1>Reference Bindings and Rebinding</h1>
+      <p>A `ref` lexical binding aliases a storage location for its scope. `let ref b = e` and `const ref b = e` evaluate _e_ to a location, by the same rule as a `ref` argument, and bind _b_ to it; it is a *TypeError* exception if _e_ does not denote a location, and it is a Syntax Error for a `ref` binding to omit its initializer. A read of _b_ reads through to the location. A `let ref` binding may be written through, so `b = v` writes _v_ to the location, and may be rebound; a `const ref` binding may not be written through, so `b = v` is the ordinary assignment-to-constant *TypeError* exception, while a write to a member of the referent is permitted as for any `const`. An annotation on a `ref` binding is checked against the referent without conversion, as for a `ref` parameter.</p>
+      <p>Reassigning a `let ref` binding with `ref b = e` rebinds it: _b_ is redirected to the location _e_ denotes, and the location it previously aliased is not written. It is a *TypeError* exception to apply the rebinding form to a name that is not a rebindable `ref` binding.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-reference-iteration">
+      <h1>Reference Iteration</h1>
+      <p>A `for` `(` LetOrConst `ref` _p_ `of` _e_ `)` loop binds _p_ to a reference to each element of the array _e_ in turn, so the body writes into the array in place. The iteration is index-based: it reads the length of _e_ once, evaluates the body once for each index below that length with _p_ bound to a reference to the element at that index, and does not go through `%Symbol.iterator%`, so patching the iterator protocol does not affect it and no result object is allocated. A `let ref` element binding may be written through and rebound and a `const ref` element binding may not, as for a `ref` lexical binding. It is a *TypeError* exception if _e_ is not an array.</p>
+      <p>The length read at the start of the loop is pinned for its duration. An operation that changes the length of the array while a reference into it is live, `push`, `pop`, `shift`, `unshift`, `splice`, or a store to `length`, is a *TypeError* exception, which a `ref` loop makes easy to reach since it holds a reference across the whole iteration. A user-defined iterator that yields references is not supported, and neither is a callback parameter declared `ref`; both compose from the forms above and belong to the design's extension (<emu-xref href="#table-extension-hooks"></emu-xref>), as does the meaning of a reference into an `SoA` column set (<emu-xref href="#sec-memory-layout"></emu-xref>).</p>
+      <emu-note>
+        <p>The two liveness rules are the whole of what the borrow needs, in place of a borrow checker with lifetimes. A reference cannot dangle in the Rust sense because the array it points into is a garbage-collected object that stays alive as long as any reference to it exists; what remains to prevent is a reference into storage that moves, which is a length change while a reference is live, and a reference escaping its location, which the absence of identity (<emu-xref href="#sec-reference-values"></emu-xref>) already forecloses. Both are local checks and neither needs a lifetime system. This specification checks the length rule at run time; the design also permits a static rejection wherever the array's type makes the offending operation visible, which an implementation may add as a diagnostic without changing the meaning of any program this clause accepts.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
 
   <emu-clause id="sec-generics">
     <h1>Generics</h1>
