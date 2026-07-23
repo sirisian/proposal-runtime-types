@@ -2936,10 +2936,14 @@ contributors: Sirisian
 
     <emu-clause id="sec-floored-division">
       <h1>Floored Division</h1>
-      <p>`Math.divFloor(_a_, _b_)` returns the exact quotient of _a_ and _b_ rounded toward negative infinity. `Math.mod(_a_, _b_)` returns the remainder whose sign follows the divisor. Both are overloaded for every integer type, and both throw a *RangeError* when _b_ is zero.</p>
+      <p>`Math.divFloor(_a_, _b_)` returns the exact quotient of _a_ and _b_ rounded toward negative infinity. `Math.mod(_a_, _b_)` returns the remainder whose sign follows the divisor. Both are overloaded for every integer type, and both also have a signature over the Number type.</p>
+
+      <p>A zero divisor follows the family. At an integer type both throw a *RangeError* exception, since an integer type has no infinity and no NaN and so has nothing to return. Over the Number type both answer as the operators do: `Math.mod(_a_, 0)` is *NaN*, as `_a_ % 0` is, and `Math.divFloor(_a_, 0)` is an infinity, as `Math.floor(_a_ / 0)` is.</p>
 
       <emu-note>
         <p>These are the other half of the pair <emu-xref href="#sec-integer-operations"></emu-xref> describes: `Math.divFloor(_a_, _b_) * _b_ + Math.mod(_a_, _b_) = _a_` holds for the same reason the operators' identity holds, because the quotient and the remainder round the same way. They are named rather than assumed so that a program picks the pair it wants instead of receiving one by default.</p>
+        <p>Unlike the checked and saturating forms, this pair is not restricted to the integer types. Those exist only there because only there is wrapping the default, and a checked form over the Number type would have nothing to check. This pair is not about overflow but about rounding direction, which is meaningful for any real, and its own motivating use is written in untyped code: `array[Math.mod(_i_, _array_.length)]`.</p>
+
         <p>`Math.mod` is the `%` of Python, the `mod` of Kotlin, and the `mod` of Haskell. For a positive divisor, which is every case in which an index is being wrapped, its result equals the Euclidean remainder and is never negative, so `array[Math.mod(i, array.length)]` is always in range. Where the divisor may be negative and a non-negative result is still wanted, `Math.mod(_a_, Math.abs(_b_))` gives it, which is why no separate Euclidean pair is provided.</p>
       </emu-note>
     </emu-clause>
