@@ -1456,6 +1456,7 @@ contributors: Sirisian
           1. If _from_.[[Kind]] is ~any~, return ? RequireType(_value_, _to_).
           1. If _to_.[[Kind]] is ~any~, return _value_.
           1. If _from_ is a numeric type and _to_ is a numeric type, return ? NumericConvert(_value_, _from_, _to_).
+          1. If _to_ is `string` or `boolean`, return ? PrimitiveConvert(_value_, _to_).
           1. Let _conversion_ be the user-defined conversion from _from_ to _to_, if one is declared (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).
           1. If _conversion_ is not ~empty~, return ? the result of applying _conversion_ to _value_.
           1. If IsAssignable(_from_, _to_) is *true*, return _value_.
@@ -1485,6 +1486,43 @@ contributors: Sirisian
           1. Return _result_.
         </emu-alg>
       </emu-clause>
+
+      <emu-clause id="sec-primitiveconvert" type="abstract operation">
+        <h1>
+          PrimitiveConvert (
+            _value_: an ECMAScript language value,
+            _to_: a Type Record for `string` or `boolean`,
+          ): either a normal completion containing a value of the type _to_ or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It converts _value_ to one of the ordinary primitive types, where a conversion for its source is defined.</dd>
+        </dl>
+        <emu-alg>
+          1. If _to_ is `boolean`, return ToBoolean(_value_).
+          1. Assert: _to_ is `string`.
+          1. If <emu-xref href="#table-string-conversion-sources"></emu-xref> gives no conversion for _value_, throw a *TypeError* exception.
+          1. Return ? ToString(_value_).
+        </emu-alg>
+      </emu-clause>
+
+      <emu-table id="table-string-conversion-sources" caption="Conversion Sources for the String Type">
+        <table>
+          <thead><tr><th>Source</th><th>Conversion</th></tr></thead>
+          <tbody>
+            <tr><td>A String</td><td>The value.</td></tr>
+            <tr><td>A value of a numeric type, including `bigint`</td><td>ToString of the value.</td></tr>
+            <tr><td>A Boolean</td><td>ToString of the value.</td></tr>
+            <tr><td>*undefined*, *null*, an object, or a Symbol</td><td>None. A *TypeError*.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The rule for the `string` type divides its sources by whether the source has a canonical text or only a diagnostic one, and not by whether it is a primitive. A number, a BigInt, and a Boolean each have exactly one text that denotes them, ToString of them is total, and nothing is lost: `5` is `'5'` and reads back as `5`. That is worth having without ceremony, and it is why this rule is not the mirror image of the numeric one. The asymmetry is principled rather than convenient: ToString of a number is total and lossless, while ToNumber of a string is partial and lossy, so the direction that cannot fail is admitted and the direction that can is written as a parse (<emu-xref href="#sec-parsing"></emu-xref>).</p>
+        <p>*undefined*, *null*, an object, and a Symbol are refused because their text is a diagnostic rather than a denotation. The values they would produce are the language's best-known silent failures: a `'undefined'` reaching an interface that was meant to show a name, a `'[object Object]'` where a field was meant, and an array quietly becoming its comma-joined elements. A program that wants those writes `String(_v_)` and has then said so. A Symbol is refused for the reason it always was, which is that ToString of one throws.</p>
+        <p>The `boolean` type takes every value, and that is deliberate rather than an omission. ToBoolean is total, every value has a defined truthiness, and `if (_v_)` is the language's own idiom for asking. There is no lost value to warn about and no second answer a program might have meant.</p>
+      </emu-note>
 
       <emu-table id="table-numeric-conversions" caption="Numeric Conversions">
         <table>
@@ -1690,8 +1728,13 @@ contributors: Sirisian
             1. Let _r_ be the result of converting _value_ to _t_ by <emu-xref href="#table-numeric-conversions"></emu-xref>, except that a conversion that would wrap, truncate toward zero, or round a finite value to an infinity instead yields ~unrepresentable~.
             1. If _r_ is ~unrepresentable~, throw a *RangeError* exception.
             1. Return _r_.
+          1. If _t_ is `string` or `boolean`, return ? PrimitiveConvert(_value_, _t_).
           1. Throw a *TypeError* exception.
         </emu-alg>
+        <emu-note>
+          <p>The two failures are different and are reported differently. A numeric value at a numeric type has a conversion available and the only question is whether this value survives it, which is a question of range: hence the *RangeError*. A value of any other type has no numeric conversion to attempt, which is a question of type: hence the *TypeError*, and it is raised before any coercion is tried. Coercing first and then range-checking the result would make an annotation a coercion rather than a check: it would accept a string, a Boolean, *null*, and any object with a `valueOf`, and at a float type, where every value is in range, it could not fail at all, so a missing field would become a NaN that surfaces far from the annotation that admitted it.</p>
+          <p>This is why a string is not a source here even when it reads as a number. `'5'` at a `uint8` is refused and the program writes `uint8.parse('5')` or `uint8.tryParse('5')`, which is the same position <emu-xref href="#sec-parsing"></emu-xref> states, and which distinguishes a string that is not a literal of the type from one that is a literal out of range.</p>
+        </emu-note>
       </emu-clause>
 
       <p>The three ways a numeric value may fail to fit a type are distinguished, and each is treated according to what the program said.</p>
@@ -2915,12 +2958,12 @@ contributors: Sirisian
 
       <p>`parse` throws a *SyntaxError* when the string is not a literal of the type, and a *RangeError* when it is a literal whose value the type cannot represent.</p>
 
-      <p>Each type also has a `tryParse` function with the same parameters, returning a value of the type where `parse` would return one and *null* where `parse` would throw. Its return type is the union of the type and the null type.</p>
+      <p>Each type also has a `tryParse` function with the same parameters, returning a value of the type where `parse` would return one and *null* where `parse` would fail to parse its argument. Its return type is the union of the type and the null type. A call that is not a parse at all, because the receiver is not a numeric type, throws as `parse` does rather than answering *null*: that is a mistake in the program, and reporting it as a failed parse would name the wrong thing.</p>
 
       <emu-note>
         <p>`parseInt` and `parseFloat` are unchanged and continue to consume a prefix and to return `NaN`. The new functions do neither, because neither is available to them: an integer type cannot represent `NaN` at all, so a failed parse has nothing to return and must throw. Doing the same for the float types is a choice rather than a necessity, and it is the right one, since a failed parse that becomes a `NaN` surfaces far from its cause. Refusing trailing text follows: a function that cannot signal failure with a value has no reason to be lenient about what it accepts.</p>
         <p>Distinguishing the two errors is what makes the failure legible. `uint8.parse('12abc')` throws a *SyntaxError* exception, since the string is not a `uint8` literal, while `uint8.parse('256')` throws a *RangeError* exception, since it is a literal and the value is out of range. This is the same distinction <emu-xref href="#table-out-of-range-treatment"></emu-xref> draws between a value of the wrong type and a value of the right type out of range.</p>
-        <p>`tryParse` returning a nullable union rather than a sentinel is what lets the failure be handled by narrowing (<emu-xref href="#sec-narrowing"></emu-xref>): the result is a `uint8` in the branch that tests it against *null* and needs no cast there. A `string` is deliberately not a conversion source for a numeric type, so `let c: uint8 = '1';` is a type error and the parse is always written.</p>
+        <p>`tryParse` returning a nullable union rather than a sentinel is what lets the failure be handled by narrowing (<emu-xref href="#sec-narrowing"></emu-xref>): the result is a `uint8` in the branch that tests it against *null* and needs no cast there. A `string` is deliberately not a conversion source for a numeric type, so `let c: uint8 = '1';` is a type error and the parse is always written; <emu-xref href="#sec-requiretype"></emu-xref> is where that is enforced, and it is enforced at the explicit conversion too, so `'1' := uint8` is a type error for the same reason. The pair is what makes the strictness livable: a program that knows its input writes `parse` and lets the failure throw, and one that does not writes `tryParse` and handles the *null*.</p>
       </emu-note>
     </emu-clause>
 
