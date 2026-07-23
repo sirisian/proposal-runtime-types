@@ -3083,7 +3083,7 @@ contributors: Sirisian
           <tbody>
             <tr><td>README</td><td>The core; specified throughout this document.</td></tr>
             <tr><td>typeobjects.md</td><td>Specified: the Type Object and the computed types of <emu-xref href="#sec-computed-types"></emu-xref>.</td></tr>
-            <tr><td>typeprogramming.md</td><td>Specified: builders, canonicalization, and the evaluation budget.</td></tr>
+            <tr><td>typeprogramming.md</td><td>Specified: builders, canonicalization, the evaluation budget, and structural matching (<emu-xref href="#sec-structural-matching"></emu-xref>).</td></tr>
             <tr><td>generics.md</td><td>Specified: <emu-xref href="#sec-generics"></emu-xref>.</td></tr>
             <tr><td>dependentrecordtypes.md</td><td>Specified: <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>primitivemetadata.md</td><td>Specified: <emu-xref href="#sec-primitive-metadata"></emu-xref>.</td></tr>
