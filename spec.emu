@@ -2913,12 +2913,16 @@ contributors: Sirisian
       <h1>Checked and Saturating Arithmetic</h1>
       <p>The operators wrap on overflow (<emu-xref href="#sec-integer-operations"></emu-xref>). Where wrapping is not wanted, the named forms of <emu-xref href="#table-checked-and-saturating"></emu-xref> are used. Each is overloaded for every integer type and returns a value of its operands' type.</p>
 
+      <p>Each form performs the operation its corresponding operator performs, and differs from it only in what happens when the type cannot represent the answer. "The exact result" in <emu-xref href="#table-checked-and-saturating"></emu-xref> therefore means the exact result of THAT operation, not of an operation in the rationals: the division forms divide as `/` divides, truncating toward zero (<emu-xref href="#sec-integer-operations"></emu-xref>), so `Math.divChecked(_a_, 2)` on an `int32` holding 7 is 3 and not an error. A division is the only one of the four whose result can fail to be representable for a reason other than magnitude, and it does so in exactly one case, the most negative value of a signed type divided by -1.</p>
+
+      <p>A zero divisor produces no result at all, so neither treatment applies to it: `Math.divChecked` and `Math.divSaturating` both throw a *RangeError* exception when the divisor is zero. Saturating is a rule about a result the type cannot hold, and there is no result here to be nearest to.</p>
+
       <emu-table id="table-checked-and-saturating" caption="Checked and Saturating Forms">
         <table>
           <thead><tr><th>Form</th><th>Result</th></tr></thead>
           <tbody>
-            <tr><td>`Math.addChecked`, `Math.subChecked`, `Math.mulChecked`, `Math.divChecked`</td><td>The exact result where the type can represent it. Otherwise a *RangeError*.</td></tr>
-            <tr><td>`Math.addSaturating`, `Math.subSaturating`, `Math.mulSaturating`, `Math.divSaturating`</td><td>The exact result where the type can represent it. Otherwise the nearest value of the type, which is its greatest value when the exact result exceeds it and its least when the exact result falls below it.</td></tr>
+            <tr><td>`Math.addChecked`, `Math.subChecked`, `Math.mulChecked`, `Math.divChecked`</td><td>The exact result where the type can represent it. Otherwise a *RangeError*. A zero divisor is a *RangeError*.</td></tr>
+            <tr><td>`Math.addSaturating`, `Math.subSaturating`, `Math.mulSaturating`, `Math.divSaturating`</td><td>The exact result where the type can represent it. Otherwise the nearest value of the type, which is its greatest value when the exact result exceeds it and its least when the exact result falls below it. A zero divisor is a *RangeError*.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -2926,6 +2930,7 @@ contributors: Sirisian
       <emu-note>
         <p>Silent wrapping is the wrong answer when the value is a count rather than a bit pattern, and the right answer when it is a bit pattern rather than a count. Neither is right always, so the operator takes the case that has to be cheap and the named forms take the rest: `a + 1` on a `uint8` holding 255 is 0, `Math.addChecked(a, 1)` throws a *RangeError* exception, and `Math.addSaturating(a, 1)` is 255.</p>
         <p>These forms exist for the integer types because only there is wrapping the default. A float already saturates, to an infinity, and a decimal already raises a *RangeError*, since a decimal's range is a property of the type rather than of the format (<emu-xref href="#table-numeric-conversions"></emu-xref>). A rational already raises a *RangeError* on an unrepresentable result. Each family's overflow behaviour is therefore the one its values make available, and the named forms give the integer types the two the others have built in.</p>
+        <p>That a saturating form can still raise is worth stating plainly, because the name suggests otherwise. It raises for one reason only, and it is not an overflow: a division by zero has no result, and saturating chooses among the results a type can hold rather than inventing one where none exists. Every case that IS an overflow saturates, including the signed division that overflows, so `Math.divSaturating` of the most negative `int8` by -1 is 127.</p>
       </emu-note>
     </emu-clause>
 
