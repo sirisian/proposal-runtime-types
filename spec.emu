@@ -2808,7 +2808,7 @@ contributors: Sirisian
 
   <emu-clause id="sec-numeric-library">
     <h1>The Numeric Library</h1>
-    <p>This clause defines the library the numeric types need: the overloading of the existing functions over those types, the named arithmetic forms that check or saturate rather than wrap, the floored division pair, the parsing of a string into a numeric type, and the predicates that ask a numeric value about itself.</p>
+    <p>This clause defines the library the numeric types need: the overloading of the existing functions over those types, the named arithmetic forms that check or saturate rather than wrap, the floored division pair, the leading-zero count at the argument's own width, the parsing of a string into a numeric type, and the predicates that ask a numeric value about itself.</p>
 
     <emu-clause id="sec-overloading-of-the-standard-library">
       <h1>Overloading of the Existing Functions</h1>
@@ -2893,6 +2893,17 @@ contributors: Sirisian
       <emu-note>
         <p>These are the other half of the pair <emu-xref href="#sec-integer-operations"></emu-xref> describes: `Math.divFloor(_a_, _b_) * _b_ + Math.mod(_a_, _b_) = _a_` holds for the same reason the operators' identity holds, because the quotient and the remainder round the same way. They are named rather than assumed so that a program picks the pair it wants instead of receiving one by default.</p>
         <p>`Math.mod` is the `%` of Python, the `mod` of Kotlin, and the `mod` of Haskell. For a positive divisor, which is every case in which an index is being wrapped, its result equals the Euclidean remainder and is never negative, so `array[Math.mod(i, array.length)]` is always in range. Where the divisor may be negative and a non-negative result is still wanted, `Math.mod(_a_, Math.abs(_b_))` gives it, which is why no separate Euclidean pair is provided.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-counting-leading-zeros">
+      <h1>Counting Leading Zeros</h1>
+      <p>`Math.clz` is overloaded for the sized integer types, and for them alone. For a value of an integer type _T_ of width _N_, it returns _N_ less the bit length of the argument's mathematical value taken modulo 2**_N_, as a value of _T_, checked at the return as <emu-xref href="#sec-overloading-of-the-standard-library"></emu-xref> checks every declared return. The operation is a question about an _N_-bit two's-complement encoding, so the families without one have no signatures: `bigint` has no width to count from the top of, and the float, decimal, and rational types have no integer encoding to count in. There is no untyped signature; `Math.clz32` is already the 32-bit count.</p>
+
+      <emu-note>
+        <p>This is `Math.clz32` freed from its width. The two agree at 32 bits, answering alike for every `int32` and `uint32`, and differ below it: `Math.clz((1 := uint8))` is 7 where `Math.clz32((1 := uint8))` is 31, because `clz32` counts in a 32-bit field whatever its argument's width and `clz` counts in the argument's own. Typed code that means the argument's width, which is most of it, writes `clz`; `clz32` remains for the 32-bit field itself and for untyped callers.</p>
+        <p>The count of a value of _T_ always fits an unsigned _T_, and fits a signed _T_ at every width past `int.&lt;2&gt;`; at the two narrowest signed widths a zero's count exceeds the type's greatest value and the checked return throws a *RangeError* exception, the same edge the `clz32` row of <emu-xref href="#table-numeric-library-signatures"></emu-xref> notes. `bigint` is excluded because the operation is width-relative and a `bigint` has no width; the width-free counterpart is a bit length, which is a different function and is not added here.</p>
+        <p>A call whose argument is an untyped literal resolves like any other, by <emu-xref href="#table-literal-ranking"></emu-xref>, which selects the widest width that can represent it. That is well defined and almost never meant, since the width is the semantics here, so a program writes the width it means, by a typed argument, by an annotation on the destination, or by a cast: `const n: uint8 = Math.clz(1);` is 7.</p>
       </emu-note>
     </emu-clause>
 
