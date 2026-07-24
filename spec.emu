@@ -1251,7 +1251,7 @@ contributors: Sirisian
 
       <p>A value is of a parameterized type when its runtime type is that type or a subtype of it, or when it is a value of the [[Base]] and the <dfn id="metadata-validation-judgment">validation judgment</dfn> holds of the value and the metadata (<emu-xref href="#sec-primitive-metadata"></emu-xref>). A brand, whose meta type defines no validation, therefore admits no bare value of its base except through the construction boundary, which is the point of a brand.</p>
 
-      <p>The `StringPattern` meta type carries a RegExp as metadata. Its validation judgment holds of a String exactly when the entire String matches the pattern, the whole-string discipline <emu-xref href="#sec-parsing"></emu-xref> already uses; its subtype judgment holds only of patterns whose `source` and `flags` are identical, which structural equivalence already makes one type, so the floor is reflexivity and the conservatism is intentional. No template-literal type kind exists or is planned: a finite string family is ordinary code over a union of literal types, and an infinite one is a pattern.</p>
+      <p>The `StringPattern` meta type carries a pattern as metadata, a source and flags rather than a RegExp object, so that one pattern written in two modules is one type; a hook that reads it is handed a RegExp built from those. Its validation judgment holds of a String exactly when the entire String matches the pattern, the whole-string discipline <emu-xref href="#sec-parsing"></emu-xref> already uses; its subtype judgment holds only of patterns whose `source` and `flags` are identical, which structural equivalence already makes one type, so the floor is reflexivity and the conservatism is intentional. No template-literal type kind exists or is planned: a finite string family is ordinary code over a union of literal types, and an infinite one is a pattern.</p>
 
       <emu-note>
         <p>Interning is what makes a brand a real newtype: `brand(uint32, 'UserId')` written in two modules is one type with no registry, because the metadata compares structurally and GetTypeObject does the rest. The brand is not a lie told to the checker, as an intersection with a phantom symbol is in an erased system: the parameterization is visible to reflection, participates in validation, and can carry conversion semantics when the brand is a unit rather than a tag. Builders still cannot mint a nominal type, a class, an enum, or a sealed hierarchy, and this clause is why they do not need to: the thing nominal minting is wanted for is a brand.</p>
@@ -3357,6 +3357,29 @@ contributors: Sirisian
 
     <emu-clause id="sec-metadata-decomposition">
       <h1>Decomposition and the Judgments</h1>
+      <p>A metadata value is drawn from a closed language, given by <emu-xref href="#table-metadata-values"></emu-xref>. The top level is a flat record whose keys are claimed keys; the values under them may nest freely. Two metadata values are equivalent when they are equivalent by the comparison that table gives, and it is that comparison, and not object identity, that interning uses.</p>
+
+      <emu-table id="table-metadata-values" caption="Metadata Values">
+        <table>
+          <thead><tr><th>Form</th><th>Equivalence</th></tr></thead>
+          <tbody>
+            <tr><td>A Number, a String, a Boolean, a BigInt, or *null*</td><td>SameValue, so a NaN is equivalent to a NaN and a negative zero is not equivalent to a positive zero, as literal types already compare.</td></tr>
+            <tr><td>A pattern, carried as its source and its flags</td><td>Identical source and identical flags.</td></tr>
+            <tr><td>A Symbol</td><td>SameValue. A registered Symbol is therefore equivalent to itself in every agent; an unregistered one is equivalent only to itself.</td></tr>
+            <tr><td>A record of metadata values</td><td>The same keys, and equivalent values at each, without regard to order.</td></tr>
+            <tr><td>A list of metadata values</td><td>The same length, and equivalent values at each index, in order.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>Nothing else is a metadata value. A function, an object other than the forms above, and *undefined* are not: absence is the absence of a key rather than a key holding nothing.</p>
+
+      <emu-note>
+        <p>The language is closed because three things depend on it and each would break for a different reason. Interning compares metadata rather than identity, which is what makes `brand(uint32, 'UserId')` written in two modules one type with no registry, and a form with no structural comparison would have no answer there. An expansion artifact (<emu-xref href="#sec-expansion-artifact"></emu-xref>) is a serialization of the interning table, so a form that cannot be written down and read back could not appear in one. And a hook receives the metadata, so every form must be presentable to a program.</p>
+        <p>The representation is this specification's business and the cost is an implementation's. Metadata is settled where a type is written, so an implementation is expected to compare these forms directly and to materialize an object only where a hook is actually called. Nothing here is intended to cost a running program anything.</p>
+        <p>An unregistered Symbol is admitted deliberately, and it is the one form whose equivalence is not structural. That is what it is for: a module that mints a Symbol it neither exports nor registers has a metadata key no other module can write, so its parameterizations are its own, and two of them are one type exactly when they carry that Symbol. A registered Symbol behaves the other way, being the same Symbol in every agent that asks for the key, and is the form to reach for where two libraries must agree. A type whose metadata carries an unregistered Symbol cannot appear in an expansion artifact and loses nothing by it: an artifact carries the concrete types a module graph's public surface produces, and a Symbol deliberately not exported is not part of one. An artifact is an optimization and never a semantics, so a consumer evaluates such a type as it evaluates any other.</p>
+      </emu-note>
+
       <p>A meta type <dfn id="claims">claims</dfn> the property keys of its constraint shape. Claiming is global and flat: it is an early error, reported at the second |MetaDeclaration| rather than at any use, for two meta types to claim one key. A metadata object whose own key no meta type claims is a type error at the parameterization that writes it.</p>
 
       <emu-clause id="sec-metadataportion" type="abstract operation">
