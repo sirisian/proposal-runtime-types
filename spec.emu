@@ -1413,6 +1413,9 @@ contributors: Sirisian
             1. If _c_ is outside the coefficient range of _t_, return ~unrepresentable~.
             1. If _q_ is outside the exponent range of _t_, return ~unrepresentable~.
             1. Return the value of _t_ with coefficient _c_ and exponent _q_.
+          1. If _t_ is `bigint`, then
+            1. If _mv_ is not an integer, return ~unrepresentable~.
+            1. Return the BigInt value whose mathematical value is _mv_.
           1. If _t_ is a rational type, then
             1. Let _n_ be the numerator of _mv_ expressed in lowest terms with a positive denominator.
             1. Let _d_ be the denominator of _mv_ expressed in lowest terms with a positive denominator.
@@ -1421,6 +1424,10 @@ contributors: Sirisian
             1. Return ~unrepresentable~.
           1. Return ~unrepresentable~.
         </emu-alg>
+        <emu-note>
+          <p>`bigint` takes a plain integer literal like any other numeric type, so `let x: bigint = 65` needs no `n` suffix. The suffix exists because BigInt was added before there was a type in the position to take the literal's type FROM; where a type is written it carries no information the annotation does not, and requiring it there would make `bigint` the one numeric type a literal could not reach. It remains the only spelling in an UNTYPED position, where there is nothing to take a type from, and it remains necessary for a value beyond 2<sup>53</sup> in any implementation that reads a literal through a Number before its type is known.</p>
+        </emu-note>
+
         <emu-note>
           <p>The mathematical value of a literal is exact. `0.1` denotes one tenth, not the Number nearest to one tenth, so `0.1` in a `decimal64` position is the decimal one tenth and in a `rational` position is 1/10, while in a `float32` position it rounds. This falls out of the specification already defining a literal's mathematical value and rounding it only when producing a Number.</p>
           <p>A decimal type reads its cohort member from the source text rather than from the mathematical value, since `1.0` and `1.00` have the same mathematical value and are different values of the type (<emu-xref href="#sec-decimal-floating-point-types"></emu-xref>). A literal therefore carries its significance into the type, which is what makes a price written to two places a value with two places.</p>
@@ -3034,6 +3041,10 @@ contributors: Sirisian
       <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]] whose [[Rest]] is *false*, its [[Initial]] where that is not ~none~ and the default value of its [[Type]] otherwise; a [[Rest]] element contributes no elements. It is ~none~ where an element has an [[Initial]] of ~none~ and a [[Type]] with no default.</p>
 
       <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is a `uint32`. Deleting an element of a typed array throws a *TypeError* exception.</p>
+
+      <p>A method of the array that takes or returns an ELEMENT takes or returns it at the element type. `includes`, `indexOf`, and `lastIndexOf` take their search element at _t_; `fill`, `push`, and `unshift` take the values they store at _t_; `at` returns _t_. A literal argument in one of those positions takes _t_ by <emu-xref href="#sec-literal-propagation"></emu-xref>, so `a.includes(65)` finds the element `65` of a `[].&lt;uint16&gt;` rather than comparing a `uint16` against a Number and failing. The same holds of a typed collection: the key and value positions of a `Map.&lt;K, V&gt;` and the element positions of a `Set.&lt;T&gt;` take their declared types.</p>
+
+      <p>These are ordinary parameters of a declared type, so <emu-xref href="#table-check-sites"></emu-xref> governs them and nothing further is needed: a literal that cannot take the element type is an Early Error, and a value of the `any` type is checked at the boundary. A search is not treated more leniently than a store. `a.includes(70000)` on a `[].&lt;uint16&gt;` is a type error rather than *false*, for the reason <emu-xref href="#sec-narrowing"></emu-xref> gives for a narrowing whose test can never succeed: the answer is knowable from the types, so reporting it as an ordinary *false* would hide a mistake rather than answer a question. An UNTYPED array declares no element type and so constrains none of these positions.</p>
 
       <emu-note>
         <p>This reconciles the two rules <emu-xref href="#sec-default-values"></emu-xref> leaves in tension. A tuple defaults element-wise, but an element that carries a default already has a value for its position, so the initializer is used where there is one and the type's default only where there is not. `[uint8, uint32 = 10]` therefore defaults to `[0, 10]` rather than being rejected because the second position was already spoken for.</p>
