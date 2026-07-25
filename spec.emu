@@ -2110,6 +2110,12 @@ contributors: Sirisian
       <h1>Arithmetic Never Promotes</h1>
       <p>Two operands of the same value type produce a result of that type. Two operands of different value types are a type error, since neither is assignable to the other. Where one operand is a literal it takes the type of the other (<emu-xref href="#sec-literal-propagation"></emu-xref>), so a literal never forces a conversion.</p>
 
+      <p>The LITERAL rule of the preceding paragraph also reaches `==`, `!=`, `===`, `!==`, and a `case` label, though the type error of the preceding paragraph does not. A comparison answers rather than computing, so two operands of different numeric types compare unequal instead of being an error; but a literal in one of those positions still takes the other operand's type, so `uint8(5) === 5` is *true*. A binding adopts nothing, so `uint8(5) === n` for an `n` of the `number` type is *false*, and the values of distinct value types remain distinct. A `bigint` literal takes no Number-family type, being of a numeric type of its own. A literal the type cannot represent is not equal to any value of it, so the comparison is *false* rather than an error - unlike an arithmetic position, where the same literal is an Early Error, because there the literal must become a value and here it need not.</p>
+
+      <emu-note>
+        <p>Reaching equality is what makes a typed value usable with the comparisons programs actually write, including inside a callback: `a.find(x =&gt; x === 65)` over a `[].&lt;uint16&gt;` finds its element, where without the rule it could find nothing. The alternative considered was to leave `===` strictly identity-based, which is the treatment BigInt receives - but a BigInt has its own literal syntax, `5n`, and the types of this proposal have none, so a literal is the ONLY way to write one of their values in a comparison. Declining would have made every such comparison require an explicit conversion.</p>
+      </emu-note></p>
+
       <p>It is a type error if the Static Types of the operands of an arithmetic, bitwise, shift, or relational operator are numeric types that are not the same type. Where either operand has the `any` type the check is deferred, and the *TypeError* of <emu-xref href="#sec-operator-dispatch"></emu-xref> is thrown at run time if the types then differ.</p>
 
       <emu-note>
