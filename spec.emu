@@ -3333,7 +3333,7 @@ contributors: Sirisian
           MethodDefinition[?Yield, ?Await]</ins>
       </emu-grammar>
 
-      <p>A |MetaDeclaration| names an object type, the meta type's <dfn id="constraint-shape">constraint shape</dfn>, and supplies hooks for it. The |MethodDefinition|s it may contain are exactly those named in <emu-xref href="#table-meta-hooks"></emu-xref>; a method of any other name is an early error, as is a second declaration for one type, a missing `default` or `subtype`, or a hook whose signature does not match the table.</p>
+      <p>A |MetaDeclaration| names an object type, the meta type's <dfn id="constraint-shape">constraint shape</dfn>, and supplies hooks for it. The |MethodDefinition|s it may contain are exactly those named in <emu-xref href="#table-meta-hooks"></emu-xref>; a method of any other name is an early error, as is a second declaration for one type, a missing `default` or `subtype`, a `default` whose value is not of the constraint shape, or a hook whose signature does not match the table.</p>
 
       <emu-table id="table-meta-hooks" caption="The Meta Protocol">
         <table>
