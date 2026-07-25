@@ -673,6 +673,10 @@ contributors: Sirisian
         LiteralType :
           NumericLiteral
           `-` NumericLiteral
+          `Infinity`
+          `-` `Infinity`
+          `NaN`
+          `-` `NaN`
           StringLiteral
           `true`
           `false`
@@ -1230,7 +1234,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-literal-types">
       <h1>Literal Types</h1>
-      <p>A literal type has exactly one value. It is described by the Type Record { [[Kind]]: ~literal~, [[Value]]: _v_, [[Base]]: _b_ }, where _v_ is a String, Number, Boolean, BigInt, or Symbol and _b_ is the Type Record of the existing language type of which _v_ is a value. A |LiteralType| (<emu-xref href="#sec-type-expressions"></emu-xref>) denotes the literal type of the value it writes: a |StringLiteral| with base `string`, a |NumericLiteral| with base `number` or `bigint` as the literal is written, and `true` or `false` with base `boolean`. A Symbol has no literal syntax, so no |LiteralType| writes a symbol literal type: one arises through construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>) or through `keyof` over a symbol-keyed object type (<emu-xref href="#sec-keyof"></emu-xref>), and a program names it with an ordinary binding.</p>
+      <p>A literal type has exactly one value. It is described by the Type Record { [[Kind]]: ~literal~, [[Value]]: _v_, [[Base]]: _b_ }, where _v_ is a String, Number, Boolean, BigInt, or Symbol and _b_ is the Type Record of the existing language type of which _v_ is a value. A |LiteralType| (<emu-xref href="#sec-type-expressions"></emu-xref>) denotes the literal type of the value it writes: a |StringLiteral| with base `string`, a |NumericLiteral| with base `number` or `bigint` as the literal is written, and `true` or `false` with base `boolean`. `Infinity` and `NaN` are Numbers that are written with a name rather than a numeral, and a |LiteralType| may write either, negated or not: <emu-xref href="#table-metadata-values"></emu-xref> admits any Number as a metadata value and says that a NaN is equivalent to a NaN, so a meta type whose constraint is a bound could otherwise not state its own `default` in a parameterization. A Symbol has no literal syntax, so no |LiteralType| writes a symbol literal type: one arises through construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>) or through `keyof` over a symbol-keyed object type (<emu-xref href="#sec-keyof"></emu-xref>), and a program names it with an ordinary binding.</p>
 
       <p>The one value of a literal type is a value of its base, so the type is a subtype of its base (<emu-xref href="#sec-issubtype"></emu-xref>), `'on'` is usable where a `string` is required, and a value is of a literal type exactly when it is that value. A union of literal types is the closed set the design's discriminated unions select on, and `keyof` produces one (<emu-xref href="#sec-keyof"></emu-xref>). `boolean` and `true | false` have the same values and are distinct types: `true | false` is a subtype of `boolean` through the literal rule, and `boolean` is deliberately not a subtype of the pair, because completing the relation over value-set equality is the road to deciding language equivalence, which the pattern judgment already declines.</p>
 
@@ -3383,6 +3387,8 @@ contributors: Sirisian
         <p>The representation is this specification's business and the cost is an implementation's. Metadata is settled where a type is written, so an implementation is expected to compare these forms directly and to materialize an object only where a hook is actually called. Nothing here is intended to cost a running program anything.</p>
         <p>An unregistered Symbol is admitted deliberately, and it is the one form whose equivalence is not structural. That is what it is for: a module that mints a Symbol it neither exports nor registers has a metadata key no other module can write, so its parameterizations are its own, and two of them are one type exactly when they carry that Symbol. A registered Symbol behaves the other way, being the same Symbol in every agent that asks for the key, and is the form to reach for where two libraries must agree. A type whose metadata carries an unregistered Symbol cannot appear in an expansion artifact and loses nothing by it: an artifact carries the concrete types a module graph's public surface produces, and a Symbol deliberately not exported is not part of one. An artifact is an optimization and never a semantics, so a consumer evaluates such a type as it evaluates any other.</p>
       </emu-note>
+
+      <p>A |MetaDeclaration| may instead name a PRIMITIVE type rather than an object type, declaring a <dfn id="base-form-meta-type">base-form meta type</dfn> for it. Such a declaration has no constraint shape and so claims no keys: its hooks receive the WHOLE metadata of a parameterization of that base rather than a portion of it, and the judgments and conversions of this clause consult it in addition to the meta types that claim keys. Because it speaks for every key of such a parameterization, a metadata object whose base carries a base-form meta type is exempt from the unclaimed-key error below. This is how a brand is written: a meta type that constrains a base without naming any field of it.</p>
 
       <p>A meta type <dfn id="claims">claims</dfn> the property keys of its constraint shape. Claiming is global and flat: it is an early error, reported at the second |MetaDeclaration| rather than at any use, for two meta types to claim one key. A metadata object whose own key no meta type claims is a type error at the parameterization that writes it.</p>
 
