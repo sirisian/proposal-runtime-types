@@ -1817,6 +1817,10 @@ contributors: Sirisian
         <emu-note>
           <p>RequireType at an object type CONVERTS the members the type declares, and does not merely test them. A plain object reaching `{ x: `uint8` }` has a Number where a `uint8` is required, and testing would refuse every object literal a program writes; the array element positions have converted since the propagation rule was written, and an object's members are the same boundary one level in. The conversion is applied to the object rather than to a copy of it, because an object may carry properties the type does not declare and keeps them under width subtyping, which a copy assembled from the declared members alone would discard. Converting the members does not decide membership on its own: a type may state more than its members do - a `where` predicate, an index signature - so the conversion precedes the membership test rather than replacing it.</p>
         </emu-note>
+
+        <emu-note>
+          <p>"A value of the wrong type" is decided by the target, and for the `number` type it means any value that is not numeric. Reading such a value through ToNumber instead - a String as its parsed value or a NaN, *null* as zero, *undefined* as a NaN, an object as whatever its primitive is - would produce at a checked boundary exactly the silent failures the `string` target's rule is written to prevent, and would do it at the type a program is most likely to annotate. The explicit conversion remains available and is what a program writes when it wants that reading: `_v_ := `number`` is a cast, and a cast is not a boundary.</p>
+        </emu-note>
       </emu-note>
     </emu-clause>
 
