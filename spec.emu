@@ -1355,6 +1355,23 @@ contributors: Sirisian
       </emu-table>
     </emu-clause>
 
+    <emu-clause id="sec-inferred-result-type">
+      <h1>The Inferred Result Type of a Function Literal</h1>
+      <p>Where a function literal has no declared return type, its result type is INFERRED from its body, and the inference is the same whichever way the body is written. For a concise arrow body the result type is the Static Type of the body expression. For a block body it is the join of the contributions below, and a literal with a declared return type contributes that type instead of any of this.</p>
+
+      <ul>
+        <li>Each `return` within the literal contributes the Static Type of its expression, or *undefined* where it has none.</li>
+        <li>Where the body can complete without returning, *undefined* is contributed as well, since falling off the end answers *undefined*.</li>
+        <li>A `return` within a NESTED function literal contributes nothing, belonging to that literal.</li>
+      </ul>
+
+      <p>The join of a set of contributions is the single type where they are all that type, and the union of the distinct ones otherwise. Where any contribution is the ~any~ type the result type is ~any~: a union with an unknown member is unknown, and answering the remaining members would state more than the body supports. An implementation is permitted to be less precise about whether a body can complete - to treat a body as able to complete where it cannot - because contributing *undefined* to the join can only widen the result.</p>
+
+      <emu-note>
+        <p>The rule exists so that the two spellings of one function agree. Without it `a.map(_x_ =&gt; _x_)` carries its element type through and `a.map(_x_ =&gt; { return _x_; })` does not, and a program is punished for the braces. Inference of a result type is not inference of a PARAMETER type: a parameter takes its type from the position the literal is written in (<emu-xref href="#table-contextual-types"></emu-xref>) or from its own annotation, and those types are what the body is checked under while this operation reads it.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-contextual-types">
       <h1>Contextual Types</h1>
       <p>The <dfn id="contextual-type">contextual type</dfn> of an expression is the type its position requires, or ~none~ where its position requires nothing. It is determined by the position rather than by the expression, and it is what a literal consults.</p>
