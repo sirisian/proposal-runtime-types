@@ -1842,6 +1842,10 @@
         <emu-note><span class=note>Note 2</span><div class=note-contents>
           <p><emu-xref id=_ref_1013 aoid=RequireType><a href=#sec-requiretype>RequireType</a></emu-xref> at an object type CONVERTS the members the type declares, and does not merely test them. A plain object reaching <code>{ x: </code>uint8<code> }</code> has a Number where a <code>uint8</code> is required, and testing would refuse every object literal a program writes; the array element positions have converted since the propagation rule was written, and an object's members are the same boundary one level in. The conversion is applied to the object rather than to a copy of it, because an object may carry properties the type does not declare and keeps them under width subtyping, which a copy assembled from the declared members alone would discard. Converting the members does not decide membership on its own: a type may state more than its members do - a <code>where</code> predicate, an index signature - so the conversion precedes the membership test rather than replacing it.</p>
         </div></emu-note>
+
+        <emu-note><span class=note>Note 3</span><div class=note-contents>
+          <p>"A value of the wrong type" is decided by the target, and for the <code>number</code> type it means any value that is not numeric. Reading such a value through <emu-xref aoid=ToNumber><a href=https://tc39.es/ecma262/#sec-tonumber>ToNumber</a></emu-xref> instead - a String as its parsed value or a NaN, <emu-val>null</emu-val> as zero, <emu-val>undefined</emu-val> as a NaN, an object as whatever its primitive is - would produce at a checked boundary exactly the silent failures the <code>string</code> target's rule is written to prevent, and would do it at the type a program is most likely to annotate. The explicit conversion remains available and is what a program writes when it wants that reading: <code>_v_ := </code>number`` is a cast, and a cast is not a boundary.</p>
+        </div></emu-note>
       </div></emu-note>
     </emu-clause>
 
