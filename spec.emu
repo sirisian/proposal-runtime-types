@@ -1441,6 +1441,10 @@ contributors: Sirisian
             1. Return ~unrepresentable~.
           1. Return ~unrepresentable~.
         </emu-alg>
+
+        <emu-note>
+          <p>"The mathematical value denoted by _literal_ ... before any rounding" is a requirement on the IMPLEMENTATION as much as on this operation, and it is easy to violate without noticing. A lexer that produces a Number for every numeric literal has already rounded by the time any contextual type is known: `9007199254740993` has become 9007199254740992, and an implementation reading its own scanned value would answer that, which is a value the source did not write. Retaining the literal's source text, or its exact value, is what lets this operation be implemented as specified. The rounding step for a binary floating-point _t_ is where rounding is permitted, and it is written as a step precisely because it must not have happened earlier.</p>
+        </emu-note>
         <emu-note>
           <p>`bigint` takes a plain integer literal like any other numeric type, so `let x: bigint = 65` needs no `n` suffix. The suffix exists because BigInt was added before there was a type in the position to take the literal's type FROM; where a type is written it carries no information the annotation does not, and requiring it there would make `bigint` the one numeric type a literal could not reach. It remains the only spelling in an UNTYPED position, where there is nothing to take a type from, and it remains necessary for a value beyond 2<sup>53</sup> in any implementation that reads a literal through a Number before its type is known.</p>
         </emu-note>
