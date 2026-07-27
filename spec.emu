@@ -3778,8 +3778,16 @@ contributors: Sirisian
 
         <p>A growable `SoA.&lt;`_T_`&gt;` has no layout as a type, exactly as `[].&lt;`_T_`&gt;` has none; its instances have a `byteLength`.</p>
 
+        <p>Each column is aligned to its element type's alignment, and to nothing wider. A vector width is a property of the host rather than of the type, so folding one into the layout would make the same `SoA` a different size on different implementations and would cost `byteLength` its place among the compile-time constants of <emu-xref href="#sec-layout-properties"></emu-xref>. Where an `SoA`'s allocation is PLACED is a separate question and the implementation's own: the base's address is not part of what the type describes, so an implementation may put every allocation on a vector or cache-line boundary and is encouraged to.</p>
+
+        <p>`Length` is defaulted, so `SoA.&lt;`_T_`&gt;` and `SoA.&lt;`_T_`, 0&gt;` name ONE type, as a defaulted parameter does everywhere.</p>
+
+        <p>An `SoA` and a `[`_N_`].&lt;`_T_`&gt;` are distinct types with distinct layouts and neither is assignable to the other, whatever their elements. Conversion is explicit and copies.</p>
+
+        <p>`fields` projects each of _T_'s immediate fields as an array view (<emu-xref href="#sec-array-views"></emu-xref>) over that field's column, and the views alias: a write through one is visible through the element operations and the reverse. A projection of a growable `SoA` is INVALIDATED by a growth that reallocates, and an access through it afterwards throws a *TypeError* exception, exactly as a reference into the same `SoA` does — a projection that kept reading the abandoned allocation would disagree with its container and say nothing. A projection of a fixed `SoA.&lt;`_T_`, `_N_`&gt;` can never be invalidated, since a fixed extent does not grow.</p>
+
         <emu-note>
-          <p>This clause specifies the type and its layout. The element operations, the `fields` projections, the reference semantics, the conversions, and the view form are still to be written; until they are, an `SoA` type may be named and its layout read, and nothing constructs one.</p>
+          <p>Invalidating rather than preventing is what a garbage-collected language can express. A borrow checker refuses to compile a program that grows a container while a projection of it is alive, and pays nothing at run time for the guarantee; here nothing marks the end of a projection's life, so a container that could not grow while one had ever been taken could never grow again. The check is loop-invariant — the generation cannot change without a call — so it is hoisted rather than paid per element, and the fixed form has no check at all.</p>
         </emu-note>
       </emu-clause>
 
