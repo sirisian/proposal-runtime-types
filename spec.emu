@@ -3179,7 +3179,7 @@ contributors: Sirisian
             <tr><td>threading.md</td><td>Partially specified: `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative; the rest is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>ranges.md</td><td>Partially specified: the range literals, the Range value, and its iteration are <emu-xref href="#sec-range-literals"></emu-xref> atop the hook of <emu-xref href="#sec-ranges"></emu-xref>; the interval in the type and its specialization, the `uint8.&lt;1..=6&gt;` bounds desugaring, slicing to a view, and the random and Temporal integrations are deferred.</td></tr>
             <tr><td>serialization.md</td><td>Partially specified: typed JSON parsing (the `JSON.parse.&lt;_T_&gt;` overload and its converting, validating walk) is <emu-xref href="#sec-typed-json-parsing"></emu-xref>, atop the boundary and metadata machinery the core already gives; the deferred surface (class targets, the exact wide numerics, typed `JSON.stringify`, streaming, typed JSON modules, `structuredClone`, and the binary layout) is noted there. <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
-            <tr><td>soa.md</td><td>Deferred; the memory layout hook is its attachment point.</td></tr>
+            <tr><td>soa.md</td><td>The type and its layout: <emu-xref href="#sec-structure-of-arrays"></emu-xref>. The element, reference, and view semantics are still to come.</td></tr>
             <tr><td>regexp.md</td><td>Partially specified: the capture-type inference of a literal is <emu-xref href="#sec-typed-regular-expressions"></emu-xref>; the match-result surface it enables (the typed exec result and group-name checking, the typed String methods, the flag-dependent shapes, composition, and string narrowing) is deferred and noted there.</td></tr>
             <tr><td>random.md</td><td>Deferred; a library extension.</td></tr>
             <tr><td>temporal.md</td><td>Deferred; a library extension.</td></tr>
@@ -3750,6 +3750,23 @@ contributors: Sirisian
       <p>A field written `T | null` closes a cycle because it is a reference, which <emu-xref href="#table-layout-by-type"></emu-xref> gives no layout and whose width is the implementation's; the recursion stops there rather than descending, which is why a linked list is expressible and a class containing itself by value is not.</p>
     </emu-clause>
   </emu-clause>
+
+      <emu-clause id="sec-structure-of-arrays">
+        <h1>Structure of Arrays</h1>
+        <p>`SoA.&lt;`_T_`, `_Length_`&gt;` stores its elements as one array per field of _T_ rather than as a run of _T_. It is a built-in exotic in the same way `[`_N_`].&lt;`_T_`&gt;` is: no user-defined class can express it, because declaring one array per field of a type is a mapped type this specification does not have, and because a reference into one denotes a column set and an index rather than a byte offset.</p>
+
+        <p>_Length_ follows the array types: 0, which is the default, is growable, and a non-zero value is a fixed extent. _T_ must be a value type class or a primitive. A primitive _T_ degenerates to a single column, so a generic that may be handed one needs no special case; a class with a field of no layout has nothing to split and is a type error.</p>
+
+        <p>The layout is the row <emu-xref href="#table-layout-by-type"></emu-xref> gives it: each field of _T_ is a column of _Length_ elements, padded and aligned on its own, in declaration order, and the type's `byteLength` is the sum of the columns rounded up to its alignment. The split is ONE LEVEL: a field that is itself a value type stays a single column, interleaved within itself, so a consumer wanting that field as a contiguous run of its own type has one and a consumer wanting each of its leaves contiguous flattens the class. Which is wanted is a property of the data's use, and this specification does not decide it.</p>
+
+        <p>An element's fields are not adjacent, so there is no interior padding between them, and a _T_ whose interleaved layout pads to a larger stride has a smaller `byteLength` here than `[`_Length_`].&lt;`_T_`&gt;` does. A Type Object of this type additionally has an `elementByteLength`, the per-element sum of the column strides, which for the same reason is not the interleaved stride.</p>
+
+        <p>A growable `SoA.&lt;`_T_`&gt;` has no layout as a type, exactly as `[].&lt;`_T_`&gt;` has none; its instances have a `byteLength`.</p>
+
+        <emu-note>
+          <p>This clause specifies the type and its layout. The element operations, the `fields` projections, the reference semantics, the conversions, and the view form are still to be written; until they are, an `SoA` type may be named and its layout read, and nothing constructs one.</p>
+        </emu-note>
+      </emu-clause>
 
   <emu-clause id="sec-checked-contracts">
     <h1>Checked Contracts</h1>
