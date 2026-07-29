@@ -4368,9 +4368,9 @@ contributors: Sirisian
               1. Let _converted_ be ? the conversion of _v_ to the [[Type]] of the element of _S_ that receives position _i_, as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
               1. Append CanonicalizeCompositeValue(_converted_) to _elements_.
               1. Set _i_ to _i_ + 1.
-            1. For each element _e_ of _S_.[[Elements]] at a position not less than _len_, do
+            1. For each element _e_ of _S_.[[Elements]] whose position is not less than _len_, do
               1. If _e_.[[Rest]] is *false*, then
-                1. Assert: _e_.[[Initial]] is not ~none~, since _len_ is a length _S_ admits.
+                1. If _e_.[[Initial]] is ~none~, throw a *TypeError* exception.
                 1. Append CanonicalizeCompositeValue(_e_.[[Initial]]) to _elements_.
             1. Return ? FindOrCreateTupleComposite(_elements_).
           1. Assert: _S_.[[Kind]] is ~object~.
@@ -4381,30 +4381,29 @@ contributors: Sirisian
             1. Let _desc_ be ? _source_.[[GetOwnProperty]](_key_).
             1. If _desc_ is not *undefined* and _desc_.[[Enumerable]] is *true*, then
               1. If _key_ is a Symbol, throw a *TypeError* exception.
-              1. If no Property Type Record of _S_.[[Properties]] has [[Key]] _key_ and no Index Signature Record of _S_.[[IndexSignatures]] accepts _key_, throw a *TypeError* exception.
-          1. For each Property Type Record _p_ of _S_.[[Properties]], do
-            1. Let _present_ be ? HasProperty(_source_, _p_.[[Key]]).
-            1. If _present_ is *true*, then
-              1. Let _v_ be ? Get(_source_, _p_.[[Key]]).
-              1. Let _converted_ be ? the conversion of _v_ to _p_.[[Type]], as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
-              1. Append the Composite Entry Record { [[Key]]: _p_.[[Key]], [[Value]]: CanonicalizeCompositeValue(_converted_) } to _entries_.
-            1. Else if _p_.[[Optional]] is *true*, then
-              1. If _p_.[[Initial]] is not ~none~, append the Composite Entry Record { [[Key]]: _p_.[[Key]], [[Value]]: CanonicalizeCompositeValue(_p_.[[Initial]]) } to _entries_.
-            1. Else,
-              1. Throw a *TypeError* exception.
-          1. For each element _key_ of _keys_, do
-            1. If _key_ is a String and no Property Type Record of _S_.[[Properties]] has [[Key]] _key_, then
-              1. Let _sig_ be the first Index Signature Record of _S_.[[IndexSignatures]] that accepts _key_.
+              1. Let _memberType_ be ~empty~.
+              1. Let _p_ be the Property Type Record of _S_.[[Properties]] whose [[Key]] is _key_, or ~empty~ if there is none.
+              1. If _p_ is not ~empty~, then
+                1. Set _memberType_ to _p_.[[Type]].
+              1. Else,
+                1. Let _sig_ be the first Index Signature Record of _S_.[[IndexSignatures]] that accepts _key_, or ~empty~ if there is none.
+                1. If _sig_ is not ~empty~, set _memberType_ to _sig_.[[ValueType]].
+              1. If _memberType_ is ~empty~, throw a *TypeError* exception.
               1. Let _v_ be ? Get(_source_, _key_).
-              1. Let _converted_ be ? the conversion of _v_ to _sig_.[[ValueType]], as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
+              1. Let _converted_ be ? the conversion of _v_ to _memberType_, as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
               1. Append the Composite Entry Record { [[Key]]: _key_, [[Value]]: CanonicalizeCompositeValue(_converted_) } to _entries_.
+          1. For each Property Type Record _p_ of _S_.[[Properties]], do
+            1. If no element of _entries_ has [[Key]] _p_.[[Key]], then
+              1. If _p_.[[Optional]] is *false*, throw a *TypeError* exception.
+              1. If _p_.[[Initial]] is not ~none~, append the Composite Entry Record { [[Key]]: _p_.[[Key]], [[Value]]: CanonicalizeCompositeValue(_p_.[[Initial]]) } to _entries_.
           1. Return FindOrCreateComposite(_entries_).
           </emu-alg>
         </emu-clause>
         <emu-note>
-          <p>Typed creation is the untyped algorithm with each supplied value converted to its member's type at the boundary, which is what makes the resulting fields carry _T_'s types and the result's Static Type `Composite.&lt;T&gt;`. Three of its rules deserve their reasons. A required member that is absent throws rather than filling the type's default: a composite is a key, and a key half of whose contents were invented silently would collide with the key that stated them. A property the type does not name throws for the mirror reason: dropping it silently would intern two different sources to one object. And an <em>optional</em> member's declared default, the [[Initial]] of `page?: uint8 = 0`, is written here, before freezing and before interning, so `Composite.&lt;CacheKey&gt;({ id: 7 })` and `Composite.&lt;CacheKey&gt;({ id: 7, page: 0 })` are the same object; an optional member with no declared default simply stays absent. A default is a construction feature (<emu-xref href="#sec-object-types"></emu-xref>), typed composite creation is a construction site, and a check of a composite that already exists writes nothing to it, which for a frozen shared object is not a preference but the only possibility.</p>
+          <p>Typed creation is the untyped algorithm with each supplied value converted to its member's type at the boundary, which is what makes the resulting fields carry _T_'s types and the result's Static Type `Composite.&lt;T&gt;`. It is that algorithm literally: the read set is the same one, the source's own enumerable String-keyed properties in the order its [[OwnPropertyKeys]] internal method reports them, each read exactly once, so the two spellings hold the same data and run the same getters in the same order. What the shape adds is the conversion of each value, the two rejections, and the defaults; what it does not add is a second way of finding a value. Three of its rules deserve their reasons. A required member that is absent throws rather than filling the type's default: a composite is a key, and a key half of whose contents were invented silently would collide with the key that stated them. A property the type does not name throws for the mirror reason: dropping it silently would intern two different sources to one object. And an <em>optional</em> member's declared default, the [[Initial]] of `page?: uint8 = 0`, is written here, before freezing and before interning, so `Composite.&lt;CacheKey&gt;({ id: 7 })` and `Composite.&lt;CacheKey&gt;({ id: 7, page: 0 })` are the same object; an optional member with no declared default simply stays absent. A default is a construction feature (<emu-xref href="#sec-object-types"></emu-xref>), typed composite creation is a construction site, and a check of a composite that already exists writes nothing to it, which for a frozen shared object is not a preference but the only possibility.</p>
           <p>The contextual type of _source_ is _T_'s structural form (<emu-xref href="#sec-contextual-types"></emu-xref>), so numeric literals in the source take the member types by <emu-xref href="#sec-literal-propagation"></emu-xref> and the conversions above are checks rather than coercions at a literal creation site. A binding annotated `Composite.&lt;T&gt;` gives an unadorned `Composite(...)` initializer the same treatment through the return-type direction of overload resolution (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). An unannotated, uncontextualized `Composite({ id: 7 })` in typed code produces Number fields; code that means anything else says so at the creation site.</p>
-          <p>Typed creation reads the members the shape names wherever the object answers them, through HasProperty and Get, the read semantics every check of <emu-xref href="#sec-isoftype"></emu-xref> already has; the undeclared-property rule applies to the source's own enumerable keys, the read set of the untyped creation. A trailing tuple position the source does not supply is filled from its declared default, as an absent optional member is, and for the same reason: `Composite.&lt;[uint8, uint32 = 10]&gt;([1])` and `Composite.&lt;[uint8, uint32 = 10]&gt;([1, 10])` are one object.</p>
+          <p>That the read set is the enumerable own properties, rather than everything a lookup would answer, is a decision and the alternative is worth naming. A boundary check (<emu-xref href="#sec-isoftype"></emu-xref>) reads through accessors and the prototype chain, because it asks whether a value can be used as the type; a creation asks what the new value's contents are, and every operation in the language that copies contents, `Object.assign`, object spread, `JSON.stringify`, and structured cloning among them, reads the enumerable own properties. A composite is a copy, so it reads what a copy reads. The cost is that a member supplied only by a prototype accessor or a non-enumerable own property does not satisfy the shape; the benefit is that the case fails loudly, with a *TypeError* naming the absent member, where the untyped creation silently produces a composite without it. Reading through the chain instead cannot be made symmetric in any case: the rejection of an undeclared property needs a finite set of keys to walk, and a lookup has none, since every object inherits *"toString"*.</p>
+          <p>A rejection therefore throws part way through, after the getters preceding it in key order have run, exactly as the untyped creation's Symbol-key rejection does. A trailing tuple position the source does not supply is filled from its declared default, as an absent optional member is, and for the same reason: `Composite.&lt;[uint8, uint32 = 10]&gt;([1])` and `Composite.&lt;[uint8, uint32 = 10]&gt;([1, 10])` are one object. A position with no declared default that the source does not supply is a *TypeError* even where the shape admits the length, which is reachable only where a defaulted position precedes an undefaulted one (<emu-xref href="#sec-array-membership"></emu-xref> counts a tuple's minimum length by the positions carrying no default wherever they occur, rather than by a prefix). One consequence of filling is worth stating: `Composite.&lt;T&gt;` is not idempotent where _T_ declares an optional member with a default, since `Composite.&lt;CacheKey&gt;(_c_)` fills `page` onto a composite _c_ that lacks it and so returns a different object. That is the rule working rather than failing, because every creation through `Composite.&lt;CacheKey&gt;` fills it and they therefore agree with each other; a composite lacking the member satisfies the type by width subtyping and is a different key, which is what it is.</p>
         </emu-note>
       </emu-clause>
 
@@ -4445,7 +4444,7 @@ contributors: Sirisian
 
       <p>The typed parse re-interns: CoerceJSONValue (<emu-xref href="#sec-coercejsonvalue"></emu-xref>) carries a case for composite types, placed before its ~primitive~ case since a composite type is of that kind, which coerces the parsed value against the shape, canonicalizes each resulting value, and obtains the result through FindOrCreateComposite or FindOrCreateTupleComposite. The top composite type is rejected there with a *TypeError* exception, because it states no shape to validate against.</p>
       <emu-note>
-        <p>`JSON.parse.&lt;Composite.&lt;T&gt;&gt;(text)` therefore validates against _T_ by the walk of <emu-xref href="#sec-typed-json-parsing"></emu-xref> and interns the result, so whether a configuration has changed between two polls is `===` between two parses. This answers the mapping the design's serialization document left open for composites. Absent optional members follow the construction rule of <emu-xref href="#sec-object-types"></emu-xref> through the coercion of the shape: a declared default is filled, and an optional member with none stays absent, so a parsed composite interns with the typed creation of the same document.</p>
+        <p>`JSON.parse.&lt;Composite.&lt;T&gt;&gt;(text)` therefore validates against _T_ by the walk of <emu-xref href="#sec-typed-json-parsing"></emu-xref> and interns the result, so whether a configuration has changed between two polls is `===` between two parses. This answers the mapping the design's serialization document left open for composites. Absent members follow the construction rule of <emu-xref href="#sec-object-types"></emu-xref> through the coercion of the shape, since the shape's own coercion is what fills them: an optional member's declared default is filled and an optional member without one stays absent, and a document whose array is shorter than a tuple shape takes that shape's trailing defaults. A parsed composite therefore interns with the typed creation of the same document.</p>
       </emu-note>
 
       <p>A host that serializes objects for transfer between heaps, as the HTML structured clone algorithm does, must serialize a composite as its kind and its contents and, on deserialization, obtain the result through FindOrCreateComposite or FindOrCreateTupleComposite in the receiving heap, each value having been deserialized and canonicalized first. Equality between composites is thereby preserved within every heap, two messages carrying equal contents arriving `===`, and never across heaps, whose registries are disjoint; a composite is never the same object on two sides of a boundary that copies.</p>
@@ -4547,7 +4546,7 @@ contributors: Sirisian
   <emu-clause id="sec-typed-json-parsing">
     <h1>Typed JSON Parsing</h1>
     <p>`JSON.parse` gains a generic overload, written `JSON.parse.&lt;_T_&gt;(_text_)`, that parses and validates in one pass. It parses _text_ as JSON, which is a *SyntaxError* on malformed input exactly as the untyped `JSON.parse` is, and then converts the resulting value against _T_ by <emu-xref href="#sec-coercejsonvalue"></emu-xref>. Well-formed JSON that does not satisfy _T_ is a *TypeError* naming the path at which the mismatch occurred, so a typed `catch (_e_: SyntaxError)` and `catch (_e_: TypeError)` separate a malformed document from a well-formed one of the wrong shape.</p>
-    <p>Validation is layered as any other boundary in this specification: a leaf is checked against its type as it is reached, a parameterized type consults its metadata's validation judgment (<emu-xref href="#sec-isoftype"></emu-xref>), and a class or record `where` clause runs once the target is filled, as the construction boundary check. Unlike the general boundary of <emu-xref href="#sec-requiretype"></emu-xref>, which distinguishes a *RangeError* for a numeric value the target cannot represent, every failure here is a *TypeError*: in a parsed document the type is the schema, so a value outside a field's range violates the schema rather than overflowing an arithmetic. The overload takes no reviver, since a reviver observes the intermediate untyped graph this feature exists not to build.</p>
+    <p>A JSON array coerces against an ~array~ type, whose extent it must match where that is fixed, and against a ~tuple~ type, whose admitted lengths it must be one of and whose positions type its elements one by one, with a short array taking the trailing positions' declared defaults. Validation is otherwise layered as any other boundary in this specification: a leaf is checked against its type as it is reached, a parameterized type consults its metadata's validation judgment (<emu-xref href="#sec-isoftype"></emu-xref>), and a class or record `where` clause runs once the target is filled, as the construction boundary check. Unlike the general boundary of <emu-xref href="#sec-requiretype"></emu-xref>, which distinguishes a *RangeError* for a numeric value the target cannot represent, every failure here is a *TypeError*: in a parsed document the type is the schema, so a value outside a field's range violates the schema rather than overflowing an arithmetic. The overload takes no reviver, since a reviver observes the intermediate untyped graph this feature exists not to build.</p>
     <emu-clause id="sec-coercejsonvalue" type="abstract operation">
       <h1>
         CoerceJSONValue (
@@ -4566,23 +4565,15 @@ contributors: Sirisian
         1. If _type_ is a composite type (<emu-xref href="#sec-composite-types"></emu-xref>), then
           1. If _type_ is the top composite type, throw a *TypeError* exception.
           1. Let _shape_ be the shape of _type_.
+          1. Let _data_ be ? CoerceJSONValue(_value_, _shape_, _path_).
           1. If _shape_.[[Kind]] is ~tuple~, then
-            1. If _value_ is not an Array, throw a *TypeError* exception.
-            1. Let _len_ be ? LengthOfArrayLike(_value_).
-            1. If _len_ is not a length _shape_ admits (<emu-xref href="#sec-array-membership"></emu-xref>), throw a *TypeError* exception.
             1. Let _elements_ be a new empty List.
+            1. Let _len_ be ! LengthOfArrayLike(_data_).
             1. Let _i_ be 0.
             1. Repeat, while _i_ &lt; _len_,
-              1. Let _elementPath_ be the string-concatenation of _path_, the code unit 0x005B (LEFT SQUARE BRACKET), the decimal representation of _i_ as a String, and the code unit 0x005D (RIGHT SQUARE BRACKET).
-              1. Let _converted_ be ? CoerceJSONValue(the element of _value_ at index _i_, the [[Type]] of the element of _shape_ that receives position _i_, _elementPath_).
-              1. Append CanonicalizeCompositeValue(_converted_) to _elements_.
+              1. Append CanonicalizeCompositeValue(! Get(_data_, ! ToString(𝔽(_i_)))) to _elements_.
               1. Set _i_ to _i_ + 1.
-            1. For each element _e_ of _shape_.[[Elements]] at a position not less than _len_, do
-              1. If _e_.[[Rest]] is *false*, then
-                1. Assert: _e_.[[Initial]] is not ~none~, since _len_ is a length _shape_ admits.
-                1. Append CanonicalizeCompositeValue(_e_.[[Initial]]) to _elements_.
             1. Return ? FindOrCreateTupleComposite(_elements_).
-          1. Let _data_ be ? CoerceJSONValue(_value_, _shape_, _path_).
           1. Let _entries_ be a new empty List.
           1. For each own property key _k_ of _data_, in the order returned by ! _data_.[[OwnPropertyKeys]](), do
             1. Append the Composite Entry Record { [[Key]]: _k_, [[Value]]: CanonicalizeCompositeValue(! Get(_data_, _k_)) } to _entries_.
@@ -4620,6 +4611,23 @@ contributors: Sirisian
             1. Let _converted_ be ? CoerceJSONValue(_element_, _type_.[[Element]], _elementPath_).
             1. Append _converted_ to _elements_.
             1. Set _i_ to _i_ + 1.
+          1. Return CreateArrayFromList(_elements_).
+        1. If _type_.[[Kind]] is ~tuple~, then
+          1. If _value_ is not an Array, throw a *TypeError* exception.
+          1. Let _len_ be ? LengthOfArrayLike(_value_).
+          1. If _len_ is not a length _type_ admits (<emu-xref href="#sec-array-membership"></emu-xref>), throw a *TypeError* exception.
+          1. Let _elements_ be a new empty List.
+          1. Let _i_ be 0.
+          1. Repeat, while _i_ &lt; _len_,
+            1. Let _element_ be the element of _value_ at index _i_.
+            1. Let _elementPath_ be the string-concatenation of _path_, the code unit 0x005B (LEFT SQUARE BRACKET), the decimal representation of _i_ as a String, and the code unit 0x005D (RIGHT SQUARE BRACKET).
+            1. Let _converted_ be ? CoerceJSONValue(_element_, the [[Type]] of the element of _type_.[[Elements]] that receives position _i_, _elementPath_).
+            1. Append _converted_ to _elements_.
+            1. Set _i_ to _i_ + 1.
+          1. For each element _e_ of _type_.[[Elements]] whose position is not less than _len_, do
+            1. If _e_.[[Rest]] is *false*, then
+              1. If _e_.[[Initial]] is ~none~, throw a *TypeError* exception.
+              1. Append _e_.[[Initial]] to _elements_.
           1. Return CreateArrayFromList(_elements_).
         1. If _type_.[[Kind]] is ~object~, then
           1. If _value_ is not an Object or _value_ is an Array, throw a *TypeError* exception.
@@ -4661,7 +4669,7 @@ contributors: Sirisian
     </emu-clause>
     <emu-note>
       <p>The physical form the extension describes, writing straight into contiguous typed storage with no intermediate graph, is an implementation strategy and not observable, so an implementation that parses to the untyped JSON value and then converts it conforms.</p>
-      <p>The conversions this operation does not perform are the deferred part of the extension: a class target that fills a sealed layout without running its constructor, the exact wide numeric types (the 64-bit integers, `decimal128`, and `bigint`) whose digits must convert without first rounding through a Number, and the enforcement of the built-in refinement judgments, which parameterized validation consults but which are themselves specified with the primitive metadata they belong to.</p>
+      <p>The conversions this operation does not perform are the deferred part of the extension: a class target that fills a sealed layout without running its constructor, the exact wide numeric types (the 64-bit integers, `decimal128`, and `bigint`) whose digits must convert without first rounding through a Number, and the enforcement of the built-in refinement judgments, which parameterized validation consults but which are themselves specified with the primitive metadata they belong to. An ~intersection~ target is deferred with them, and deliberately: coercion must produce one value, so an intersection of object types needs a rule merging its members into the single shape the walk fills, including what a key both members declare converts to, and that rule belongs with the objects work rather than with serialization. A ~function~ target throws, since no JSON value denotes a function, and the remaining kinds cannot reach a specialized type.</p>
     </emu-note>
   </emu-clause>
 
