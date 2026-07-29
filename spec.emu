@@ -337,6 +337,15 @@ contributors: Sirisian
             1. For each element _m_ of _s_.[[Members]], do
               1. If IsSubtype(_m_, _t_, _assumptions_) is *true*, return *true*.
             1. Return *false*.
+          1. If _s_ is a composite type (<emu-xref href="#sec-composite-types"></emu-xref>), then
+            1. If _t_ is the top composite type, return *true*.
+            1. If _s_ is not the top composite type, then
+              1. Let _sShape_ be the shape of _s_.
+              1. If _t_ is a composite type that is not the top composite type, return IsSubtype(_sShape_, the shape of _t_, _assumptions_).
+              1. If _t_.[[Kind]] is ~object~ and _sShape_.[[Kind]] is ~object~, return IsObjectSubtype(_sShape_, _t_, _assumptions_).
+              1. If _t_.[[Kind]] is ~tuple~ and _sShape_.[[Kind]] is ~tuple~, return IsSubtype(_sShape_, _t_, _assumptions_).
+              1. If _t_ is an interface type with a structural form, return IsSubtype(_s_, that form, _assumptions_).
+            1. Return *false*.
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. If _s_.[[Kind]] is ~nominal~, then
             1. If _t_.[[Declaration]] is _s_.[[Declaration]], return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
@@ -364,7 +373,7 @@ contributors: Sirisian
           <p>A ~literal~ type is a subtype of its base and of everything its base is a subtype of, which is what makes `'on'` usable where a `string` is required while `string` is not usable where `'on'` is. A ~tuple~'s [[Rest]] flags must match position for position, and its defaults take part in identity but not in subtyping; tuples relate by the arity window: _s_ is a subtype of _t_ when every length _s_ admits, _t_ admits, and every position _s_ can supply is a subtype of the position of _t_ that receives it.</p>
           <p>A deferred ~application~ is a subtype only of itself and of the `any` type. Before specialization nothing finer than identity is known about its result, so nothing finer is assumed: two mentions of one deferred call are one type by interning, and two different calls are unrelated until they evaluate. No step above names the kind because none needs to; an ~application~ source reaches the final step for every target but itself and `any`.</p>
           <p>A generic class is invariant in its arguments, so `Map.&lt;string, uint8&gt;` is a subtype of no other instantiation of `Map`. This is the conservative choice and the only one that is sound for a mutable container, since a `Map.&lt;string, uint8&gt;` used as a `Map.&lt;string, number&gt;` would accept a Number into storage typed `uint8`. Whether a generic parameter may be declared covariant or contravariant, as it may in C# and Kotlin, is a question for the generics extension; nothing here forecloses it, and the step above is what such a declaration would relax.</p>
-          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target. IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
+          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target; a composite type is covariant in its shape, which the frozenness of every composite makes sound (<emu-xref href="#sec-composite-types"></emu-xref>). IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
         </emu-note>
       </emu-clause>
 
@@ -469,7 +478,7 @@ contributors: Sirisian
         <p>Two compound compile-time constants, arrays or plain objects of compile-time constants, are <dfn id="structurally-equivalent">structurally equivalent</dfn> when they have the same shape and their leaves are pairwise SameValue, a Type Object comparing by identity and a RegExp by its `source` and `flags`. A compound constant argument contributes to an application's identity by structural equivalence rather than by reference, so `pick(User, ['id', 'name'])` written twice is one application although the array is a fresh object at each occurrence.</p>
 
         <emu-note>
-          <p>An unbound parameter is represented by its declaring Parse Node rather than by a Type Record kind of its own, because a parameter is never a type by itself anywhere this specification currently reaches; what a bare parameter annotation denotes inside a generic body belongs to the generics work, and the hook for it is recorded in <emu-xref href="#table-extension-hooks"></emu-xref>. Structural equivalence for compound constants is the value semantics the Composites proposal gives tuples and records; it is stated directly here so that this specification does not depend on that proposal, and can defer to it if it advances.</p>
+          <p>An unbound parameter is represented by its declaring Parse Node rather than by a Type Record kind of its own, because a parameter is never a type by itself anywhere this specification currently reaches; what a bare parameter annotation denotes inside a generic body belongs to the generics work, and the hook for it is recorded in <emu-xref href="#table-extension-hooks"></emu-xref>. Structural equivalence for compound constants is the value semantics the Composites proposal gives tuples and records; it is stated directly here so that the rule does not depend on that proposal, and <emu-xref href="#sec-composites"></emu-xref>, which specifies composites for this design, coincides with it by construction.</p>
         </emu-note>
       </emu-clause>
 
@@ -858,7 +867,7 @@ contributors: Sirisian
           <p>Members are separated by either `,` or `;`, and a trailing separator is permitted, so both `{ x: float32, y: float32 }` and `{ x: float32; y: float32; }` are written. A `?` marks an optional member.</p>
         </emu-note>
 
-        <p>An |IndexSignature| constrains the properties an object type does not declare by name: `{ [key: string]: uint32 }` is the type whose remaining string-keyed properties, beyond those declared, are `uint32`. It is a type error if a |TypeMember|'s |Initializer| appears without `?`, since a default belongs to an optional member; where an object lacking the member is checked against the type, the default supplies its value, the design's `c?: any = []`. It is a type error if the key type of an |IndexSignature| is not `string`, `symbol`, `uint32`, or a union of these, and a type error if a member declared in the same |ObjectType| is not assignable to the signature's value type. Each signature contributes an Index Signature Record to the [[IndexSignatures]] field of the ~object~ Type Record the type constructs (<emu-xref href="#sec-object-types-semantics"></emu-xref>).</p>
+        <p>An |IndexSignature| constrains the properties an object type does not declare by name: `{ [key: string]: uint32 }` is the type whose remaining string-keyed properties, beyond those declared, are `uint32`. It is a type error if a |TypeMember|'s |Initializer| appears without `?`, since a default belongs to an optional member, the design's `c?: any = []`. A default is a construction feature: it is written where a value of the type is being built, an object literal taking the type, a typed parse (<emu-xref href="#sec-coercejsonvalue"></emu-xref>), and a typed composite creation (<emu-xref href="#sec-composite-typeobject-call"></emu-xref>), and never by a check of a value that already exists. A check reads; an object lacking an optional member satisfies the type with the member absent, whether or not the member declares a default, and no check writes the default onto its subject. It is a type error if the key type of an |IndexSignature| is not `string`, `symbol`, `uint32`, or a union of these, and a type error if a member declared in the same |ObjectType| is not assignable to the signature's value type. Each signature contributes an Index Signature Record to the [[IndexSignatures]] field of the ~object~ Type Record the type constructs (<emu-xref href="#sec-object-types-semantics"></emu-xref>).</p>
       </emu-clause>
 
       <emu-clause id="sec-function-types">
@@ -2904,7 +2913,7 @@ contributors: Sirisian
       <h1>Weak References and Typed Objects</h1>
       <p>An instance of a typed class cannot be held weakly. Passing one to the WeakRef constructor, using one as a key of a WeakMap or a member of a WeakSet, or registering one as the target of a FinalizationRegistry throws a *TypeError* exception. This is CanBeHeldWeakly returning false for such a value: a value type has no identity (<emu-xref href="#sec-value-types"></emu-xref>), so there is no object whose liveness a weak reference could observe, and no cell a weak collection could key on. The value rejected here is the same one that cannot be the target of a Proxy (<emu-xref href="#sec-reflection-and-declared-types"></emu-xref>): the instance of a typed class that seals its instances, a value backed by a layout whose identity its type, not the reference, governs.</p>
       <emu-note>
-        <p>A reference type, an ordinary object or a class that carries no typed field and is therefore not sealed, is held weakly as before, since it has the identity a weak reference is about. A class becomes ineligible exactly when it becomes a typed, sealed class, the same point at which it becomes ineligible to be proxied, so the two restrictions have one cause and one boundary.</p>
+        <p>A reference type, an ordinary object or a class that carries no typed field and is therefore not sealed, is held weakly as before, since it has the identity a weak reference is about. A class becomes ineligible exactly when it becomes a typed, sealed class, the same point at which it becomes ineligible to be proxied, so the two restrictions have one cause and one boundary. A composite object is refused in the same positions for the mirror-image reason, an identity that coincides with contents rather than none at all; <emu-xref href="#sec-composite-modifications"></emu-xref> states the exclusion and merges both into CanBeHeldWeakly.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
@@ -3147,7 +3156,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>The extensions not listed, including serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
+        <p>The extensions not listed, including composites, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
         <p>The dependency now runs in one direction without exception. The metadata parameterization that <emu-xref href="#sec-issubtype"></emu-xref> once forward-referenced is core (<emu-xref href="#sec-parameterized-types"></emu-xref>), as the refinement relation it shares with an enum's underlying type and a class's base always suggested it should be. What remains with the primitive metadata extension is the protocol's hook surface: the judgments beyond the branding default, and the conversion machinery.</p>
       </emu-note>
     </emu-clause>
@@ -3172,6 +3181,7 @@ contributors: Sirisian
             <tr><td>complex.md</td><td>Specified: <emu-xref href="#sec-complex-types"></emu-xref>, <emu-xref href="#sec-complex-numbers"></emu-xref>, and the imaginary literal.</td></tr>
             <tr><td>rational.md</td><td>Specified: <emu-xref href="#sec-rational-types"></emu-xref>.</td></tr>
             <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
+            <tr><td>composites.md</td><td>Specified: <emu-xref href="#sec-composites"></emu-xref>, layered on the upstream Composites proposal with the deviations of <emu-xref href="#sec-composite-deviations"></emu-xref>.</td></tr>
             <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
@@ -4000,9 +4010,527 @@ contributors: Sirisian
     </emu-note>
   </emu-clause>
 
+  <emu-clause id="sec-composites">
+    <h1>Composites</h1>
+    <p>A composite is a frozen object with a *null* prototype that is <em>interned</em>: two composites created from the same contents are the same object. Equality of contents is therefore identity, and `===`, `Map`, `Set`, and `Array.prototype.includes` compare composites structurally with no change to any collection or operator, because the comparison each already performs finds one object where the contents are one. This clause specifies the design's composites extension, which integrates the <a href="https://github.com/tc39/proposal-composites">Composites proposal</a> under this type system; where the two differ, <emu-xref href="#sec-composite-deviations"></emu-xref> records the difference.</p>
+
+    <p>Interning is defined over SameValueZero, and SameValueZero under this specification requires its operands to be values of one type before it compares them (<emu-xref href="#sec-value-types"></emu-xref>). Interning inherits that: a `uint8` field and a Number field of the same mathematical value are different keys, so the value read back from a composite is the value that was stored, at its type, however many creation sites produced the object. The nondeterminism the upstream proposal resolves for `-0` by normalization cannot arise between types here, because values of two types are never SameValueZero-equal; within a type it is resolved by <emu-xref href="#sec-canonicalizecompositevalue"></emu-xref>, of which the `-0` normalization is one instance.</p>
+
+    <pre><code class="javascript">
+      const a = Composite({ x: 1, y: 4 });
+      const b = Composite({ y: 4, x: 1 });
+      a === b; // true, one object
+      new Map([[a, 'ship']]).get(Composite({ x: 1, y: 4 })); // 'ship'
+
+      Composite({ (x: uint8): 1 }) === Composite({ x: 1 }); // false: a uint8 field and a Number field
+    </code></pre>
+
+    <emu-clause id="sec-composite-objects">
+      <h1>Composite Objects</h1>
+      <p>A <dfn variants="composite objects">composite object</dfn> is an object contained in the Composite Registry of its heap (<emu-xref href="#sec-composite-registry"></emu-xref>). Composite objects are created only by FindOrCreateComposite and FindOrCreateTupleComposite, which are the only operations that add an object to a Composite Registry. Membership in the registry is what an object's status as a composite consists of, so the status cannot be forged: a Proxy exotic object whose target is a composite object is not itself a composite object.</p>
+
+      <p>There are two kinds of composite object. A <dfn>record composite</dfn> is an ordinary object whose [[Prototype]] is *null*, whose [[Extensible]] is *false*, and whose properties are own data properties with String keys, each with [[Writable]] *false*, [[Enumerable]] *true*, and [[Configurable]] *false*. A <dfn>tuple composite</dfn> is an Array exotic object whose [[Prototype]] is *null* and whose [[Extensible]] is *false*, whose integer-indexed properties are own data properties with [[Writable]] *false*, [[Enumerable]] *true*, and [[Configurable]] *false*, and whose *"length"* property is non-writable, non-enumerable, and non-configurable. `Array.isArray` answers *false* for a record composite and *true* for a tuple composite, and `typeof` answers *"object"* for both.</p>
+
+      <p>Every composite object has a [[RuntimeType]] internal slot holding the composite type of its contents (<emu-xref href="#sec-composite-types"></emu-xref>), which is what RuntimeTypeOf (<emu-xref href="#sec-runtimetypeof"></emu-xref>) reports for it. A composite object is frozen from its creation, so the slot never becomes stale.</p>
+
+      <emu-note>
+        <p>A record composite holds what upstream's composites hold. The tuple kind is this design's addition: an array-shaped composite whose *"length"* is own and non-enumerable, so that `Object.keys` lists the elements, and whose iteration <emu-xref href="#sec-composite-modifications"></emu-xref> supplies without a prototype to carry `%Symbol.iterator%`. The two kinds never intern together (<emu-xref href="#sec-compositematch"></emu-xref>): `Composite([1])` and `Composite({ 0: 1 })` are different objects, because a record with the entry *"0"* and a tuple of one element disagree about shape even where they agree about every entry.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-types">
+      <h1>Composite Types</h1>
+      <p>A Type Record is a <dfn variants="composite types">composite type</dfn> when its [[Kind]] is ~primitive~ and its [[Name]] is *"Composite"*. The composite type over a shape _S_, where _S_ is an ~object~ or ~tuple~ Type Record, has [[Arguments]] &laquo; _S_ &raquo;, and _S_ is called its <dfn>shape</dfn>. The <dfn>top composite type</dfn>, written `Composite` with no arguments, has [[Arguments]] &laquo; &raquo;, states no shape, and is the type of every composite object. `Composite` joins the built-in type names of <emu-xref href="#sec-type-names"></emu-xref>, resolving in type position by the rule stated there, and `Composite.&lt;T&gt;` is a |TypeReference| with |TypeArguments| like any other parameterized family. These Type Records canonicalize by canonicalizing the shape in [[Arguments]] (<emu-xref href="#sec-canonicalizetype"></emu-xref>), so `Composite.&lt;{ x: int32; y: int32 }&gt;` written anywhere is one Type Object. The Static Type of a call of the Composite function is the top composite type where the call supplies no |TypeArguments| and no contextual type reaches it, and the composite type over _T_'s structural form for the typed creation `Composite.&lt;T&gt;(source)`; `Reflect.typeOf` on a composite returns the Type Object of its [[RuntimeType]], the same object either spelling denotes.</p>
+
+      <p>The shape recorded for a composite object is derived from its stored contents by CompositeShape (<emu-xref href="#sec-compositeshape"></emu-xref>), so that objects with the same contents have the same shape and interning is coherent. The type of each field is the runtime type of its value, except that a field whose value is an Object records the `any` type, a field whose value is a composite object records that composite's own type, and a field whose value is a Type Object records the `type` type. An ordinary object's structural runtime type describes the properties it happens to have and can change as the object does, which is why it is not recorded: a frozen object's recorded type must not go stale, and the identity a reference field contributes is the reference, not a snapshot of its shape.</p>
+
+      <p>The subtype rules for composite types are stated in IsSubtype (<emu-xref href="#sec-issubtype"></emu-xref>), where they precede the step that separates the kinds: every composite type is a subtype of the top composite type; a composite type over a shape is a subtype of a composite type over a wider shape; and a composite type over a shape is a subtype of that shape's ~object~ or ~tuple~ type and of an interface whose structural form it satisfies.</p>
+
+      <p>A composite type is therefore a subtype of the ~object~ type of its shape, which is what makes a composite satisfy an interface: `const q: IPoint = p` holds for a `p` of type `Composite.&lt;IPoint&gt;` with no cast and no write, since a frozen object trivially cannot be modified out of an implementation. Composite types are covariant in their shapes, which the frozenness of every composite makes sound: no store can later violate a wider reading. A composite type over a ~tuple~ shape is a subtype of the ~tuple~ types its shape is a subtype of; it is a subtype of no ~array~ type, because an ~array~ type describes a mutable container and every mutating operation on a composite throws.</p>
+
+      <emu-note>
+        <p>No change to IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) is needed. A composite value reaching an ~object~ target is checked structurally by the existing steps, reading its properties as it would any object's, and a composite target is decided by the operation's final step, IsSubtype of the value's runtime type, which the rules above extend. A record composite created without type arguments has Number fields where its source had numeric literals, so checking it against an interface of `uint32` members fails on those fields by the no-implicit-conversion rule of <emu-xref href="#sec-conversions"></emu-xref>; the remedy is to type the creation, which is the same advice every boundary of this specification gives.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-registry">
+      <h1>The Composite Registry</h1>
+      <p>Each heap has an associated <dfn>Composite Registry</dfn>: a List of Objects, initially empty, whose elements are exactly the composite objects of that heap. Objects are added to it only by FindOrCreateComposite and FindOrCreateTupleComposite. The registry is a property of a heap in the same way the type-object intern table is (<emu-xref href="#sec-gettypeobject"></emu-xref>): agents that share a heap share one registry, so composites are `===` across every realm and every agent of one heap, like symbols obtained from `Symbol.for`, and an agent that does not share the heap is not reached by it (<emu-xref href="#sec-types-across-agents"></emu-xref>). A composite object has a [[Prototype]] of *null* and so bears no relationship to the realm whose `Composite` function created it; only its contents matter.</p>
+
+      <emu-note>
+        <p>Under the agent model of the pinned edition each agent has its own heap and the registry is per-agent, which is the upstream proposal's rule. The threading extension is what makes the scope worth stating as the heap's: it gives several agents one heap, objects cross between their threads by reference with no serialization step, and a registry scoped more finely than objects are reachable would put two composites of equal contents, both reachable from both threads, in one heap, falsifying the invariant the feature is. Creation against a shared registry must accordingly be safe under concurrent callers; the observable requirement is only the one FindOrCreateComposite states, that equal contents yield one object, and implementations are expected to reach it without serializing unrelated creations through one lock.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>Membership in the registry does not keep a composite object alive; an implementation may remove one that is no longer <emu-xref href="#sec-liveness">live</emu-xref>. The removal is unobservable, because composite objects cannot be held weakly (<emu-xref href="#sec-composite-modifications"></emu-xref>) and so cannot be placed in a WeakMap, WeakSet, WeakRef, or FinalizationRegistry, which are the only instruments that observe liveness.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-abstract-operations">
+      <h1>Abstract Operations for Composite Objects</h1>
+
+      <emu-clause id="sec-iscomposite" type="abstract operation">
+        <h1>
+          IsComposite (
+            _value_: an ECMAScript language value,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns *true* if _value_ is a composite object.</dd>
+        </dl>
+        <emu-alg>
+          1. If _value_ is not an Object, return *false*.
+          1. If the Composite Registry of the surrounding agent's heap contains _value_, return *true*.
+          1. Return *false*.
+        </emu-alg>
+        <emu-note>
+          <p>The operation is defined by searching the registry; an implementation is free to answer it any faster way, such as a bit on the object, that yields the same result.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-canonicalizecompositevalue" type="abstract operation">
+        <h1>
+          CanonicalizeCompositeValue (
+            _value_: an ECMAScript language value,
+          ): an ECMAScript language value
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the canonical representative of the SameValueZero equivalence class of _value_ within its type: the one value stored for every value the class contains, chosen so that the contents of a composite do not depend on which member reached the creation. Values of distinct types are never SameValueZero-equal (<emu-xref href="#sec-value-types"></emu-xref>), so the class is always within one type.</dd>
+        </dl>
+        <emu-alg>
+          1. If _value_ is *-0*<sub>𝔽</sub>, return *+0*<sub>𝔽</sub>.
+          1. If _value_ is a negative zero of a binary floating-point type (<emu-xref href="#sec-binary-floating-point-types"></emu-xref>), return the positive zero of that type.
+          1. If _value_ is a finite value of a decimal floating-point type (<emu-xref href="#sec-decimal-floating-point-types"></emu-xref>) whose type does not restrict the exponents of its values, then
+            1. Let _c_ be the coefficient of _value_.
+            1. Let _q_ be the exponent of _value_.
+            1. Let _qMax_ be the largest exponent of _value_'s type.
+            1. If _c_ = 0, return the value of _value_'s type with positive sign, coefficient 0, and exponent 0.
+            1. Repeat, while _c_ modulo 10 = 0 and _q_ &lt; _qMax_,
+              1. Set _c_ to _c_ / 10.
+              1. Set _q_ to _q_ + 1.
+            1. Return the value of _value_'s type with the sign of _value_, coefficient _c_, and exponent _q_.
+          1. If _value_ is a negatively signed zero of a decimal floating-point type whose type restricts the exponents of its values, return the positively signed zero of that type with the exponent of _value_.
+          1. Return _value_.
+        </emu-alg>
+        <emu-note>
+          <p>The rule generalizes the upstream proposal's normalization of `-0`, which is its Number instance. A SameValueZero class with one member canonicalizes to itself, which covers most of the type universe with no step naming it: every integer, String, BigInt, Boolean, Symbol, and Object value is alone in its class; a rational is because its type keeps every value in lowest terms (<emu-xref href="#sec-rational-types"></emu-xref>), so each rational number has exactly one representation. The classes with more than one member are the signed zeros, handled above for the Number type and each binary float width, and the decimal cohorts.</p>
+          <p>A decimal type whose metadata fixes the exponents of its values, such as one parameterized by a `DecimalContext` scale (<emu-xref href="#sec-parameterized-types"></emu-xref>), has collapsed each cohort before this operation sees a value: conversion into the type quantizes at the boundary, so the only remaining choice is the sign of a zero, which the fourth step settles. A bare decimal type stores the reduced cohort member, trailing zeros stripped, which is the one member computable from the numerical value alone and the value any hash of the field must be computed from in any case. The division of labour is deliberate: canonicalization is the type's wherever the type has an opinion, and this operation's only where it does not. A value whose significance matters to a program belongs in a type that declares its scale, at which point a composite stores exactly that scale; an unconstrained decimal in a composite does not carry significance, as it would not survive any other typed boundary either.</p>
+          <p>Each floating-point type of this specification has a single NaN value, so a NaN canonicalizes to itself and no step names it. Where an implementation nonetheless distinguishes NaN encodings, as the pinned edition permits and the byte views of the memory layout extension can observe (<emu-xref href="#sec-array-views"></emu-xref>), the NaN stored in a composite must have one fixed encoding per type, the canonical quiet NaN with positive sign and zero payload, so that reading a stored NaN's bytes reveals nothing about which creation interned the composite or what payload it supplied. This is the requirement the upstream proposal states for the Number type, applied to every float width the byte views reach.</p>
+          <p>A program that needs a signed zero, a specific cohort member, or a NaN payload to participate in a key carries it as data, a sign field or an exponent field, which keys correctly with no special case. No option restores the distinction: an argument that changed interning identity would fragment the registry into flag-keyed families, so the `preserveNegativeZero` option the upstream FAQ floats is not adopted.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-composite-entry-records">
+        <h1>Composite Entry Records</h1>
+        <p>A <dfn variants="Composite Entry Records">Composite Entry Record</dfn> is a Record value describing one key/value pair of a record composite. It has a [[Key]] field (a String) and a [[Value]] field (an ECMAScript language value).</p>
+      </emu-clause>
+
+      <emu-clause id="sec-compositecanonicalorder" type="abstract operation">
+        <h1>
+          CompositeCanonicalOrder (
+            _entries_: a List of Composite Entry Records,
+          ): a List of Composite Entry Records
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns _entries_ in the canonical key order of record composites, which does not depend on the order in which the entries were provided.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _integerEntries_ be a new empty List.
+          1. Let _stringEntries_ be a new empty List.
+          1. For each Composite Entry Record _entry_ of _entries_, do
+            1. If _entry_.[[Key]] is an array index, append _entry_ to _integerEntries_; otherwise, append _entry_ to _stringEntries_.
+          1. Sort _integerEntries_ into ascending order by the numeric values of the array indices their [[Key]] fields denote.
+          1. Sort _stringEntries_ into ascending lexicographic order of their [[Key]] fields, compared code unit by code unit.
+          1. Return the list-concatenation of _integerEntries_ and _stringEntries_.
+        </emu-alg>
+        <emu-note>
+          <p>This is the ordinary own-key order except that the non-index String keys sort lexicographically rather than by creation order, which is what makes a record composite a canonical form of its contents.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-compositefieldtype" type="abstract operation">
+        <h1>
+          CompositeFieldType (
+            _value_: an ECMAScript language value,
+          ): a Type Record
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the Type Record recorded for a composite field holding _value_. The result is a function of _value_ alone and is stable over the composite's lifetime, which interning requires.</dd>
+        </dl>
+        <emu-alg>
+          1. If IsComposite(_value_) is *true*, return _value_.[[RuntimeType]].
+          1. If _value_ is a Type Object, return the Type Record for `type` (<emu-xref href="#sec-the-type-type"></emu-xref>).
+          1. If _value_ is an Object, return the Type Record { [[Kind]]: ~any~ }.
+          1. Return RuntimeTypeOf(_value_).
+        </emu-alg>
+        <emu-note>
+          <p>A value of a value type contributes its runtime type, so a `uint8` field is a `uint8` field and an untyped creation's numeric literals are Number fields, which is where the typed and untyped boundary of this clause's introduction becomes visible to reflection. An ordinary object contributes `any` rather than its structural runtime type, because that type is a mutable object's current shape and a frozen composite must not record something that can go stale; the identity a reference field contributes to interning is the reference itself. A nested composite and a Type Object are frozen and interned, so their types are stable and are recorded.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-compositeshape" type="abstract operation">
+        <h1>
+          CompositeShape (
+            _kind_: ~record~ or ~tuple~,
+            _contents_: either a List of Composite Entry Records or a List of ECMAScript language values,
+          ): a Type Record
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the shape of a composite with the given contents: an ~object~ Type Record for a record composite and a ~tuple~ Type Record for a tuple composite. _contents_ is a List of Composite Entry Records where _kind_ is ~record~ and a List of ECMAScript language values where _kind_ is ~tuple~.</dd>
+        </dl>
+        <emu-alg>
+          1. If _kind_ is ~record~, then
+            1. Let _props_ be a new empty List.
+            1. For each Composite Entry Record _entry_ of _contents_, do
+              1. Append the Property Type Record { [[Key]]: _entry_.[[Key]], [[Type]]: CompositeFieldType(_entry_.[[Value]]), [[Optional]]: *false*, [[Readonly]]: *true*, [[Initial]]: ~none~ } to _props_.
+            1. Return CanonicalizeType(the Type Record { [[Kind]]: ~object~, [[Properties]]: _props_, [[IndexSignatures]]: &laquo; &raquo; }).
+          1. Let _elements_ be a new empty List.
+          1. For each element _v_ of _contents_, do
+            1. Append the Tuple Element Record { [[Type]]: CompositeFieldType(_v_), [[Rest]]: *false*, [[Initial]]: ~none~ } to _elements_.
+          1. Return CanonicalizeType(the Type Record { [[Kind]]: ~tuple~, [[Elements]]: _elements_ }).
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-findorcreatecomposite" type="abstract operation">
+        <h1>
+          FindOrCreateComposite (
+            _entries_: a List of Composite Entry Records,
+          ): a record composite
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the interned record composite for the key/value pairs of _entries_, creating it if none exists. No two elements of _entries_ have the same [[Key]], and every [[Value]] is already the result of CanonicalizeCompositeValue.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _sortedEntries_ be CompositeCanonicalOrder(_entries_).
+          1. Let _registry_ be the Composite Registry of the surrounding agent's heap.
+          1. For each composite object _c_ of _registry_, do
+            1. If CompositeMatch(_c_, ~record~, _sortedEntries_) is *true*, return _c_.
+          1. Let _c_ be OrdinaryObjectCreate(*null*).
+          1. For each Composite Entry Record _entry_ of _sortedEntries_, do
+            1. Perform ! DefinePropertyOrThrow(_c_, _entry_.[[Key]], PropertyDescriptor { [[Value]]: _entry_.[[Value]], [[Writable]]: *false*, [[Enumerable]]: *true*, [[Configurable]]: *false* }).
+          1. Set _c_.[[Extensible]] to *false*.
+          1. Set _c_.[[RuntimeType]] to the composite type over CompositeShape(~record~, _sortedEntries_).
+          1. Add _c_ to _registry_.
+          1. Return _c_.
+        </emu-alg>
+        <emu-note>
+          <p>The search over the registry describes the required observable result and is not an implementation model. Interning must be implemented by hash tables or other means whose cost per creation is, on average, sublinear in the registry's population; a typed creation site whose shape is statically known additionally admits a fixed hashing sequence with no key sorting and no descriptor walk, since the order and the field types are known before the program runs.</p>
+        </emu-note>
+        <emu-note>
+          <p>No step of canonicalization, matching, or interning calls user code. The creation algorithms read the source's values once, getters included, and everything from CanonicalizeCompositeValue onward operates on the values read, over objects that cannot be Proxy exotic objects, so a composite's identity is a function of its contents and of nothing a program can interpose on. What a collection treats as one key is a separate question from what a composite is, and only the second is settled here.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-findorcreatetuplecomposite" type="abstract operation">
+        <h1>
+          FindOrCreateTupleComposite (
+            _elements_: a List of ECMAScript language values,
+          ): either a normal completion containing a tuple composite or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the interned tuple composite whose elements are _elements_, creating it if none exists. Every element is already the result of CanonicalizeCompositeValue.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _registry_ be the Composite Registry of the surrounding agent's heap.
+          1. For each composite object _c_ of _registry_, do
+            1. If CompositeMatch(_c_, ~tuple~, _elements_) is *true*, return _c_.
+          1. Let _len_ be the number of elements of _elements_.
+          1. If _len_ &ge; 2<sup>32</sup>, throw a *RangeError* exception.
+          1. Let _c_ be ! ArrayCreate(_len_).
+          1. Set _c_.[[Prototype]] to *null*.
+          1. Let _i_ be 0.
+          1. For each element _v_ of _elements_, do
+            1. Perform ! DefinePropertyOrThrow(_c_, ! ToString(𝔽(_i_)), PropertyDescriptor { [[Value]]: _v_, [[Writable]]: *false*, [[Enumerable]]: *true*, [[Configurable]]: *false* }).
+            1. Set _i_ to _i_ + 1.
+          1. Perform ! _c_.[[DefineOwnProperty]](*"length"*, PropertyDescriptor { [[Writable]]: *false* }).
+          1. Set _c_.[[Extensible]] to *false*.
+          1. Set _c_.[[RuntimeType]] to the composite type over CompositeShape(~tuple~, _elements_).
+          1. Add _c_ to _registry_.
+          1. Return _c_.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-compositematch" type="abstract operation">
+        <h1>
+          CompositeMatch (
+            _c_: a composite object,
+            _kind_: ~record~ or ~tuple~,
+            _contents_: either a List of Composite Entry Records or a List of ECMAScript language values,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns *true* if _c_ is a composite of the given kind with exactly the given contents. _contents_ is a List of Composite Entry Records where _kind_ is ~record~, in the canonical order of CompositeCanonicalOrder, and a List of ECMAScript language values where _kind_ is ~tuple~.</dd>
+        </dl>
+        <emu-alg>
+          1. If _kind_ is ~tuple~ and _c_ is not a tuple composite, return *false*.
+          1. If _kind_ is ~record~ and _c_ is a tuple composite, return *false*.
+          1. If _kind_ is ~tuple~, then
+            1. Let _len_ be ! LengthOfArrayLike(_c_).
+            1. If _len_ &ne; the number of elements of _contents_, return *false*.
+            1. Let _i_ be 0.
+            1. For each element _v_ of _contents_, do
+              1. If SameValue(! Get(_c_, ! ToString(𝔽(_i_))), _v_) is *false*, return *false*.
+              1. Set _i_ to _i_ + 1.
+            1. Return *true*.
+          1. Let _keys_ be ! _c_.[[OwnPropertyKeys]]().
+          1. If the number of elements of _keys_ &ne; the number of elements of _contents_, return *false*.
+          1. Let _i_ be 0.
+          1. For each Composite Entry Record _entry_ of _contents_, do
+            1. If _entry_.[[Key]] is not _keys_[_i_], return *false*.
+            1. If SameValue(! Get(_c_, _entry_.[[Key]]), _entry_.[[Value]]) is *false*, return *false*.
+            1. Set _i_ to _i_ + 1.
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>Both sides are canonicalized before this operation runs, so within one type SameValue and SameValueZero coincide here, and across types both are *false* because the values are distinct. Comparing with SameValue is therefore comparing with SameValueZero, stated with the finer relation so that the assertion is checkable.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-function">
+      <h1>The Composite Function</h1>
+      <p>The Composite function:</p>
+      <ul>
+        <li>is <dfn>%Composite%</dfn>.</li>
+        <li>is the initial value of the *"Composite"* property of the global object.</li>
+        <li>has a [[Prototype]] internal slot whose value is %Function.prototype%.</li>
+        <li>returns a composite object when called as a function, creating one only when no interned composite of the same contents exists.</li>
+        <li>does not have a [[Construct]] internal method; `new Composite(...)` throws a *TypeError* exception.</li>
+        <li>does not have a *"prototype"* property.</li>
+        <li>is the head of the composite type family: applying |TypeArguments| to it, in type position or in expression position (<emu-xref href="#sec-type-arguments-and-placement-new-in-expression-position"></emu-xref>), yields the Type Object of the composite type over the argument. It is a type error if the argument is not an ~object~, ~tuple~, or interface type, or if it has a Symbol-keyed member, since a composite's keys are Strings. Calling that Type Object is the typed creation of <emu-xref href="#sec-composite-typeobject-call"></emu-xref>, the construction boundary a parameterized type already has (<emu-xref href="#sec-parameterized-types"></emu-xref>).</li>
+      </ul>
+
+      <emu-clause id="sec-composite-arg">
+        <h1>Composite ( _source_ )</h1>
+        <p>This function performs the following steps when called:</p>
+        <emu-alg>
+          1. If _source_ is not an Object, throw a *TypeError* exception.
+          1. Let _isArray_ be ? IsArray(_source_).
+          1. If _isArray_ is *true*, then
+            1. Let _len_ be ? LengthOfArrayLike(_source_).
+            1. Let _elements_ be a new empty List.
+            1. Let _i_ be 0.
+            1. Repeat, while _i_ &lt; _len_,
+              1. Let _v_ be ? Get(_source_, ! ToString(𝔽(_i_))).
+              1. Append CanonicalizeCompositeValue(_v_) to _elements_.
+              1. Set _i_ to _i_ + 1.
+            1. Return ? FindOrCreateTupleComposite(_elements_).
+          1. Let _entries_ be a new empty List.
+          1. Let _keys_ be ? _source_.[[OwnPropertyKeys]]().
+          1. For each element _key_ of _keys_, do
+            1. Let _desc_ be ? _source_.[[GetOwnProperty]](_key_).
+            1. If _desc_ is not *undefined* and _desc_.[[Enumerable]] is *true*, then
+              1. If _key_ is a Symbol, throw a *TypeError* exception.
+              1. Let _v_ be ? Get(_source_, _key_).
+              1. Append the Composite Entry Record { [[Key]]: _key_, [[Value]]: CanonicalizeCompositeValue(_v_) } to _entries_.
+          1. Return FindOrCreateComposite(_entries_).
+        </emu-alg>
+        <emu-note>
+          <p>The kind is decided by `Array.isArray` on the argument: an array source creates a tuple composite from its elements 0 through `length` - 1, and any other object creates a record composite from its own enumerable String-keyed properties. Inherited and non-enumerable properties are ignored, getters are invoked eagerly and exactly once each in the order the keys are reported, and an own enumerable Symbol-keyed property is a *TypeError*; a Symbol remains an ordinary <em>value</em>. The source is never itself converted; it only supplies values, and `Composite(template) !== template` for any non-composite template. `Composite` is idempotent as a consequence of interning: `Composite(c)` on a composite reads `c`'s own contents, an array source for a tuple and enumerable entries for a record, and interns to `c` itself.</p>
+        </emu-note>
+        <emu-note>
+          <p>The upstream proposal reads every array through the record path, where `length`, being own but non-enumerable, is dropped, so its `Composite([1, 2])` yields the record `{ 0: 1, 1: 2 }`. The tuple kind is therefore a behavioural change to an existing call rather than an addition, recorded in <emu-xref href="#sec-composite-deviations"></emu-xref>. It resolves the reservations upstream states against a list form, an enumerable `length` and a missing `%Symbol.iterator%`, by making `length` own and non-enumerable and by supplying iteration without a prototype (<emu-xref href="#sec-composite-modifications"></emu-xref>); the reservation about creation cost growing with element count stands, and a long list remains a poor key.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-composite-typeobject-call">
+        <h1>Calling a Composite Type Object</h1>
+        <p>Calling the Type Object of a composite type over a shape _S_, written `Composite.&lt;T&gt;(source)` for the _S_ that is _T_'s structural form, returns the result of CompositeFromShape(_S_, _source_), where _source_ is the call's first argument, or *undefined* where none is supplied. This is the construction boundary of the composite types, as calling any parameterized Type Object is its type's (<emu-xref href="#sec-parameterized-types"></emu-xref>).</p>
+
+        <emu-clause id="sec-compositefromshape" type="abstract operation">
+          <h1>
+            CompositeFromShape (
+              _S_: an ~object~ or ~tuple~ Type Record,
+              _source_: an ECMAScript language value,
+            ): either a normal completion containing a composite object or a throw completion
+          </h1>
+          <dl class="header">
+            <dt>description</dt>
+            <dd>It performs the typed creation of a composite: each supplied value is converted to its member's type, a required absence throws, an undeclared property throws, and an optional member's declared default is filled, before canonicalization and interning.</dd>
+          </dl>
+          <emu-alg>
+          1. If _source_ is not an Object, throw a *TypeError* exception.
+          1. If _S_.[[Kind]] is ~tuple~, then
+            1. Let _len_ be ? LengthOfArrayLike(_source_).
+            1. If _len_ is not a length _S_ admits (<emu-xref href="#sec-array-membership"></emu-xref>), throw a *TypeError* exception.
+            1. Let _elements_ be a new empty List.
+            1. Let _i_ be 0.
+            1. Repeat, while _i_ &lt; _len_,
+              1. Let _v_ be ? Get(_source_, ! ToString(𝔽(_i_))).
+              1. Let _converted_ be ? the conversion of _v_ to the [[Type]] of the element of _S_ that receives position _i_, as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
+              1. Append CanonicalizeCompositeValue(_converted_) to _elements_.
+              1. Set _i_ to _i_ + 1.
+            1. For each element _e_ of _S_.[[Elements]] at a position not less than _len_, do
+              1. If _e_.[[Rest]] is *false*, then
+                1. Assert: _e_.[[Initial]] is not ~none~, since _len_ is a length _S_ admits.
+                1. Append CanonicalizeCompositeValue(_e_.[[Initial]]) to _elements_.
+            1. Return ? FindOrCreateTupleComposite(_elements_).
+          1. Assert: _S_.[[Kind]] is ~object~.
+          1. If any Property Type Record of _S_.[[Properties]] has a [[Key]] that is a Symbol, throw a *TypeError* exception.
+          1. Let _entries_ be a new empty List.
+          1. Let _keys_ be ? _source_.[[OwnPropertyKeys]]().
+          1. For each element _key_ of _keys_, do
+            1. Let _desc_ be ? _source_.[[GetOwnProperty]](_key_).
+            1. If _desc_ is not *undefined* and _desc_.[[Enumerable]] is *true*, then
+              1. If _key_ is a Symbol, throw a *TypeError* exception.
+              1. If no Property Type Record of _S_.[[Properties]] has [[Key]] _key_ and no Index Signature Record of _S_.[[IndexSignatures]] accepts _key_, throw a *TypeError* exception.
+          1. For each Property Type Record _p_ of _S_.[[Properties]], do
+            1. Let _present_ be ? HasProperty(_source_, _p_.[[Key]]).
+            1. If _present_ is *true*, then
+              1. Let _v_ be ? Get(_source_, _p_.[[Key]]).
+              1. Let _converted_ be ? the conversion of _v_ to _p_.[[Type]], as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
+              1. Append the Composite Entry Record { [[Key]]: _p_.[[Key]], [[Value]]: CanonicalizeCompositeValue(_converted_) } to _entries_.
+            1. Else if _p_.[[Optional]] is *true*, then
+              1. If _p_.[[Initial]] is not ~none~, append the Composite Entry Record { [[Key]]: _p_.[[Key]], [[Value]]: CanonicalizeCompositeValue(_p_.[[Initial]]) } to _entries_.
+            1. Else,
+              1. Throw a *TypeError* exception.
+          1. For each element _key_ of _keys_, do
+            1. If _key_ is a String and no Property Type Record of _S_.[[Properties]] has [[Key]] _key_, then
+              1. Let _sig_ be the first Index Signature Record of _S_.[[IndexSignatures]] that accepts _key_.
+              1. Let _v_ be ? Get(_source_, _key_).
+              1. Let _converted_ be ? the conversion of _v_ to _sig_.[[ValueType]], as at a typed argument (<emu-xref href="#sec-conversions"></emu-xref>).
+              1. Append the Composite Entry Record { [[Key]]: _key_, [[Value]]: CanonicalizeCompositeValue(_converted_) } to _entries_.
+          1. Return FindOrCreateComposite(_entries_).
+          </emu-alg>
+        </emu-clause>
+        <emu-note>
+          <p>Typed creation is the untyped algorithm with each supplied value converted to its member's type at the boundary, which is what makes the resulting fields carry _T_'s types and the result's Static Type `Composite.&lt;T&gt;`. Three of its rules deserve their reasons. A required member that is absent throws rather than filling the type's default: a composite is a key, and a key half of whose contents were invented silently would collide with the key that stated them. A property the type does not name throws for the mirror reason: dropping it silently would intern two different sources to one object. And an <em>optional</em> member's declared default, the [[Initial]] of `page?: uint8 = 0`, is written here, before freezing and before interning, so `Composite.&lt;CacheKey&gt;({ id: 7 })` and `Composite.&lt;CacheKey&gt;({ id: 7, page: 0 })` are the same object; an optional member with no declared default simply stays absent. A default is a construction feature (<emu-xref href="#sec-object-types"></emu-xref>), typed composite creation is a construction site, and a check of a composite that already exists writes nothing to it, which for a frozen shared object is not a preference but the only possibility.</p>
+          <p>The contextual type of _source_ is _T_'s structural form (<emu-xref href="#sec-contextual-types"></emu-xref>), so numeric literals in the source take the member types by <emu-xref href="#sec-literal-propagation"></emu-xref> and the conversions above are checks rather than coercions at a literal creation site. A binding annotated `Composite.&lt;T&gt;` gives an unadorned `Composite(...)` initializer the same treatment through the return-type direction of overload resolution (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). An unannotated, uncontextualized `Composite({ id: 7 })` in typed code produces Number fields; code that means anything else says so at the creation site.</p>
+          <p>Typed creation reads the members the shape names wherever the object answers them, through HasProperty and Get, the read semantics every check of <emu-xref href="#sec-isoftype"></emu-xref> already has; the undeclared-property rule applies to the source's own enumerable keys, the read set of the untyped creation. A trailing tuple position the source does not supply is filled from its declared default, as an absent optional member is, and for the same reason: `Composite.&lt;[uint8, uint32 = 10]&gt;([1])` and `Composite.&lt;[uint8, uint32 = 10]&gt;([1, 10])` are one object.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-composite.iscomposite">
+        <h1>Composite.isComposite ( _arg_ )</h1>
+        <p>This function performs the following steps when called:</p>
+        <emu-alg>
+          1. Return IsComposite(_arg_).
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-composite-hasinstance">
+        <h1>Composite [ %Symbol.hasInstance% ] ( _value_ )</h1>
+        <p>This function performs the following steps when called:</p>
+        <emu-alg>
+          1. Return IsComposite(_value_).
+        </emu-alg>
+        <emu-note>
+          <p>The Composite function has no *"prototype"* property, so without this method `value instanceof Composite` would throw through OrdinaryHasInstance. With it, `instanceof` against the bare function answers membership in the top composite type, and `instanceof` against `Composite.&lt;T&gt;`, a Type Object, answers membership in that type by <emu-xref href="#sec-instanceof-for-type-objects"></emu-xref>, narrowing the static type on success as any type-object `instanceof` does.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-composite-custommatcher">
+        <h1>Composite [ %Symbol.customMatcher% ] ( _subject_, _hint_ )</h1>
+        <p>This property is present only where the host defines %Symbol.customMatcher% (the pattern matching proposal). The function performs the following steps when called:</p>
+        <emu-alg>
+          1. Return IsComposite(_subject_).
+        </emu-alg>
+        <emu-note>
+          <p>The pattern matching proposal's default matcher for a callable without [[IsClassConstructor]] invokes it as a predicate. Absent this method, the pattern `Composite` would <em>call</em> `Composite(subject)`, matching every object because the result is truthy, running the subject's getters, and interning a composite as a side effect of a test. With it, `when Composite:` is a membership test with no side effect, and a composite constant used as a pattern is one pointer comparison, since a variable pattern tests SameValue and an interned composite's SameValue is its contents.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-json">
+      <h1>Composites and JSON</h1>
+      <p>`JSON.stringify` requires no change: a record composite is an object whose own enumerable properties are its contents, and a tuple composite is an array, so each serializes as its data. Interning is deliberately not on the wire; it is an identity within one heap, not a serialization format.</p>
+
+      <p>The typed parse re-interns: CoerceJSONValue (<emu-xref href="#sec-coercejsonvalue"></emu-xref>) carries a case for composite types, placed before its ~primitive~ case since a composite type is of that kind, which coerces the parsed value against the shape, canonicalizes each resulting value, and obtains the result through FindOrCreateComposite or FindOrCreateTupleComposite. The top composite type is rejected there with a *TypeError* exception, because it states no shape to validate against.</p>
+      <emu-note>
+        <p>`JSON.parse.&lt;Composite.&lt;T&gt;&gt;(text)` therefore validates against _T_ by the walk of <emu-xref href="#sec-typed-json-parsing"></emu-xref> and interns the result, so whether a configuration has changed between two polls is `===` between two parses. This answers the mapping the design's serialization document left open for composites. Absent optional members follow the construction rule of <emu-xref href="#sec-object-types"></emu-xref> through the coercion of the shape: a declared default is filled, and an optional member with none stays absent, so a parsed composite interns with the typed creation of the same document.</p>
+      </emu-note>
+
+      <p>A host that serializes objects for transfer between heaps, as the HTML structured clone algorithm does, must serialize a composite as its kind and its contents and, on deserialization, obtain the result through FindOrCreateComposite or FindOrCreateTupleComposite in the receiving heap, each value having been deserialized and canonicalized first. Equality between composites is thereby preserved within every heap, two messages carrying equal contents arriving `===`, and never across heaps, whose registries are disjoint; a composite is never the same object on two sides of a boundary that copies.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-modifications">
+      <h1>Modifications to Existing Abstract Operations</h1>
+
+      <emu-clause id="sec-composite-canbeheldweakly" type="abstract operation">
+        <h1>
+          CanBeHeldWeakly (
+            _v_: an ECMAScript language value,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns *true* if and only if _v_ is suitable for use as a key of a WeakMap, an element of a WeakSet, the target or unregister token of a FinalizationRegistry, or the target of a WeakRef.</dd>
+        </dl>
+        <emu-alg>
+          1. If _v_ is an Object<ins>, IsComposite(_v_) is *false*, and _v_ is not an instance of a typed class that seals its instances (<emu-xref href="#sec-weak-references-and-typed-objects"></emu-xref>)</ins>, return *true*.
+          1. If _v_ is a Symbol and KeyForSymbol(_v_) is *undefined*, return *true*.
+          1. Return *false*.
+        </emu-alg>
+        <emu-note>
+          <p>The one operation gates every weak position, so this change makes each of WeakMap, WeakSet, WeakRef, and FinalizationRegistry reject a composite with a *TypeError* exception. A composite is excluded for the reason a value type is (<emu-xref href="#sec-weak-references-and-typed-objects"></emu-xref>), reached from the other side: its identity coincides with its contents, so the registry may always resurrect an equal object and there is no liveness for a weak reference to observe, only the registry's own entry, which holding weakly would keep alive. A cache that must not retain composite keys holds their constituent trackable objects weakly instead.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-composite-getiterator" type="abstract operation">
+        <h1>
+          GetIterator (
+            _obj_: an ECMAScript language value,
+            _kind_: ~sync~ or ~async~,
+          ): either a normal completion containing an Iterator Record or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It obtains an iterator for _obj_. The algorithm restates the pinned edition's, with the inserted steps marked.</dd>
+        </dl>
+        <emu-alg>
+          1. <ins>If _obj_ is a tuple composite, then</ins>
+            1. <ins>Let _iterator_ be CreateArrayIterator(_obj_, ~value~).</ins>
+            1. <ins>Let _nextMethod_ be ! Get(_iterator_, *"next"*).</ins>
+            1. <ins>Let _iteratorRecord_ be the Iterator Record { [[Iterator]]: _iterator_, [[NextMethod]]: _nextMethod_, [[Done]]: *false* }.</ins>
+            1. <ins>If _kind_ is ~async~, return CreateAsyncFromSyncIterator(_iteratorRecord_).</ins>
+            1. <ins>Return _iteratorRecord_.</ins>
+          1. If _kind_ is ~async~, then
+            1. Let _method_ be ? GetMethod(_obj_, %Symbol.asyncIterator%).
+            1. If _method_ is *undefined*, then
+              1. Let _syncMethod_ be ? GetMethod(_obj_, %Symbol.iterator%).
+              1. If _syncMethod_ is *undefined*, throw a *TypeError* exception.
+              1. Let _syncIteratorRecord_ be ? GetIteratorFromMethod(_obj_, _syncMethod_).
+              1. Return CreateAsyncFromSyncIterator(_syncIteratorRecord_).
+          1. Else,
+            1. Let _method_ be ? GetMethod(_obj_, %Symbol.iterator%).
+          1. If _method_ is *undefined*, throw a *TypeError* exception.
+          1. Return ? GetIteratorFromMethod(_obj_, _method_).
+        </emu-alg>
+        <emu-note>
+          <p>A tuple composite has a *null* prototype, so no `%Symbol.iterator%` can reach it by lookup, and being frozen it cannot receive one. The inserted step recognizes the kind directly, so `for`-`of`, spread, and array destructuring iterate a tuple composite's elements with no method on the object; the manual protocol spelling is `Array.prototype.values.call(m)`, which builds the same iterator. In typed code the iteration is additionally type-directed, an index loop over known element types, exactly as an array of statically known element type iterates; the step above is what extends that behaviour to untyped code, where nothing else could. Record composites are unaffected and are not iterable, matching ordinary objects.</p>
+        </emu-note>
+      </emu-clause>
+
+      <p>The non-mutating array generics apply to a tuple composite explicitly, as `Array.prototype.map.call(m, f)`, or through the typed signatures the standard library gives them; the mutating ones throw on a frozen receiver as they do for any frozen array, and `delete` and every store throw as <emu-xref href="#sec-array-defaults-and-stores"></emu-xref> already provides for typed elements.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-composite-deviations">
+      <h1>Deviations from the Upstream Proposal</h1>
+      <p>For feedback in both directions, the deltas between this clause and the upstream Composites proposal, in one place:</p>
+      <ul>
+        <li>Interning is type-sensitive, because SameValueZero is: `Composite({ (x: uint8): 1 })` and `Composite({ x: 1 })` are distinct objects. Upstream has one number type and no such distinction to make.</li>
+        <li>Canonicalization is stated as a rule over SameValueZero equivalence classes, of which upstream's `-0` normalization is the Number instance; the decimal cohorts and the per-width float zeros are further instances, the NaN encoding requirement extends upstream's to every width a byte view reaches, and the `preserveNegativeZero` option is not adopted.</li>
+        <li>The tuple kind is added, and it changes the result of `Composite` on an array source, which upstream reads through the record path with `length` dropped.</li>
+        <li>The registry is scoped to the heap rather than to the agent. The two coincide under the pinned edition's agent model; they come apart exactly where the threading extension shares one heap among agents.</li>
+        <li>Typed creation through the composite Type Objects, the `Composite.&lt;T&gt;` types with their subtyping and interface satisfaction, and the [[RuntimeType]] a composite carries for reflection are added; they change nothing observable about an untyped creation beyond what canonicalization states.</li>
+        <li>`Composite[%Symbol.hasInstance%]` is added so that `instanceof` answers membership rather than throwing, and `Composite[%Symbol.customMatcher%]` is added so that the pattern `Composite` tests membership rather than invoking the function as a predicate; the latter applies to the upstream proposal as it stands and is independent of types.</li>
+        <li>The typed JSON parse and the host serialization requirement of <emu-xref href="#sec-composite-json"></emu-xref> are defined.</li>
+        <li>Everything else, the creation semantics and eager getters, the Symbol-key refusal, the canonical key order, frozenness and the *null* prototype, `Composite.isComposite`, the weak-position refusal, the cross-realm identity within one registry, and the impossibility of cycles, since a composite is frozen at birth and can reference only values that already existed, is adopted as upstream specifies.</li>
+      </ul>
+    </emu-clause>
+  </emu-clause>
+
   <emu-clause id="sec-types-across-agents">
     <h1>Types Across Agents</h1>
-    <p>The threading extension gives a program more than one executing thread over one heap. There is no copying step between them: a value is shared by being referenced, and no structured clone, no message, and no byte buffer stands in between. The threads of such a program are agents of one agent cluster that share a heap rather than only a block of memory, and the intern table of <emu-xref href="#sec-gettypeobject"></emu-xref> is a property of that heap. They therefore share it. A type constructed on one thread is the same Type Object on every other, `===` answers on any thread what it answers on the thread that built it, and nothing about interning, canonicalization, or the total order is per-thread. This is what that clause's note defers to, and the answer is that the extension does not carry a Type Object across a boundary; it removes the boundary.</p>
+    <p>The threading extension gives a program more than one executing thread over one heap. There is no copying step between them: a value is shared by being referenced, and no structured clone, no message, and no byte buffer stands in between. The threads of such a program are agents of one agent cluster that share a heap rather than only a block of memory, and the intern table of <emu-xref href="#sec-gettypeobject"></emu-xref> is a property of that heap, as the Composite Registry is (<emu-xref href="#sec-composite-registry"></emu-xref>). They therefore share both. A type constructed on one thread is the same Type Object on every other, `===` answers on any thread what it answers on the thread that built it, and nothing about interning, canonicalization, or the total order is per-thread. This is what that clause's note defers to, and the answer is that the extension does not carry a Type Object across a boundary; it removes the boundary.</p>
 
     <p>An agent that does not share a heap is the other case, and a Type Object does not reach it. A value that crosses to one crosses as data, and the receiving agent types that data by its own declarations and interns the result in its own table. Two structurally identical declarations in two such agents are two Type Objects and are not `===`, which is correct rather than a defect: identity is what interning within one heap establishes, and there is no third table above them in which to establish more. A program that needs the same type on both sides declares it on both sides, and every structural rule of this specification then agrees about it, because structure is what those rules read.</p>
 
@@ -4035,6 +4563,30 @@ contributors: Sirisian
       <emu-alg>
         1. If _type_.[[Kind]] is ~any~, return _value_.
         1. If _type_.[[Kind]] is ~reference~, return ? CoerceJSONValue(_value_, _type_.[[Target]], _path_).
+        1. If _type_ is a composite type (<emu-xref href="#sec-composite-types"></emu-xref>), then
+          1. If _type_ is the top composite type, throw a *TypeError* exception.
+          1. Let _shape_ be the shape of _type_.
+          1. If _shape_.[[Kind]] is ~tuple~, then
+            1. If _value_ is not an Array, throw a *TypeError* exception.
+            1. Let _len_ be ? LengthOfArrayLike(_value_).
+            1. If _len_ is not a length _shape_ admits (<emu-xref href="#sec-array-membership"></emu-xref>), throw a *TypeError* exception.
+            1. Let _elements_ be a new empty List.
+            1. Let _i_ be 0.
+            1. Repeat, while _i_ &lt; _len_,
+              1. Let _elementPath_ be the string-concatenation of _path_, the code unit 0x005B (LEFT SQUARE BRACKET), the decimal representation of _i_ as a String, and the code unit 0x005D (RIGHT SQUARE BRACKET).
+              1. Let _converted_ be ? CoerceJSONValue(the element of _value_ at index _i_, the [[Type]] of the element of _shape_ that receives position _i_, _elementPath_).
+              1. Append CanonicalizeCompositeValue(_converted_) to _elements_.
+              1. Set _i_ to _i_ + 1.
+            1. For each element _e_ of _shape_.[[Elements]] at a position not less than _len_, do
+              1. If _e_.[[Rest]] is *false*, then
+                1. Assert: _e_.[[Initial]] is not ~none~, since _len_ is a length _shape_ admits.
+                1. Append CanonicalizeCompositeValue(_e_.[[Initial]]) to _elements_.
+            1. Return ? FindOrCreateTupleComposite(_elements_).
+          1. Let _data_ be ? CoerceJSONValue(_value_, _shape_, _path_).
+          1. Let _entries_ be a new empty List.
+          1. For each own property key _k_ of _data_, in the order returned by ! _data_.[[OwnPropertyKeys]](), do
+            1. Append the Composite Entry Record { [[Key]]: _k_, [[Value]]: CanonicalizeCompositeValue(! Get(_data_, _k_)) } to _entries_.
+          1. Return FindOrCreateComposite(_entries_).
         1. If _type_.[[Kind]] is ~primitive~, then
           1. If _type_ is a numeric type, then
             1. If _value_ is not a Number, throw a *TypeError* exception.
@@ -4091,8 +4643,7 @@ contributors: Sirisian
               1. Let _converted_ be ? CoerceJSONValue(_pv_, _p_'s type, _fieldPath_).
               1. Perform ! CreateDataPropertyOrThrow(_result_, _p_'s key, _converted_).
             1. Else if _p_ is optional, then
-              1. Let _d_ be the default value of _p_'s type, if one is defined; otherwise ~empty~.
-              1. If _d_ is not ~empty~, perform ! CreateDataPropertyOrThrow(_result_, _p_'s key, _d_).
+              1. If _p_'s [[Initial]] is not ~none~, perform ! CreateDataPropertyOrThrow(_result_, _p_'s key, _p_'s [[Initial]]).
             1. Else,
               1. Throw a *TypeError* exception.
           1. Return _result_.
