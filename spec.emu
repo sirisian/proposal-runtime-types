@@ -356,11 +356,17 @@ contributors: Sirisian
             1. If _t_.[[Extent]] is not ~dynamic~ and _t_.[[Extent]] is not _s_.[[Extent]], return *false*.
             1. Return SameTypeWithAssumptions(_s_.[[Element]], _t_.[[Element]], _assumptions_).
           1. If _s_.[[Kind]] is ~tuple~, then
-            1. If the minimum length of _s_ is less than the minimum length of _t_, return *false*, where a tuple's minimum length counts the elements before any [[Rest]] element whose [[Initial]] is ~none~.
+            1. If the minimum length of _s_ is less than the minimum length of _t_, return *false*, where a tuple's minimum length counts the elements whose [[Rest]] is *false* and [[Initial]] is ~none~.
             1. If the maximum length of _s_ exceeds the maximum length of _t_, return *false*, where a tuple's maximum length is unbounded when any element's [[Rest]] is *true* and its element count otherwise.
+            1. If _t_ has more than one element whose [[Rest]] is *true*, then
+              1. If the element counts of _s_.[[Elements]] and _t_.[[Elements]] differ, return *false*.
+              1. For each integer _i_ such that 0 &le; _i_ and _i_ &lt; the element count of _t_.[[Elements]], do
+                1. If _s_.[[Elements]][_i_].[[Rest]] is not _t_.[[Elements]][_i_].[[Rest]], return *false*.
+                1. If IsSubtype(_s_.[[Elements]][_i_].[[Type]], _t_.[[Elements]][_i_].[[Type]], _assumptions_) is *false*, return *false*.
+              1. Return *true*.
             1. For each integer _i_ such that 0 &le; _i_ and _i_ &lt; the greater of the element counts of _s_.[[Elements]] and _t_.[[Elements]], do
               1. If _s_ cannot supply position _i_, continue, where a tuple can supply each position below its maximum length.
-              1. If IsSubtype(the type at position _i_ of _s_, the type at position _i_ of _t_, _assumptions_) is *false*, return *false*, where the type at a position is the [[Type]] of the element that receives it, a [[Rest]] element receiving its own position and every later one.
+              1. If IsSubtype(the type at position _i_ of _s_, the type at position _i_ of _t_, _assumptions_) is *false*, return *false*, where the type at a position of _t_ is the [[Type]] of the element that receives it and the type at a position of _s_ is the union of the [[Type]] fields of every element of _s_ that could receive it, an element receiving a position when some assignment of that many values to _s_.[[Elements]] gives it that one (<emu-xref href="#sec-sequenceassignment"></emu-xref>).
             1. Return *true*.
           1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is ~function~, return IsFunctionSubtype(_s_, _t_, _assumptions_).
@@ -370,7 +376,8 @@ contributors: Sirisian
         <p>Three of the steps above are one relation. A type <dfn id="refines">refines</dfn> another when it is a ~parameterized~ type whose [[Base]] is that type (<emu-xref href="#sec-parameterized-types"></emu-xref>), an enum whose underlying type is that type (<emu-xref href="#sec-enums"></emu-xref>), or a nominal type whose declaration extends or implements that type's declaration. A type is a subtype of every type it refines and of everything that type is a subtype of; the converse never holds without a crossing, a construction boundary for a parameterization, a validated call for an enum, and nothing at all for a class. The three steps are that rule's cases.</p>
 
         <emu-note>
-          <p>A ~literal~ type is a subtype of its base and of everything its base is a subtype of, which is what makes `'on'` usable where a `string` is required while `string` is not usable where `'on'` is. A ~tuple~'s [[Rest]] flags must match position for position, and its defaults take part in identity but not in subtyping; tuples relate by the arity window: _s_ is a subtype of _t_ when every length _s_ admits, _t_ admits, and every position _s_ can supply is a subtype of the position of _t_ that receives it.</p>
+          <p>A ~literal~ type is a subtype of its base and of everything its base is a subtype of, which is what makes `'on'` usable where a `string` is required while `string` is not usable where `'on'` is. A tuple's defaults take part in identity but not in subtyping, and tuples relate by the arity window: _s_ is a subtype of _t_ when every length _s_ admits, _t_ admits, and every position _s_ can supply is a subtype of the position of _t_ that receives it. Where _s_ has several rest elements a position may be supplied by more than one of them, so the type _s_ can put at that position is their union, and requiring each to be within _t_'s position is what makes the rule sound.</p>
+          <p>Where _t_ has more than one rest element, its positions are not determined by their index and the exact relation is inclusion between two regular languages, which a product construction decides and which a subtyping check cannot afford to run at every use. The rule above is conservative there: it requires the two element lists to correspond one for one, which is sound and is exact whenever they do. A program wanting a relation the conservative rule refuses writes the two tuple types in corresponding shapes, and the case is narrow, since the target of a subtyping check is a declared type and a declared type with two rests is already an unusual thing to write.</p>
           <p>A deferred ~application~ is a subtype only of itself and of the `any` type. Before specialization nothing finer than identity is known about its result, so nothing finer is assumed: two mentions of one deferred call are one type by interning, and two different calls are unrelated until they evaluate. No step above names the kind because none needs to; an ~application~ source reaches the final step for every target but itself and `any`.</p>
           <p>A generic class is invariant in its arguments, so `Map.&lt;string, uint8&gt;` is a subtype of no other instantiation of `Map`. This is the conservative choice and the only one that is sound for a mutable container, since a `Map.&lt;string, uint8&gt;` used as a `Map.&lt;string, number&gt;` would accept a Number into storage typed `uint8`. Whether a generic parameter may be declared covariant or contravariant, as it may in C# and Kotlin, is a question for the generics extension; nothing here forecloses it, and the step above is what such a declaration would relax.</p>
           <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target; a composite type is covariant in its shape, which the frozenness of every composite makes sound (<emu-xref href="#sec-composite-types"></emu-xref>). IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
@@ -991,7 +998,41 @@ contributors: Sirisian
 
         SingleNameBinding[Yield, Await] :
           BindingIdentifier[?Yield, ?Await] <ins>`?`?</ins> <ins>TypeAnnotation[?Yield, ?Await]?</ins> Initializer[+In, ?Yield, ?Await]?
+
+        BindingRestElement[Yield, Await] :
+          `...` BindingIdentifier[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins>
+          `...` BindingPattern[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins>
       </emu-grammar>
+
+      <p>A rest element's annotation is the type of what it collects, an ~array~ or ~tuple~ type rather than an element type, so `...args: [].&lt;uint32&gt;` collects `uint32` values into a `[].&lt;uint32&gt;`. Its Parameter Record's [[Type]] holds that type, and the <dfn>element type</dfn> of a rest is the [[Element]] of an ~array~ type and the union of the [[Type]] fields of a ~tuple~ type's elements; an operation comparing a single argument against a rest compares against its element type. The production is restated because a rest reaches its binding through |BindingRestElement| rather than through |SingleNameBinding|, so without this the design's `function f(a: string, ...args: [].&lt;uint32&gt;) {}` and `let [a: uint8, ...b: [].&lt;uint8&gt;] = [1, 2]` have no parse.</p>
+
+      <p>A parameter list may hold more than one rest parameter, and a rest may appear anywhere in it rather than only last, which the pinned edition's |FormalParameters| does not admit. The productions are restated so that a rest is an ordinary element of the list.</p>
+
+      <emu-grammar type="definition">
+        FormalParameters[Yield, Await] :
+          [empty]
+          <del>FunctionRestParameter[?Yield, ?Await]</del>
+          <del>FormalParameterList[?Yield, ?Await]</del>
+          <del>FormalParameterList[?Yield, ?Await] `,`</del>
+          <del>FormalParameterList[?Yield, ?Await] `,` FunctionRestParameter[?Yield, ?Await]</del>
+          <ins>FormalParameterList[?Yield, ?Await] `,`?</ins>
+
+        FormalParameterList[Yield, Await] :
+          <del>FormalParameter[?Yield, ?Await]</del>
+          <del>FormalParameterList[?Yield, ?Await] `,` FormalParameter[?Yield, ?Await]</del>
+          <ins>FormalParameterElement[?Yield, ?Await]</ins>
+          <ins>FormalParameterList[?Yield, ?Await] `,` FormalParameterElement[?Yield, ?Await]</ins>
+
+        <ins>FormalParameterElement[Yield, Await] :
+          FormalParameter[?Yield, ?Await]
+          FunctionRestParameter[?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>|UniqueFormalParameters| and the arrow forms are defined over |FormalParameters| and so admit the wider list without restatement; the duplicate-name early errors of the pinned edition apply to it unchanged. It is a Syntax Error for a |FunctionRestParameter| to carry an |Initializer|, as it is today. It is a type error if a parameter list contains two rest parameters with no parameter of a declared type between them: two rests that admit the same values have no boundary, and no assignment of arguments between them is more right than another (<emu-xref href="#sec-bindarguments"></emu-xref>).</p>
+
+      <emu-note>
+        <p>Every language admitting a rest away from the end pairs it with something that marks the boundary. Swift allows several variadic parameters and requires the first parameter after one to carry an argument label; Ruby allows `def f(a, *b, c)` and binds the fixed parameters from both ends before the splat takes the middle; TypeScript reaches a non-final rest only through a tuple type with a middle rest element. This design has two such markers already, the declared types of the parameters and the named arguments of <emu-xref href="#sec-named-arguments"></emu-xref>, and the early error above is what keeps at least one of them present.</p>
+      </emu-note>
 
       <p>A function may carry type parameters and a return annotation.</p>
 
@@ -2343,9 +2384,11 @@ contributors: Sirisian
           1. For each integer _j_ such that 0 &le; _j_ and _j_ &lt; the number of elements of _b_.[[Parameters]], do
             1. Let _q_ be _b_.[[Parameters]][_j_].
             1. If _a_.[[Parameters]] has no element at index _j_ and no element of _a_.[[Parameters]] has [[Rest]] *true*, return *false*.
-            1. Let _p_ be the element of _a_.[[Parameters]] that receives the argument at index _j_.
+            1. Let _p_ be the element of _a_.[[Parameters]] that receives the argument at index _j_, or, where more than one could receive it, the union of the types of those that could (<emu-xref href="#sec-sequenceassignment"></emu-xref>).
             1. If _p_.[[Reference]] is not _q_.[[Reference]], return *false*.
-            1. If IsSubtype(_q_.[[Type]], _p_.[[Type]], _assumptions_) is *false*, return *false*.
+            1. Let _pType_ be _p_.[[Type]], or the element type of _p_.[[Type]] where _p_.[[Rest]] is *true*.
+            1. Let _qType_ be _q_.[[Type]], or the element type of _q_.[[Type]] where _q_.[[Rest]] is *true*.
+            1. If IsSubtype(_qType_, _pType_, _assumptions_) is *false*, return *false*.
           1. If _a_.[[ThisType]] is not ~none~, then
             1. If _b_.[[ThisType]] is ~none~, return *false*.
             1. If IsSubtype(_b_.[[ThisType]], _a_.[[ThisType]], _assumptions_) is *false*, return *false*.
@@ -2403,7 +2446,7 @@ contributors: Sirisian
         <emu-alg>
           1. Let _viable_ be a new empty List.
           1. For each element _sig_ of _signatures_, do
-            1. If _args_ does not satisfy the arity of _sig_.[[Parameters]], accounting for optional parameters, defaults, and a rest parameter, then
+            1. If BindArguments(_sig_, _args_) is ~unmatched~ (<emu-xref href="#sec-bindarguments"></emu-xref>), then
               1. Continue.
             1. If some element of _args_ is not assignable to the type of the parameter that receives it, then
               1. Continue.
@@ -2439,7 +2482,7 @@ contributors: Sirisian
       <emu-note>
         <p>Ranking by the worst match rather than by a sum keeps the rule from trading a bad match on one argument against a good one on another, which is where the ranking rules of C++ become hard to predict. A typed argument never ranks below 1: a typed argument of the wrong type is not viable at all, so it is never a question of how well it matches.</p>
         <p>An untyped function is a catch-all because its signature has [[Untyped]] *true*, which ranks last. Given `function f() {}` and `function f(a: uint8) {}`, the call `f(1)` selects the typed signature, since the literal ranks 2 against the catch-all's 4, while `f(1, 2)` selects the untyped one, since the typed signature's arity does not accept two arguments and it is not viable. A function that takes no arguments and is nonetheless typed is written by declaring the return type, as `function f(): void {}`, which makes [[Untyped]] *false* and so makes `f(1)` an error.</p>
-        <p>The ambiguity rule reaches further than duplicate parameter lists. `function f(a: uint8) {}` and `function f(a: uint8, b: string = 'b') {}` are ambiguous, because the default makes the second viable for a single `uint8` argument at the same rank; so are `function f(a: float32): void {}` and `function f(...a: [].&lt;float32&gt;): void {}`, because the rest parameter covers the one-argument call. A default or a rest parameter expands a signature into a family of arities, and it is the family that must not collide.</p>
+        <p>The ambiguity rule reaches further than duplicate parameter lists. `function f(a: uint8) {}` and `function f(a: uint8, b: string = 'b') {}` are ambiguous, because the default makes the second viable for a single `uint8` argument at the same rank; so are `function f(a: float32): void {}` and `function f(...a: [].&lt;float32&gt;): void {}`, because the rest parameter covers the one-argument call. A default or a rest parameter expands a signature into a family of arities, and it is the family that must not collide. Several rests multiply the family rather than changing the rule, and a signature with a rest of an untyped element collides with a great deal, which is a reason to type one.</p>
       </emu-note>
     </emu-clause>
 
@@ -2447,8 +2490,80 @@ contributors: Sirisian
       <h1>Named Arguments</h1>
       <p>An argument at a call site may be written as a name and a value, `name: AssignmentExpression`, which supplies the value for the parameter of that name rather than for the parameter at that position. A named argument is a compact way to supply a later parameter while omitting earlier ones that have a default. The parameter names a signature carries (<emu-xref href="#sec-signature-records"></emu-xref>) are what a named argument selects by.</p>
       <p>The |Arguments| grammar admits a named argument alongside the positional and spread forms. A named argument is an |IdentifierName| followed by `:` and an |AssignmentExpression|, at the top of an argument. This is new syntax: a call argument that is an identifier followed by `:` is a syntax error in the base language, so no existing call changes meaning, and the form is available only where the runtime types feature is enabled.</p>
-      <p>A call is bound to the parameters of the selected signature as follows. A positional argument fills the next unfilled parameter position, left to right. A named argument fills the parameter of its name. A parameter filled by neither takes its default where it has one, and it is a type error if a parameter that has no default and is neither optional nor the rest parameter is left unfilled. It is a type error if a named argument's name is not a parameter of the signature.</p>
-      <p>The rest parameter is filled by name as well as by position. A named argument whose name is the rest parameter's supplies a value of the rest, and the positional arguments that follow it join the same rest in the order written, so `function f(a: uint8, b: string = '', ...args: [].&lt;string&gt;) {}` called `f(8, args: 'a', 'b')` binds `a` to 8, leaves `b` its default, and gives `args` the elements 'a' and 'b'.</p>
+      <p>A call is bound to the parameters of the selected signature by BindArguments (<emu-xref href="#sec-bindarguments"></emu-xref>). It is a type error if a named argument's name is not a parameter of the signature, and it is a type error if BindArguments returns ~unmatched~.</p>
+      <p>A rest parameter is filled by name as well as by position. A named argument whose name is a rest parameter's supplies a value of that rest, and the positional arguments that follow it join the same rest in the order written, so `function f(a: uint8, b: string = '', ...args: [].&lt;string&gt;) {}` called `f(8, args: 'a', 'b')` binds `a` to 8, leaves `b` its default, and gives `args` the elements 'a' and 'b'. Where a parameter after that rest must still be filled, the rest gives back what the parameters after it require, which is the same rule BindArguments applies to a positional call.</p>
+
+      <emu-clause id="sec-sequenceassignment" type="abstract operation">
+        <h1>
+          SequenceAssignment (
+            _slots_: a List of Records with a [[Rest]] field (a Boolean) and an [[Optional]] field (a Boolean),
+            _n_: a non-negative integer,
+            _admits_: an Abstract Closure taking a non-negative integer and a Record of _slots_ and returning a Boolean,
+          ): either a List of non-negative integers or ~unmatched~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It distributes _n_ items among _slots_ in order, returning how many items each slot takes, or ~unmatched~ where no distribution admits every item. A slot whose [[Rest]] is *true* takes zero or more items, one whose [[Optional]] is *true* takes one or none, and any other takes exactly one. _admits_(_i_, _slot_) reports whether the item at index _i_ may be taken by _slot_.</dd>
+        </dl>
+        <emu-alg>
+          1. If _slots_ is empty, then
+            1. If _n_ is 0, return a new empty List.
+            1. Return ~unmatched~.
+          1. Let _slot_ be _slots_[0].
+          1. Let _tail_ be a List of the elements of _slots_ from index 1.
+          1. Let _limit_ be 0.
+          1. Repeat, while _limit_ &lt; _n_ and _admits_(_limit_, _slot_) is *true* and (_slot_.[[Rest]] is *true* or _limit_ &lt; 1),
+            1. Set _limit_ to _limit_ + 1.
+          1. Let _min_ be 0.
+          1. If _slot_.[[Rest]] is *false* and _slot_.[[Optional]] is *false*, set _min_ to 1.
+          1. For each integer _m_ from _limit_ down to _min_, in descending order, do
+            1. Let _shifted_ be a new Abstract Closure with parameters (_index_, _which_) that captures _admits_ and _m_ and performs the following steps when called:
+              1. Return _admits_(_index_ + _m_, _which_).
+            1. Let _rest_ be SequenceAssignment(_tail_, _n_ - _m_, _shifted_).
+            1. If _rest_ is not ~unmatched~, return the list-concatenation of &laquo; _m_ &raquo; and _rest_.
+          1. Return ~unmatched~.
+        </emu-alg>
+        <emu-note>
+          <p>This is leftmost-greedy matching with backtracking, which is what the design means by taking arguments greedily and giving them back to satisfy the signature: a slot takes as many items as it can and yields one at a time until the slots after it can be satisfied. A parameter list, and a tuple's element list, is a regular pattern over a sequence — a fixed slot is one item, an optional slot is one or none, a rest is zero or more — and this operation is the match.</p>
+          <p>The result is deterministic. Because the search takes the greatest count first at each slot in turn, the assignment returned is the greatest in the lexicographic order on the count lists, so it does not depend on how an implementation searches; an implementation may use any method that agrees with it. The recursion terminates because each call passes a shorter _slots_.</p>
+          <p>The design's own example is the one to check the rule against. For `function f(...a: [].&lt;uint32&gt;, ...b: [].&lt;uint32&gt;, c: uint32)` called `f(0, 1, 2)`, the first slot takes all three, the tail cannot be satisfied, it yields to two, `b` then takes the one remaining and `c` cannot be satisfied, `b` yields to none, and the assignment settles at `a`: &laquo; 0, 1 &raquo;, `b`: &laquo; &raquo;, `c`: 2. Where the types differ the filter does the work with no further rule: in `function f(a: string, ...args: [].&lt;uint32&gt;, ...args2: [].&lt;string&gt;, callback: () =&gt; void)`, `args` stops at the first argument that is not a `uint32`.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-bindarguments" type="abstract operation">
+        <h1>
+          BindArguments (
+            _sig_: a Signature Record,
+            _args_: a List of arguments,
+          ): either a List of bindings or ~unmatched~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It binds a call's arguments to a signature's parameters, giving each parameter the value or values it receives.</dd>
+        </dl>
+        <emu-alg>
+          1. For each named argument _a_ of _args_, in order, do
+            1. Let _p_ be the parameter of _sig_.[[Parameters]] whose [[Name]] is _a_'s name; if there is none, return ~unmatched~.
+            1. Assign _a_'s value to _p_, and where _p_.[[Rest]] is *true*, assign to _p_ the positional arguments following _a_ up to the next named argument as well.
+          1. Let _positional_ be the positional arguments of _args_ that precede the first named argument, in order.
+          1. Let _slots_ be a List containing, for each parameter _p_ of _sig_.[[Parameters]] that no named argument assigned to, a Record { [[Rest]]: _p_.[[Rest]], [[Optional]]: _p_.[[Optional]] }, in parameter order.
+          1. Let _admits_ be a new Abstract Closure with parameters (_index_, _which_) that captures _positional_ and performs the following steps when called:
+            1. Let _p_ be the parameter _which_ stands for.
+            1. Let _target_ be _p_.[[Type]], or the element type of _p_.[[Type]] where _p_.[[Rest]] is *true*.
+            1. Return IsAssignable(the Static Type of _positional_[_index_], _target_).
+          1. Let _counts_ be SequenceAssignment(_slots_, the number of elements of _positional_, _admits_).
+          1. If _counts_ is ~unmatched~, return ~unmatched~.
+          1. Assign to each such parameter, in order, the number of elements of _positional_ that _counts_ gives it, a rest parameter receiving them as an array of its type and any other receiving the one element.
+          1. For each parameter _p_ of _sig_.[[Parameters]] that received nothing, do
+            1. If _p_.[[Initial]] is not ~none~, assign _p_.[[Initial]] to _p_.
+            1. Else if _p_.[[Rest]] is *true*, assign an empty array of _p_.[[Type]] to _p_.
+            1. Else if _p_.[[Optional]] is *false*, return ~unmatched~.
+          1. Return the bindings.
+        </emu-alg>
+        <emu-note>
+          <p>A named argument pins its parameter before the positional match runs, so it prunes the search rather than widening it, and the positionals that follow a named rest join that rest as the paragraph above says. A rest that receives nothing is bound to an empty array rather than left unfilled, which is what makes `b` an empty array rather than an error in the design's example.</p>
+        </emu-note>
+      </emu-clause>
       <p>A spread of an object, `...AssignmentExpression` where the value is an object with no `Symbol.iterator` method, binds each of the object's own enumerable String-keyed properties by parameter name, as though each were written as a named argument. A spread whose value is iterable fills positions in order, as in the base language. Because the two are distinguished by the presence of an iterator, an object used to supply arguments by name is one that is not iterable; an iterable, including an Array, spreads by position.</p>
       <p>Where the called value is overloaded (<emu-xref href="#sec-overload-resolution"></emu-xref>), the parameter names are those of the selected signature, and a named or object-spread call that no signature can bind is a type error by the same rule as a positional call that matches no signature.</p>
       <emu-note>
@@ -3095,7 +3210,7 @@ contributors: Sirisian
       <h1>Membership</h1>
       <p>For an ~array~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is _t_.[[Extent]] where that is not ~dynamic~, and every element of _v_ is of the type _t_.[[Element]].</p>
 
-      <p>For a ~tuple~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is at least the number of elements of _t_.[[Elements]] whose [[Rest]] is *false* and [[Initial]] is ~none~ and that no [[Rest]] element precedes, at most the element count where no element's [[Rest]] is *true* and unbounded otherwise, and every element of _v_ is of the [[Type]] of the element of _t_.[[Elements]] that receives it, a [[Rest]] element receiving every remainder.</p>
+      <p>For a ~tuple~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object and SequenceAssignment (<emu-xref href="#sec-sequenceassignment"></emu-xref>) over _t_.[[Elements]], _v_'s length, and the closure reporting whether the value at an index is of an element's [[Type]] is not ~unmatched~, where an element's slot has the [[Rest]] of that element and is optional exactly when its [[Initial]] is not ~none~. Where _t_ has at most one element whose [[Rest]] is *true* this is the familiar rule: the length is at least the number of elements carrying neither a rest nor a default, at most the element count where no element is a rest and unbounded otherwise, and each value is of the type of the element that receives it.</p>
 
       <emu-note>
         <p>A tuple's length is a range rather than a number because a trailing position may carry a default and a position may spread an array type. `[uint8, uint32 = 10]` accepts a one-element and a two-element array, which is what lets a shorter array satisfy a longer tuple return, and `[uint32, ...[].&lt;float32&gt;]` accepts any length from one upward.</p>
