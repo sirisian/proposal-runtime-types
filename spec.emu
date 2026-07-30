@@ -3993,7 +3993,8 @@ contributors: Sirisian
     <p>A pattern is structural: it is a node, and its slots stand where a Type Object would. A slot inside an ~application~ Type Record is a type error at the match rather than *null*, because evaluating a builder against an unbound slot is exactly the inversion no operation of this specification performs (<emu-xref href="#sec-inference-through-results"></emu-xref>). A pattern for the result of a builder is therefore written against the shape the builder produces, an optional property or a wrapped element, and never against the application.</p>
 
     <emu-note>
-      <p>This closes the question of whether anything an erased system's `infer` does is out of reach, and the answer is that it is not. It is deliberately no more than that: the design's own catalog needed this operation exactly zero times, which is the measurement that makes it optional rather than load-bearing, and a library author who wants an explicit inverse now has one that is ordinary code (<emu-xref href="#sec-declared-inverses"></emu-xref> is where the checker will consult it).</p>
+      <p>This closes the question of whether anything an erased system's `infer` does is out of reach, and the answer is that it is not. A library author who wants an explicit inverse has one that is ordinary code (<emu-xref href="#sec-declared-inverses"></emu-xref> is where the checker will consult it).</p>
+      <p>The operation was proposed as optional on the measurement that the design's catalog needed it exactly zero times. That measurement has since changed: the decorators extension dispatches on the structure of a type it is handed, which is what a decorator that emits a schema, a validator, or documentation does, and there is no way to write that without this operation. The `extends` pattern of <emu-xref href="#sec-matchtypepattern"></emu-xref> is its syntactic form, standing to it as `is` stands to IsOfType, and consumes the unification defined here rather than defining a second one. Reflective use remains available and remains the escape hatch for what the syntax does not spell.</p>
     </emu-note>
   </emu-clause>
 
@@ -4629,6 +4630,7 @@ contributors: Sirisian
         MatchPrimaryPattern[Yield, Await] :
           `(` MatchPattern[?Yield, ?Await] `)`
           `_`
+          `extends` TypePattern[?Yield, ?Await]
           MatchBindingPattern[?Yield, ?Await]
           `${` Expression[+In, ?Yield, ?Await] `}`
           ObjectMatchPattern[?Yield, ?Await]
@@ -4643,6 +4645,12 @@ contributors: Sirisian
         MatchBindingPattern[Yield, Await] :
           `let` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]?
           `const` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]?
+
+        TypePattern[Yield, Await] :
+          Type[?Yield, ?Await]
+
+        TypeArgument[Yield, Await] :
+          BindingIdentifier[?Yield, ?Await] `:` Type[?Yield, ?Await]
 
         MatchNamePattern[Yield, Await] :
           IdentifierReference[?Yield, ?Await]
@@ -4682,6 +4690,7 @@ contributors: Sirisian
         <li>It is a Syntax Error if a |MatchLiteralPattern|'s |ShortCircuitExpression| is not one of: a |NumericLiteral|, optionally preceded by `+` or `-`; a |StringLiteral|; a |NoSubstitutionTemplate|; `true`, `false`, or `null`; a |RegularExpressionLiteral|; or a range literal of <emu-xref href="#sec-range-literals"></emu-xref>, each of whose present endpoints is one of the preceding forms or a |MatchNamePattern| form.</li>
         <li>It is a Syntax Error if the two alternatives of a `MatchOrPattern` do not have the same BoundNames.</li>
         <li>It is a Syntax Error if the BoundNames of a |MatchPattern| contain any duplicate entries, except that the same name bound by both alternatives of an `or` is one binding.</li>
+        <li>It is a Syntax Error if the `BindingIdentifier : Type` form of |TypeArgument| appears outside a |TypePattern|. That alternative is the <dfn id="pattern-slot" variants="pattern slots">pattern slot</dfn>, the syntactic form of the slot that <emu-xref href="#sec-structural-matching"></emu-xref> creates reflectively, and it is meaningful only where a type is being matched rather than written.</li>
         <li>It is a type error if the |MatchNamePattern| of a juxtaposition or of an extractor form resolves to a binding: the juxtaposed head must denote a type, and the extractor head must denote a value with a %Symbol.customMatcher% method, decided at the site where the head's Static Type is known and at run time otherwise.</li>
       </ul>
       <p>A |MatchNamePattern| and a |Type| overlap where a name is both; the name form is preferred, and the two readings agree wherever both exist, since a name denoting a type matches by membership under either. The |Type| alternative exists for the forms only a type can spell, a union of literal types being the or-pattern for constants with no combinator: `'GET' | 'HEAD'` is one type pattern whose test is two comparisons. A |MatchLiteralPattern| and a ~literal~ |Type| likewise coincide; the literal form is preferred and the semantics are one.</p>
@@ -4713,6 +4722,7 @@ contributors: Sirisian
             1. If _inner_ is *true*, return *false*; else return *true*.
           1. If _P_ is a parenthesized pattern, return ? PatternMatches(its |MatchPattern|, _subject_, _cache_, _env_).
           1. If _P_ is `MatchPrimaryPattern : _`, return *true*.
+          1. If _P_ is `MatchPrimaryPattern : extends TypePattern`, return MatchTypePattern(the |TypePattern|, _subject_, _env_).
           1. If _P_ is a |MatchBindingPattern|, then
             1. If _P_ has a |TypeAnnotation|, then
               1. Let _ok_ be ? IsOfType(_subject_, the Type Record it denotes).
@@ -4846,6 +4856,38 @@ contributors: Sirisian
         </emu-alg>
       </emu-clause>
 
+      <emu-clause id="sec-matchtypepattern" type="abstract operation">
+        <h1>
+          MatchTypePattern (
+            _P_: a |TypePattern| Parse Node,
+            _subject_: an ECMAScript language value,
+            _env_: an Environment Record,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It matches a type against a pattern of types: _subject_ must be a Type Object, its type must be within the type _P_ writes, and each pattern slot of _P_ binds the component of _subject_ that stands where it does.</dd>
+        </dl>
+        <emu-alg>
+          1. If _subject_ is not a Type Object, return *false*.
+          1. Let _t_ be the Type Record _subject_ reifies.
+          1. If _P_ contains no pattern slot, return IsAssignable(_t_, the Type Record _P_ denotes).
+          1. Let _pattern_ be the Type Record _P_ denotes with each pattern slot replaced by a fresh slot (<emu-xref href="#sec-structural-matching"></emu-xref>).
+          1. Let _bindings_ be the one-sided structural unification of _pattern_ against _t_ (<emu-xref href="#sec-structural-matching"></emu-xref>).
+          1. If _bindings_ is *null*, return *false*.
+          1. For each pattern slot _s_ of _P_, do
+            1. Let _v_ be the component _bindings_ binds for _s_: the Type Object where that component is a Type Record, and the component itself where it is a metadata object or another value.
+            1. If IsAssignable(RuntimeTypeOf(_v_), the Type Record _s_'s |Type| denotes) is *false*, return *false*.
+          1. For each pattern slot _s_ of _P_, perform ! _env_.InitializeBinding(the StringValue of _s_'s |BindingIdentifier|, the value bound for _s_ above).
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>The two halves answer different questions and both are needed. Without slots the test is assignability, so `when extends string:` matches a `string` and every refinement of one, which is what the keyword promises to a reader who has met it in a type position. With slots the test is unification, because a slot has to bind the component that stands where it does, and unification is the operation that finds it; the slot's own |Type| is then an ordinary constraint on what it bound, exactly as <emu-xref href="#sec-structural-matching"></emu-xref> says an `infer S extends string` is a check afterwards.</p>
+          <p>The consequence worth stating is that a slotted pattern matches structurally where an unslotted one matches up to subtyping: `extends [].&lt;E: type&gt;` does not match a `[5].&lt;uint8&gt;`, whose extent is 5 where the pattern's is ~dynamic~, although `extends [].&lt;uint8&gt;` does match it. Unification up to subtyping is a different and much larger operation, and this specification does not perform it anywhere; a pattern is written against the shape it expects, which is the same discipline <emu-xref href="#sec-structural-matching"></emu-xref> already imposes in refusing a slot inside an ~application~.</p>
+          <p>A slot binds a value rather than always a Type Object because the positions of a parameterized type do not all hold types: `float32.&lt;B: NumberBounds&gt;` binds the metadata object, which is what makes `{ ...B }` in the design's `constraintsFor` an ordinary spread, while `Map.&lt;K: type, V: type&gt;` binds Type Objects. RuntimeTypeOf of the bound value is what the constraint is checked against in either case, and it is also the binding's Static Type (<emu-xref href="#sec-pattern-static-semantics"></emu-xref>).</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-matchiteratorfill" type="abstract operation">
         <h1>
           MatchIteratorFill (
@@ -4930,13 +4972,13 @@ contributors: Sirisian
 
     <emu-clause id="sec-pattern-static-semantics">
       <h1>Static Semantics of Patterns</h1>
-      <p>The <dfn>pattern type</dfn> of a pattern _P_, PatternType(_P_), is the Type Record a successful match establishes, defined by the form of _P_: a |Type|, the type it denotes; a name resolving to a type or evaluating to a Type Object of known type, that type; a literal, its ~literal~ type at the position type by <emu-xref href="#sec-literal-propagation"></emu-xref>; a name denoting a constant of literal or enumerator type, that type; a binding with an annotation, the annotated type, and without one, ~any~; a range whose endpoints are compile-time constants, the position type refined by the interval's metadata (<emu-xref href="#sec-ranges"></emu-xref>); a regular expression, `string`; an extractor whose head denotes a type, that type, which is the narrowing its matcher's author asserts and the checker takes, as it takes a declared narrowing predicate's, and ~any~ for a head that denotes no type; a juxtaposition, PatternType of its structural part narrowed to its head's type; an |ObjectMatchPattern|, the ~object~ Type Record whose properties are the named members, each required, at the PatternType of its sub-pattern; an |ArrayMatchPattern| without rest, the ~tuple~ of its element PatternTypes, and with rest, ~any~; an `and`, the NarrowTo of its operands' pattern types in order; an `or`, the union of its alternatives'; a wildcard, a `not`, or an interpolation of non-literal type, ~any~.</p>
-      <p>Within a pattern, each sub-pattern's <dfn>position type</dfn> is the subject's Static Type at that position, computed left to right: the subject narrowed by the preceding operand of an `and`, a named member's type in the members of a union position the pattern has not eliminated, an element's type from a ~tuple~ position or the element type of an ~array~ one, an extracted position's type from the matcher's declared return. A binding's Static Type is NarrowTo of its position type and its PatternType. It is a type error if NarrowTo of a sub-pattern's position type and its PatternType is ~empty~, the impossible-test rule of <emu-xref href="#sec-narrowing"></emu-xref>; and it is a type error if a numeric literal's position type is a union of two or more numeric types, since the literal has two types it could take, resolved by `and` with a type or by an interpolation.</p>
+      <p>The <dfn>pattern type</dfn> of a pattern _P_, PatternType(_P_), is the Type Record a successful match establishes, defined by the form of _P_: a |Type|, the type it denotes; a name resolving to a type or evaluating to a Type Object of known type, that type; a literal, its ~literal~ type at the position type by <emu-xref href="#sec-literal-propagation"></emu-xref>; a name denoting a constant of literal or enumerator type, that type; a binding with an annotation, the annotated type, and without one, ~any~; a range whose endpoints are compile-time constants, the position type refined by the interval's metadata (<emu-xref href="#sec-ranges"></emu-xref>); a regular expression, `string`; an extractor whose head denotes a type, that type, which is the narrowing its matcher's author asserts and the checker takes, as it takes a declared narrowing predicate's, and ~any~ for a head that denotes no type; a juxtaposition, PatternType of its structural part narrowed to its head's type; an |ObjectMatchPattern|, the ~object~ Type Record whose properties are the named members, each required, at the PatternType of its sub-pattern; an |ArrayMatchPattern| without rest, the ~tuple~ of its element PatternTypes, and with rest, ~any~; an `and`, the NarrowTo of its operands' pattern types in order; an `or`, the union of its alternatives'; an `extends` pattern, the `type` type (<emu-xref href="#sec-the-type-type"></emu-xref>), since what a successful match establishes of the subject is that it is a Type Object; a wildcard, a `not`, or an interpolation of non-literal type, ~any~.</p>
+      <p>Within a pattern, each sub-pattern's <dfn>position type</dfn> is the subject's Static Type at that position, computed left to right: the subject narrowed by the preceding operand of an `and`, a named member's type in the members of a union position the pattern has not eliminated, an element's type from a ~tuple~ position or the element type of an ~array~ one, an extracted position's type from the matcher's declared return. A binding's Static Type is NarrowTo of its position type and its PatternType. A pattern slot's Static Type is the type its |Type| denotes, which is the constraint the match checked, so `B: NumberBounds` binds a `NumberBounds` and `K: type` binds a `type`; a slot is a binding of the clause for every other purpose, immutable, in scope in the guard and the arm, and subject to the duplicate-name and `or`-consistency errors above. It is a type error if NarrowTo of a sub-pattern's position type and its PatternType is ~empty~, the impossible-test rule of <emu-xref href="#sec-narrowing"></emu-xref>; and it is a type error if a numeric literal's position type is a union of two or more numeric types, since the literal has two types it could take, resolved by `and` with a type or by an interpolation.</p>
       <p>The rows this clause adds to <emu-xref href="#table-narrowing-forms"></emu-xref>: in the arm of a `when` _P_, NarrowTo(_s_, PatternType(_P_)); in the arms after it, NarrowFrom(_s_, PatternType(_P_)) where the clause is unguarded; and `v is` _P_ narrows as `when` _P_ does, in the positions the test governs. The Static Type of a `match` expression is the canonicalized union of its arm types, a `throw` arm and a diverging block contributing nothing and a block arm not ending in an |ExpressionStatement| contributing ~void~; a contextual type on the `match` is the contextual type of each arm body.</p>
 
       <emu-clause id="sec-match-exhaustiveness">
         <h1>Exhaustiveness</h1>
-        <p>The <dfn>atoms</dfn> of a Type Record _t_ are: for an enum, its enumerators; for a sealed class, its direct subclasses and, where instantiable, itself; for `boolean`, *true* and *false*; for `null` and `undefined`, themselves; for a ~union~ of two or more members each of which is one of the preceding, an ~object~ type, a ~tuple~ type, or a composite type, the atoms of each member, an object, tuple, or composite member being its own atom; for a dependent record type whose predicate is a discriminating `where` chain, the atoms of the union that chain denotes (<emu-xref href="#sec-discriminated-where-chains"></emu-xref>); and ~none~ otherwise. A union with a member of ~literal~ kind has atoms ~none~: a closed set of literals that wants the check is an enum over its base, the standing decision of <emu-xref href="#sec-enums"></emu-xref>, restated rather than reopened.</p>
+        <p>A `match` whose subject is a Type Object has no atoms, the types being an open universe, so <emu-xref href="#sec-match-exhaustiveness"></emu-xref> requires such a `match` to carry a catch-all. The <dfn>atoms</dfn> of a Type Record _t_ are: for an enum, its enumerators; for a sealed class, its direct subclasses and, where instantiable, itself; for `boolean`, *true* and *false*; for `null` and `undefined`, themselves; for a ~union~ of two or more members each of which is one of the preceding, an ~object~ type, a ~tuple~ type, or a composite type, the atoms of each member, an object, tuple, or composite member being its own atom; for a dependent record type whose predicate is a discriminating `where` chain, the atoms of the union that chain denotes (<emu-xref href="#sec-discriminated-where-chains"></emu-xref>); and ~none~ otherwise. A union with a member of ~literal~ kind has atoms ~none~: a closed set of literals that wants the check is an enum over its base, the standing decision of <emu-xref href="#sec-enums"></emu-xref>, restated rather than reopened.</p>
         <p>An unguarded clause <dfn>covers</dfn> an atom _a_ when: its pattern's PatternType _pt_ satisfies IsSubtype(the type of _a_, _pt_, &laquo; &raquo;), reading an enumerator atom's type as its enumerator, covered by the constant pattern naming it or a type pattern naming its enum, and reading *true*, *false*, `null`, and `undefined` atoms as their literal patterns and types; an object, tuple, or composite atom is additionally covered by a structural pattern each of whose named members is declared required by the atom and whose sub-patterns each cover the member's declared type, the subsumption the impossible-test rule computes run in the other direction. A `default` covers every atom, and a guarded clause covers none.</p>
         <p>A pattern is <dfn>irrefutable</dfn> when it matches every value: the wildcard; a |MatchBindingPattern| with no |TypeAnnotation|, or one whose annotation denotes ~any~; a parenthesized irrefutable pattern; an `and` both of whose operands are irrefutable; and an `or` either of whose alternatives is. A clause is a <dfn>catch-all</dfn> when it is a `default`, or is unguarded with an irrefutable pattern.</p>
         <p>A `match` is <dfn>exhaustive</dfn> when it has a catch-all clause, or when the atoms of its subject's Static Type are not ~none~ and every atom is covered by some clause. It is a type error for a `match` not to be exhaustive. It is a type error if a clause can match nothing the preceding unguarded clauses have left: where NarrowTo of the subject's remaining type, the Static Type folded by NarrowFrom over the preceding unguarded clauses' pattern types, and the clause's PatternType is ~empty~, or where every atom the clause covers is covered before it; a `default` whose preceding clauses cover every atom of a subject with atoms is that error's instance, so a covered `match` and a defaulted one cannot silently coexist.</p>
