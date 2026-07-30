@@ -3605,7 +3605,7 @@ contributors: Sirisian
             <tr><td>Function</td><td>`Function`, `FunctionParameter`, `FunctionReturn`</td><td>A function declaration, its parameters, and its return.</td></tr>
             <tr><td>Binding</td><td>`Let`, `Const`</td><td>A declared binding.</td></tr>
             <tr><td>Object</td><td>`Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, `ObjectMethodReturn`</td><td>An object literal and its members, keyed on the instance rather than on a declaration, since that is where an object's metadata lives.</td></tr>
-            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`</td><td>A statement's block.</td></tr>
+            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`</td><td>A statement's block, and the block of a `match` clause's arm (<emu-xref href="#sec-match-expression"></emu-xref>). These are the one per-evaluation position of this extension: a block decorator runs on every entry to its block rather than once where the declaration is evaluated, which is what makes a block in a loop, or an arm of a `match`, countable.</td></tr>
             <tr><td>Enum</td><td>`Enum`, `EnumEnumerator`</td><td>An enum and its enumerators, parameterized by the underlying type.</td></tr>
             <tr><td>Structural</td><td>`Tuple`, `Record`</td><td>A tuple or record declaration.</td></tr>
           </tbody>
