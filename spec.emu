@@ -1046,13 +1046,13 @@ contributors: Sirisian
           [+In] RelationalExpression[+In, ?Yield, ?Await] `in` ShiftExpression[?Yield, ?Await]
           [+In] PrivateIdentifier `in` ShiftExpression[?Yield, ?Await]
           <ins>RelationalExpression[?In, ?Yield, ?Await] `:=` Type[?Yield, ?Await]</ins>
-          <ins>RelationalExpression[?In, ?Yield, ?Await] [no LineTerminator here] `is` Type[?Yield, ?Await]</ins>
+          <ins>RelationalExpression[?In, ?Yield, ?Await] [no LineTerminator here] `is` MatchPattern[?Yield, ?Await]</ins>
       </emu-grammar>
 
       <emu-note>
         <p>Placing a conversion at |RelationalExpression| gives it the precedence of `instanceof`, so `a + b := uint8` converts the sum, and the right operand being a |Type| means `x := A | B` converts to the union rather than taking the bitwise or of a conversion.</p>
         <p>`type` is a contextual keyword, since a program may already bind the name `type`, and this leaves an ambiguity: `type (uint8) =&gt; uint8` is a type operator applied to a function type, while `type (x)` is a call of a function named `type`, and the two agree until the token after the closing parenthesis. This specification resolves it with a cover grammar, as the grammar already does for arrow parameters and parenthesized expressions: the parenthesized text is parsed under a cover production and refined to a function-type operand or a call argument list once the token after the closing parenthesis is known. The `type` declaration form raises no ambiguity, since its `type` is followed by a binding identifier, and the computed types of <emu-xref href="#sec-computed-types"></emu-xref> do not widen it: `type f(x)` was a syntax error and is now the operator applied to a computed type, so the only covered case is an operand that begins with `(`. The committee may still prefer to avoid the cover grammar by restricting the operand or by requiring the operator only where a type cannot otherwise be written; that would remove the covered case rather than change the meaning of any program the cover grammar already accepts, and is a decision worth taking before the syntax is final.</p>
-        <p>The operand of `type` is a full |Type| and so extends as far as one reaches: `type A | B` is the union of `A` and `B`, not the bitwise or of `type A` and `B`. A bare name is a type expression, so `type uint8` is a redundant spelling of `uint8`. The extensions that introduce type-position operators use the |Type| production defined here, as `is` (<emu-xref href="#sec-is-operator"></emu-xref>) does above, sharing this precedence so that `x is A | B` tests the union.</p>
+        <p>The operand of `type` is a full |Type| and so extends as far as one reaches: `type A | B` is the union of `A` and `B`, not the bitwise or of `type A` and `B`. A bare name is a type expression, so `type uint8` is a redundant spelling of `uint8`. The extensions that introduce type-position operators use the |Type| production defined here, sharing this precedence; `is` takes the wider |MatchPattern| (<emu-xref href="#sec-pattern-matching"></emu-xref>), of which a |Type| is one form, so `x is A | B` tests the union exactly as before.</p>
         <p>`is` is a contextual keyword rather than a reserved word, and the [no LineTerminator here] restriction is what that costs. `a is b` on one line is a Syntax Error today, so the new production takes syntax no program can be using; but `a`, `is`, and `b` on three lines is three statements today, by automatic semicolon insertion, and must stay three. The restriction keeps it so, at the price that a program cannot break the line before `is`. This is the treatment `async` already receives before an arrow's parameters, and the alternative, reserving the word, is not available.</p>
       </emu-note>
     </emu-clause>
@@ -2021,7 +2021,7 @@ contributors: Sirisian
           <tbody>
             <tr><td>`v instanceof T`</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
             <tr><td>`#f in v`, a brand check</td><td>NarrowTo(_s_, the class declaring `#f`)</td><td>NarrowFrom(_s_, the class declaring `#f`)</td></tr>
-            <tr><td>`v is T` (<emu-xref href="#sec-is-operator"></emu-xref>)</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
+            <tr><td>`v is T` (<emu-xref href="#sec-is-operator"></emu-xref>), and generally `v is P` for a pattern _P_ (<emu-xref href="#sec-is-pattern"></emu-xref>)</td><td>NarrowTo(_s_, PatternType(_P_))</td><td>NarrowFrom(_s_, PatternType(_P_))</td></tr>
             <tr><td>`v === e` or `v !== e`, where the Static Type of _e_ is a literal type _L_</td><td>NarrowTo(_s_, _L_)</td><td>NarrowFrom(_s_, _L_)</td></tr>
             <tr><td>`v.p === e` or `v.p !== e` under the same condition, where _s_ is a ~union~</td><td>NarrowTo(_s_, the union of the members of _s_ whose type at `p` admits _L_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`v` _op_ `e`, where _op_ is a comparison, the Static Type of `v` is a ~parameterized~ type, and `e` is a compile-time constant _c_</td><td>NarrowTo(_s_, _s_ with its metadata replaced by NarrowMetadata(_s_'s metadata, _op_, _c_))</td><td>NarrowTo(_s_, _s_ with its metadata replaced by NarrowMetadata(_s_'s metadata, the negation of _op_, _c_))</td></tr>
@@ -2030,6 +2030,7 @@ contributors: Sirisian
             <tr><td>`typeof v === ` a String literal _k_</td><td>NarrowTo(_s_, the union of the types whose `typeof` is _k_)</td><td>NarrowFrom(_s_, that union)</td></tr>
             <tr><td>`v == null` or `v != null`, and the nullish operators `??`, `??=`, and `?.`</td><td>The nullish branch: NarrowTo(_s_, `null | undefined`)</td><td>The present branch: NarrowFrom(_s_, `null | undefined`)</td></tr>
             <tr><td>A `switch` on a value of an enum type or a sealed class hierarchy</td><td>In each case, NarrowTo(_s_, the case's type)</td><td>In the default, _s_ with every case's type removed</td></tr>
+            <tr><td>A `match` clause `when P` (<emu-xref href="#sec-pattern-matching"></emu-xref>)</td><td>In the arm, NarrowTo(_s_, PatternType(_P_))</td><td>In later clauses, NarrowFrom(_s_, PatternType(_P_)) where the clause is unguarded</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -3156,7 +3157,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>The extensions not listed, including composites, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
+        <p>The extensions not listed, including composites, pattern matching, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
         <p>The dependency now runs in one direction without exception. The metadata parameterization that <emu-xref href="#sec-issubtype"></emu-xref> once forward-referenced is core (<emu-xref href="#sec-parameterized-types"></emu-xref>), as the refinement relation it shares with an enum's underlying type and a class's base always suggested it should be. What remains with the primitive metadata extension is the protocol's hook surface: the judgments beyond the branding default, and the conversion machinery.</p>
       </emu-note>
     </emu-clause>
@@ -3182,6 +3183,7 @@ contributors: Sirisian
             <tr><td>rational.md</td><td>Specified: <emu-xref href="#sec-rational-types"></emu-xref>.</td></tr>
             <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
             <tr><td>composites.md</td><td>Specified: <emu-xref href="#sec-composites"></emu-xref>, layered on the upstream Composites proposal with the deviations of <emu-xref href="#sec-composite-deviations"></emu-xref>.</td></tr>
+            <tr><td>patternmatching.md</td><td>Specified: <emu-xref href="#sec-pattern-matching"></emu-xref>, with the discriminated `where` chains it consumes in <emu-xref href="#sec-discriminated-where-chains"></emu-xref>.</td></tr>
             <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
@@ -3366,9 +3368,18 @@ contributors: Sirisian
 
     <emu-clause id="sec-is-operator">
       <h1>The is Operator</h1>
-      <p>`v is T` is *true* when the value of `v` is of the type _T_ denotes and *false* otherwise. It performs IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) and never throws for a value the type rejects, which is the difference between it and the check a boundary performs: a boundary requires, and `is` asks. Its grammar is given with the conversion operator (<emu-xref href="#sec-types-in-expression-position"></emu-xref>), whose precedence it shares.</p>
+      <p>`v is T` is *true* when the value of `v` is of the type _T_ denotes and *false* otherwise. It performs IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) and never throws for a value the type rejects, which is the difference between it and the check a boundary performs: a boundary requires, and `is` asks. Its grammar is given with the conversion operator (<emu-xref href="#sec-types-in-expression-position"></emu-xref>), whose precedence it shares; the pattern matching extension widens its right operand to a full pattern, of which a type is one form (<emu-xref href="#sec-is-pattern"></emu-xref>), changing nothing written before it.</p>
       <emu-note>
         <p>`is` is the branch a program takes instead of the throw: `if (payment is Payment)` tests what `example(payment)` would have required. Against a dependent record type it runs the predicates, so it is also the only way to ask whether a value the program has been mutating is valid again. Against any other type it is the same structural test every boundary makes, so `v is uint8` and `v is { x: float32 }` are ordinary questions with ordinary answers, and the accessor and higher-order reading of <emu-xref href="#sec-isoftype"></emu-xref> is the reading here too.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-discriminated-where-chains">
+      <h1>Discriminated where Chains</h1>
+      <p>A |RefinementPredicate| in the conditional form is a <dfn>discriminating chain</dfn> when: every condition is an equality comparison, `==` or `===`, between one member access on `this` and a compile-time constant, every condition tests the same member; that member's declared type is a union of the ~literal~ types of exactly such constants, or an enum over them; and the chain is total, ending in an `else` or its conditions exhausting that type. Such a chain <dfn>denotes</dfn> a union: one member per branch, each the type's base with the discriminant narrowed to the constant its branch tested and with each shape assertion of the branch, `this is T` or `this.p is T`, applied by NarrowTo at the asserted path; a branch predicate that is not a shape assertion refines its member as a `where` of its own and contributes no members.</p>
+      <p>The denoted union serves the exhaustiveness check of <emu-xref href="#sec-match-exhaustiveness"></emu-xref> and nothing else: the dependent record type remains one ~parameterized~ Type Record, `Reflect.typeOf` reports it, and assignability compares against it. A chain that does not qualify, a nullish or ordering condition, conditions over two members, a chain with no `else` over a type it does not exhaust, denotes nothing but itself and its `match` writes a `default`.</p>
+      <emu-note>
+        <p>The design's `Address` qualifies, one member tested against two literals with a final `else`, and it denotes exactly the discriminated union its document prints "for reference", so this clause writes down an equivalence the design asserts rather than inventing one. The qualification is syntactic so that no predicate reasoning enters the checker; the alternative was a prover with a budget, and no other rule here asks for one (design, patternmatching.md).</p>
       </emu-note>
     </emu-clause>
 
@@ -4428,12 +4439,12 @@ contributors: Sirisian
 
       <emu-clause id="sec-composite-custommatcher">
         <h1>Composite [ %Symbol.customMatcher% ] ( _subject_, _hint_ )</h1>
-        <p>This property is present only where the host defines %Symbol.customMatcher% (the pattern matching proposal). The function performs the following steps when called:</p>
+        <p>The function performs the following steps when called:</p>
         <emu-alg>
           1. Return IsComposite(_subject_).
         </emu-alg>
         <emu-note>
-          <p>The pattern matching proposal's default matcher for a callable without [[IsClassConstructor]] invokes it as a predicate. Absent this method, the pattern `Composite` would <em>call</em> `Composite(subject)`, matching every object because the result is truthy, running the subject's getters, and interning a composite as a side effect of a test. With it, `when Composite:` is a membership test with no side effect, and a composite constant used as a pattern is one pointer comparison, since a variable pattern tests SameValue and an interned composite's SameValue is its contents.</p>
+          <p>`Composite` needs this method because it is a function, not a Type Object: a name pattern that evaluates to a Type Object tests membership, but a plain function is a constant compared by SameValue (<emu-xref href="#sec-patternmatches"></emu-xref>), so without the matcher `when Composite:` would compare the subject against the function itself, a test nothing sensible ever passes. With it, the bare name means what `Composite.&lt;T&gt;` already means narrowed: is this value a composite. In an ecosystem whose default matcher instead invokes a callable as a predicate, the method is load-bearing rather than merely useful, since a bare `when Composite:` would there call `Composite(subject)`, match every object, run the subject's getters, and intern a composite as the side effect of a test. A composite constant used as a pattern remains one pointer comparison, since a constant pattern tests SameValue and an interned composite's SameValue is its contents.</p>
         </emu-note>
       </emu-clause>
     </emu-clause>
@@ -4524,6 +4535,423 @@ contributors: Sirisian
         <li>The typed JSON parse and the host serialization requirement of <emu-xref href="#sec-composite-json"></emu-xref> are defined.</li>
         <li>Everything else, the creation semantics and eager getters, the Symbol-key refusal, the canonical key order, frozenness and the *null* prototype, `Composite.isComposite`, the weak-position refusal, the cross-realm identity within one registry, and the impossibility of cycles, since a composite is frozen at birth and can reference only values that already existed, is adopted as upstream specifies.</li>
       </ul>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-pattern-matching">
+    <h1>Pattern Matching</h1>
+    <p>This clause specifies the design's pattern matching extension: the `match` expression, the pattern grammar, the widening of `is` to take a pattern, and the exhaustiveness and narrowing rules that make a `match` over a closed type checked complete. A pattern is a test, a destructuring, and a proof at once; the runtime semantics here perform the first two, and the static semantics hand the third to the narrowing machinery of <emu-xref href="#sec-narrowing"></emu-xref>.</p>
+
+    <emu-clause id="sec-match-expression">
+      <h1>The match Expression</h1>
+      <emu-grammar type="definition">
+        <ins>PrimaryExpression[Yield, Await] :
+          MatchExpression[?Yield, ?Await]
+
+        MatchExpression[Yield, Await] :
+          `match` [no LineTerminator here] `(` Expression[+In, ?Yield, ?Await] `)` `{` MatchClauses[?Yield, ?Await] `}`
+
+        MatchClauses[Yield, Await] :
+          MatchClause[?Yield, ?Await]
+          MatchClauses[?Yield, ?Await] MatchClause[?Yield, ?Await]
+
+        MatchClause[Yield, Await] :
+          `when` MatchPattern[?Yield, ?Await] MatchGuard[?Yield, ?Await]? `:` MatchArmBody[?Yield, ?Await]
+          `default` `:` MatchArmBody[?Yield, ?Await]
+
+        MatchGuard[Yield, Await] :
+          `if` `(` Expression[+In, ?Yield, ?Await] `)`
+
+        MatchArmBody[Yield, Await] :
+          AssignmentExpression[+In, ?Yield, ?Await] `;`
+          `throw` AssignmentExpression[+In, ?Yield, ?Await] `;`
+          Block[?Yield, ?Await, ~Return]</ins>
+      </emu-grammar>
+      <p>The |Block| of a |MatchArmBody| carries the [Return], [Yield], and [Await] permissions of the function enclosing the `match`, so `return`, `break`, `continue`, `await`, and `yield` inside a block arm mean what they mean in that function; the ~Return~ above is notational for the production and the permission is threaded in the obvious way by the enclosing contexts. The `;` of an expression arm is subject to automatic semicolon insertion as the `;` of an expression statement is.</p>
+      <p>It is a Syntax Error if a `default` |MatchClause| is not the last of its |MatchClauses|.</p>
+      <emu-note>
+        <p>`match`, `when`, `and`, `or`, and `not` are contextual keywords, treated as keywords only in the positions above and in the pattern grammar, which are Syntax Errors today. `match(x) {}` remains a call followed by a block, because |MatchClauses| requires at least one clause; in statement position the braced sequel of `match (`&hellip;`)` is parsed under a cover, as the `type` operator's parenthesized operand is (<emu-xref href="#sec-types-in-expression-position"></emu-xref>), and refined to |MatchClauses| where they parse as such, otherwise remaining the block it is today. Every program the refinement accepts was a Syntax Error: a clause's pattern is never empty, so the label `when:` never reads as a clause, `default` is reserved and cannot label a statement, and `when` followed by a pattern is not a statement sequence. In expression position there is no overlap at all, since a call followed by `{` is a Syntax Error there.</p>
+      </emu-note>
+
+      <emu-clause id="sec-match-evaluation">
+        <h1>Runtime Semantics: Evaluation</h1>
+        <p>A <dfn variants="Match Cache Records">Match Cache Record</dfn> has a [[Reads]] field, a List of Records { [[Object]], [[Key]], [[Present]], [[Value]] }, and an [[Iterations]] field, a List of Records { [[Object]], [[Elements]] (a List), [[Done]] (a Boolean), [[Iterator]] (an Iterator Record) }. It memoizes what a `match` reads of its subject, so that a property is read at most once and an iterator is obtained at most once however many patterns look, and every pattern of one `match` sees the same values.</p>
+        <emu-alg>
+          1. Let _subject_ be ? GetValue(? Evaluation of |Expression|).
+          1. Let _cache_ be the Match Cache Record { [[Reads]]: a new empty List, [[Iterations]]: a new empty List }.
+          1. For each |MatchClause| _clause_ of |MatchClauses|, in source order, do
+            1. Let _outerEnv_ be the running execution context's LexicalEnvironment.
+            1. Let _env_ be NewDeclarativeEnvironment(_outerEnv_).
+            1. For each element _name_ of the BoundNames of _clause_, perform ! _env_.CreateImmutableBinding(_name_, *true*).
+            1. Set the running execution context's LexicalEnvironment to _env_.
+            1. If _clause_ is a `default` clause, let _matched_ be *true*.
+            1. Else, let _matched_ be Completion(PatternMatches(the clause's |MatchPattern|, _subject_, _cache_, _env_)).
+            1. If _matched_ is an abrupt completion, set the running execution context's LexicalEnvironment to _outerEnv_ and return ? _matched_.
+            1. Set _matched_ to ! _matched_.
+            1. If _matched_ is *true* and _clause_ has a |MatchGuard|, then
+              1. Let _guard_ be Completion(GetValue(Completion(Evaluation of the |MatchGuard|'s |Expression|))).
+              1. If _guard_ is an abrupt completion, set the running execution context's LexicalEnvironment to _outerEnv_ and return ? _guard_.
+              1. Set _matched_ to ToBoolean(! _guard_).
+            1. If _matched_ is *true*, then
+              1. Let _result_ be Completion(MatchArmEvaluation of the clause's |MatchArmBody|).
+              1. Set the running execution context's LexicalEnvironment to _outerEnv_.
+              1. Return ? _result_.
+            1. Set the running execution context's LexicalEnvironment to _outerEnv_.
+          1. Throw a *TypeError* exception.
+        </emu-alg>
+        <p>MatchArmEvaluation of `AssignmentExpression ;` returns ? GetValue(? Evaluation of |AssignmentExpression|). Of `throw AssignmentExpression ;`, it evaluates as the `throw` statement does. Of a |Block|: if the |Block|'s |StatementList| ends in an |ExpressionStatement|, every preceding item is evaluated in order for effect, and the result is the value of that final expression; otherwise the |Block| is evaluated as a block and the result is *undefined*.</p>
+        <emu-note>
+          <p>The final-expression rule is deliberately syntactic rather than the completion-value plumbing of blocks, so a block ending in a declaration or an `if` is ~void~ and the value never silently comes from an earlier statement. The bindings of a clause are created immutable and are initialized by the pattern as it matches; a clause that does not match discards its environment, so a binding never leaks between arms, and the guard and body of the arm that runs see exactly what its own pattern bound.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-match-patterns">
+      <h1>Patterns</h1>
+      <emu-grammar type="definition">
+        <ins>MatchPattern[Yield, Await] :
+          MatchOrPattern[?Yield, ?Await]
+
+        MatchOrPattern[Yield, Await] :
+          MatchAndPattern[?Yield, ?Await]
+          MatchOrPattern[?Yield, ?Await] `or` MatchAndPattern[?Yield, ?Await]
+
+        MatchAndPattern[Yield, Await] :
+          MatchUnaryPattern[?Yield, ?Await]
+          MatchAndPattern[?Yield, ?Await] `and` MatchUnaryPattern[?Yield, ?Await]
+
+        MatchUnaryPattern[Yield, Await] :
+          `not` MatchUnaryPattern[?Yield, ?Await]
+          MatchPrimaryPattern[?Yield, ?Await]
+
+        MatchPrimaryPattern[Yield, Await] :
+          `(` MatchPattern[?Yield, ?Await] `)`
+          MatchBindingPattern[?Yield, ?Await]
+          `${` Expression[+In, ?Yield, ?Await] `}`
+          ObjectMatchPattern[?Yield, ?Await]
+          ArrayMatchPattern[?Yield, ?Await]
+          MatchNamePattern[?Yield, ?Await]
+          MatchNamePattern[?Yield, ?Await] `(` MatchPatternList[?Yield, ?Await]? `)`
+          MatchNamePattern[?Yield, ?Await] ObjectMatchPattern[?Yield, ?Await]
+          MatchNamePattern[?Yield, ?Await] ArrayMatchPattern[?Yield, ?Await]
+          MatchLiteralPattern[?Yield, ?Await]
+          Type[?Yield, ?Await]
+
+        MatchBindingPattern[Yield, Await] :
+          `let` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]?
+          `const` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]?
+
+        MatchNamePattern[Yield, Await] :
+          IdentifierReference[?Yield, ?Await]
+          MatchNamePattern[?Yield, ?Await] `.` IdentifierName
+          MatchNamePattern[?Yield, ?Await] TypeArguments[?Yield, ?Await]
+
+        MatchPatternList[Yield, Await] :
+          MatchPattern[?Yield, ?Await]
+          MatchPatternList[?Yield, ?Await] `,` MatchPattern[?Yield, ?Await]
+
+        ObjectMatchPattern[Yield, Await] :
+          `{` `}`
+          `{` MatchPropertyList[?Yield, ?Await] `,`? `}`
+          `{` MatchPropertyList[?Yield, ?Await] `,` `...` MatchBindingPattern[?Yield, ?Await] `}`
+          `{` `...` MatchBindingPattern[?Yield, ?Await] `}`
+
+        MatchPropertyList[Yield, Await] :
+          MatchProperty[?Yield, ?Await]
+          MatchPropertyList[?Yield, ?Await] `,` MatchProperty[?Yield, ?Await]
+
+        MatchProperty[Yield, Await] :
+          PropertyName[?Yield, ?Await] `:` MatchPattern[?Yield, ?Await]
+          MatchBindingPattern[?Yield, ?Await]
+
+        ArrayMatchPattern[Yield, Await] :
+          `[` `]`
+          `[` MatchPatternList[?Yield, ?Await] `,`? `]`
+          `[` MatchPatternList[?Yield, ?Await] `,` `...` MatchBindingPattern[?Yield, ?Await] `]`
+          `[` `...` MatchBindingPattern[?Yield, ?Await] `]`</ins>
+      </emu-grammar>
+      <p>A |MatchProperty| that is a |MatchBindingPattern| is the shorthand: `let x` is `x: let x`. Within a |MatchPattern|, `${` is recognized as a punctuator, a lexical goal the pattern context sets as the template contexts do; outside one it lexes as it does today. A `MatchLiteralPattern` is a |ShortCircuitExpression| restricted by the early errors below to a literal-like form; the restriction is applied after the cover parse, as the parenthesized operand of `type` is refined (<emu-xref href="#sec-types-in-expression-position"></emu-xref>).</p>
+      <emu-grammar type="definition">
+        <ins>MatchLiteralPattern[Yield, Await] :
+          ShortCircuitExpression[+In, ?Yield, ?Await]</ins>
+      </emu-grammar>
+      <ul>
+        <li>It is a Syntax Error if a |MatchLiteralPattern|'s |ShortCircuitExpression| is not one of: a |NumericLiteral|, optionally preceded by `+` or `-`; a |StringLiteral|; a |NoSubstitutionTemplate|; `true`, `false`, or `null`; a |RegularExpressionLiteral|; or a range literal of <emu-xref href="#sec-range-literals"></emu-xref>, each of whose present endpoints is one of the preceding forms or a |MatchNamePattern| form.</li>
+        <li>It is a Syntax Error if the two alternatives of a `MatchOrPattern` do not have the same BoundNames.</li>
+        <li>It is a Syntax Error if the BoundNames of a |MatchPattern| contain any duplicate entries, except that the same name bound by both alternatives of an `or` is one binding.</li>
+        <li>It is a type error if the |MatchNamePattern| of a juxtaposition or of an extractor form resolves to a binding: the juxtaposed head must denote a type, and the extractor head must denote a value with a %Symbol.customMatcher% method, decided at the site where the head's Static Type is known and at run time otherwise.</li>
+      </ul>
+      <p>A |MatchNamePattern| and a |Type| overlap where a name is both; the name form is preferred, and the two readings agree wherever both exist, since a name denoting a type matches by membership under either. The |Type| alternative exists for the forms only a type can spell, a union of literal types being the or-pattern for constants with no combinator: `'GET' | 'HEAD'` is one type pattern whose test is two comparisons. A |MatchLiteralPattern| and a ~literal~ |Type| likewise coincide; the literal form is preferred and the semantics are one.</p>
+
+      <emu-clause id="sec-patternmatches" type="abstract operation">
+        <h1>
+          PatternMatches (
+            _P_: a Parse Node,
+            _subject_: an ECMAScript language value,
+            _cache_: a Match Cache Record,
+            _env_: an Environment Record,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It decides whether the pattern _P_ matches _subject_, initializing the bindings _P_ declares in _env_ as it does. Sub-patterns are tried in source order and the operation returns at the first failure, so user code a pattern can reach, a getter, a matcher, an interpolation, runs at most once and only up to the deciding test.</dd>
+        </dl>
+        <emu-alg>
+          1. If _P_ is `MatchOrPattern : MatchOrPattern or MatchAndPattern`, then
+            1. Let _left_ be ? PatternMatches(the first alternative, _subject_, _cache_, _env_).
+            1. If _left_ is *true*, return *true*.
+            1. Return ? PatternMatches(the second alternative, _subject_, _cache_, _env_).
+          1. If _P_ is `MatchAndPattern : MatchAndPattern and MatchUnaryPattern`, then
+            1. Let _left_ be ? PatternMatches(the first operand, _subject_, _cache_, _env_).
+            1. If _left_ is *false*, return *false*.
+            1. Return ? PatternMatches(the second operand, _subject_, _cache_, _env_).
+          1. If _P_ is `MatchUnaryPattern : not MatchUnaryPattern`, then
+            1. Let _inner_ be ? PatternMatches(the operand, _subject_, _cache_, _env_).
+            1. If _inner_ is *true*, return *false*; else return *true*.
+          1. If _P_ is a parenthesized pattern, return ? PatternMatches(its |MatchPattern|, _subject_, _cache_, _env_).
+          1. If _P_ is a |MatchBindingPattern|, then
+            1. If _P_ has a |TypeAnnotation|, then
+              1. Let _ok_ be ? IsOfType(_subject_, the Type Record it denotes).
+              1. If _ok_ is *false*, return *false*.
+            1. Perform ! _env_.InitializeBinding(the StringValue of _P_'s |BindingIdentifier|, _subject_).
+            1. Return *true*.
+          1. If _P_ is `${ Expression }`, then
+            1. Let _v_ be ? GetValue(? Evaluation of |Expression|).
+            1. Return MatchConstant(_subject_, _v_).
+          1. If _P_ is a |MatchLiteralPattern|, then
+            1. Let _v_ be ? GetValue(? Evaluation of its |ShortCircuitExpression|), except that a numeric literal takes the contextual type of the pattern's position (<emu-xref href="#sec-literal-propagation"></emu-xref>).
+            1. If _v_ is a Range, return ? MatchRange(_subject_, _v_).
+            1. If _v_ is an Object with a [[RegExpMatcher]] internal slot, return ? MatchRegExp(_subject_, _v_, ~none~, _cache_, _env_).
+            1. If _P_'s |ShortCircuitExpression| is a |NumericLiteral| with no preceding `+` or `-` whose value is a zero, return the result of the sameValueZero comparison of _subject_ and _v_ within their type, *false* where their types differ.
+            1. Return MatchConstant(_subject_, _v_).
+          1. If _P_ is a |Type|, return ? IsOfType(_subject_, the Type Record _P_ denotes).
+          1. If _P_ is a |MatchNamePattern| alone, then
+            1. If _P_ resolves to a type, return ? IsOfType(_subject_, the Type Record it denotes).
+            1. Let _v_ be ? GetValue(? Evaluation of _P_ read as the member expression it spells).
+            1. If _v_ is a Type Object, return ? IsOfType(_subject_, the Type Record _v_ reifies).
+            1. If _v_ is a Range, return ? MatchRange(_subject_, _v_).
+            1. If _v_ is an Object with a [[RegExpMatcher]] internal slot, return ? MatchRegExp(_subject_, _v_, ~none~, _cache_, _env_).
+            1. If _v_ is an Object, then
+              1. Let _matcher_ be ? GetMethod(_v_, %Symbol.customMatcher%).
+              1. If _matcher_ is not *undefined*, then
+                1. Let _r_ be ? Call(_matcher_, _v_, &laquo; _subject_ &raquo;).
+                1. If _r_ is an Object, throw a *TypeError* exception.
+                1. Return ToBoolean(_r_).
+            1. Return MatchConstant(_subject_, _v_).
+          1. If _P_ is `MatchNamePattern ( MatchPatternList? )`, then
+            1. Let _v_ be ? GetValue(? Evaluation of the |MatchNamePattern| read as the member expression it spells).
+            1. If _v_ is not an Object, throw a *TypeError* exception.
+            1. Let _matcher_ be ? GetMethod(_v_, %Symbol.customMatcher%).
+            1. If _matcher_ is *undefined*, throw a *TypeError* exception.
+            1. Let _r_ be ? Call(_matcher_, _v_, &laquo; _subject_ &raquo;).
+            1. If _r_ is *null*, return *false*.
+            1. If _r_ is not an Object, throw a *TypeError* exception.
+            1. Let _len_ be ? LengthOfArrayLike(_r_).
+            1. If _len_ &ne; the number of patterns in the |MatchPatternList|, or the list is absent and _len_ &ne; 0, throw a *TypeError* exception.
+            1. Let _i_ be 0.
+            1. For each pattern _p_ of the |MatchPatternList|, in order, do
+              1. Let _e_ be ? Get(_r_, ! ToString(𝔽(_i_))).
+              1. If ? PatternMatches(_p_, _e_, _cache_, _env_) is *false*, return *false*.
+              1. Set _i_ to _i_ + 1.
+            1. Return *true*.
+          1. If _P_ is a juxtaposition of a |MatchNamePattern| and an |ObjectMatchPattern| or |ArrayMatchPattern|, then
+            1. Let _t_ be the Type Record the |MatchNamePattern| denotes; it is a *TypeError* exception at run time if it denotes none.
+            1. Let _ofType_ be ? IsOfType(_subject_, _t_).
+            1. If _ofType_ is *false*, return *false*.
+            1. Return ? PatternMatches(the structural pattern, _subject_, _cache_, _env_).
+          1. If _P_ is an |ObjectMatchPattern|, return ? MatchObjectPattern(_P_, _subject_, _cache_, _env_).
+          1. Assert: _P_ is an |ArrayMatchPattern|.
+          1. Return ? MatchArrayPattern(_P_, _subject_, _cache_, _env_).
+        </emu-alg>
+        <emu-note>
+          <p>MatchConstant(_a_, _b_) is the sameValue comparison within one type: *false* where the types of _a_ and _b_ differ, and the type's T::sameValue otherwise, with SameValue for values that are not of a numeric type. For an interned composite that is one pointer comparison, and for a value type class instance it is the fieldwise comparison its `===` performs. The bare-zero step is the one SameValueZero literal: `0` matches both zeros of the position's type at every width, while an explicit `+0` or `-0` distinguishes them, the design's rule stated per type.</p>
+          <p>The name form dispatches on what the name turns out to hold, so a range or a regular expression bound to a constant matches as the literal spelling would, by containment and by whole-subject match; the escape to identity in every case is `${name}`. A boolean-returning matcher reached without parentheses is a membership test, the form `Composite` uses (<emu-xref href="#sec-composite-custommatcher"></emu-xref>); a matcher that returns an object there is a *TypeError*, as parentheses on a boolean matcher are, so the two protocols cannot be confused silently. Matchers and interpolations are the patterns that run user code, and they run in source order at most once each per match attempt.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-match-structural" type="abstract operation">
+        <h1>
+          MatchObjectPattern (
+            _P_: a Parse Node,
+            _subject_: an ECMAScript language value,
+            _cache_: a Match Cache Record,
+            _env_: an Environment Record,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It matches an |ObjectMatchPattern|: each named member must be present, by the `in` test, and its value must match its sub-pattern; the rest binding, where present, collects the remaining own enumerable members.</dd>
+        </dl>
+        <emu-alg>
+          1. If _subject_ is not an Object, return *false*.
+          1. For each |MatchProperty| _prop_ of _P_, in order, do
+            1. Let _key_ be the property key _prop_ names.
+            1. If no element of _cache_.[[Reads]] has [[Object]] _subject_ and [[Key]] _key_, then
+              1. Let _present_ be ? HasProperty(_subject_, _key_).
+              1. If _present_ is *true*, let _value_ be ? Get(_subject_, _key_); else let _value_ be *undefined*.
+              1. Append the Record { [[Object]]: _subject_, [[Key]]: _key_, [[Present]]: _present_, [[Value]]: _value_ } to _cache_.[[Reads]].
+            1. Let _read_ be the element of _cache_.[[Reads]] whose [[Object]] is _subject_ and whose [[Key]] is _key_.
+            1. If _read_.[[Present]] is *false*, return *false*.
+            1. If ? PatternMatches(the sub-pattern of _prop_, _read_.[[Value]], _cache_, _env_) is *false*, return *false*.
+          1. If _P_ has a rest |MatchBindingPattern|, then
+            1. Let _rest_ be OrdinaryObjectCreate(%Object.prototype%).
+            1. Perform ? CopyDataProperties(_rest_, _subject_, the List of the property keys the |MatchProperty| list names).
+            1. Perform ! _env_.InitializeBinding(the StringValue of its |BindingIdentifier|, _rest_).
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>The cache is why arms agree: a getter named by three patterns runs once, and the presence test and the read are one cached touch, a HasProperty and at most one Get per key per match. A composite subject makes the cache unnecessary rather than the guarantee weaker, since its every read is idempotent, and an implementation may skip it there (<emu-xref href="#sec-composites"></emu-xref>). An absent optional member fails the pattern rather than matching *undefined*, which is the design's presence rule; matching the absence is a guard's job.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-match-array" type="abstract operation">
+        <h1>
+          MatchArrayPattern (
+            _P_: a Parse Node,
+            _subject_: an ECMAScript language value,
+            _cache_: a Match Cache Record,
+            _env_: an Environment Record,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It matches an |ArrayMatchPattern| through iteration, memoized per subject: elements are pulled as patterns need them, a pattern without a rest element requires the iterator exhausted at its length, and a rest binding collects the remainder into a fresh Array.</dd>
+        </dl>
+        <emu-alg>
+          1. If _subject_ is not an Object, return *false*.
+          1. If no element of _cache_.[[Iterations]] has [[Object]] _subject_, then
+            1. Let _iteratorRecord_ be ? GetIterator(_subject_, ~sync~).
+            1. Append the Record { [[Object]]: _subject_, [[Elements]]: a new empty List, [[Done]]: *false*, [[Iterator]]: _iteratorRecord_ } to _cache_.[[Iterations]].
+          1. Let _it_ be the element of _cache_.[[Iterations]] whose [[Object]] is _subject_.
+          1. Let _n_ be the number of patterns in _P_'s |MatchPatternList|, or 0 where it is absent.
+          1. Perform ? MatchIteratorFill(_it_, _n_ + 1).
+          1. If _P_ has no rest |MatchBindingPattern|, then
+            1. If the number of elements of _it_.[[Elements]] &ne; _n_ or _it_.[[Done]] is *false*, return *false*.
+          1. Else,
+            1. If the number of elements of _it_.[[Elements]] &lt; _n_, return *false*.
+          1. Let _i_ be 0.
+          1. For each pattern _p_ of the |MatchPatternList|, in order, do
+            1. If ? PatternMatches(_p_, _it_.[[Elements]][_i_], _cache_, _env_) is *false*, return *false*.
+            1. Set _i_ to _i_ + 1.
+          1. If _P_ has a rest |MatchBindingPattern|, then
+            1. Repeat, while _it_.[[Done]] is *false*,
+              1. Perform ? MatchIteratorFill(_it_, the number of elements of _it_.[[Elements]] + 1).
+            1. Let _restList_ be the List of the elements of _it_.[[Elements]] from index _n_ onward.
+            1. Perform ! _env_.InitializeBinding(the StringValue of its |BindingIdentifier|, CreateArrayFromList(_restList_)).
+          1. Return *true*.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-matchiteratorfill" type="abstract operation">
+        <h1>
+          MatchIteratorFill (
+            _it_: a Record of a Match Cache Record's [[Iterations]],
+            _count_: a non-negative integer,
+          ): either a normal completion containing ~unused~ or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It advances the memoized iteration until _it_.[[Elements]] has _count_ elements or the iterator is exhausted.</dd>
+        </dl>
+        <emu-alg>
+          1. Repeat, while _it_.[[Done]] is *false* and the number of elements of _it_.[[Elements]] &lt; _count_,
+            1. Let _next_ be ? IteratorStepValue(_it_.[[Iterator]]).
+            1. If _next_ is ~done~, set _it_.[[Done]] to *true*.
+            1. Else, append _next_ to _it_.[[Elements]].
+          1. Return ~unused~.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-matchconstant" type="abstract operation">
+        <h1>
+          MatchConstant (
+            _a_: an ECMAScript language value,
+            _b_: an ECMAScript language value,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It is the sameValue comparison within one type: *false* where the types of _a_ and _b_ differ, the type's T::sameValue where they are of one numeric type, and SameValue otherwise.</dd>
+        </dl>
+        <emu-alg>
+          1. If _a_ and _b_ are not values of one type, return *false*.
+          1. If _a_ is a value of a numeric type, return the sameValue comparison of that type applied to _a_ and _b_.
+          1. Return SameValue(_a_, _b_).
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-matchrange" type="abstract operation">
+        <h1>
+          MatchRange (
+            _subject_: an ECMAScript language value,
+            _r_: a Range,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It matches a range pattern by containment.</dd>
+        </dl>
+        <emu-alg>
+          1. If _subject_ is not a value of a type ordered with the element type of _r_, return *false*.
+          1. Return ? the result of the containment test the range's `contains` performs on _subject_ (<emu-xref href="#sec-ranges"></emu-xref>), which is at most two comparisons.
+        </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-matchregexp" type="abstract operation">
+        <h1>
+          MatchRegExp (
+            _subject_: an ECMAScript language value,
+            _r_: an Object with a [[RegExpMatcher]] internal slot,
+            _sub_: a Parse Node or ~none~,
+            _cache_: a Match Cache Record,
+            _env_: an Environment Record,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It matches a regular expression pattern against the entire subject, and matches the juxtaposed structural pattern _sub_, where present, against the match result.</dd>
+        </dl>
+        <emu-alg>
+          1. If _subject_ is not a String, return *false*.
+          1. Let _result_ be ? RegExpExec(_r_, _subject_) restricted to a match of the entirety of _subject_: the match must begin at index 0 and end at the length of _subject_, as the whole-string discipline of a `pattern` constraint requires (<emu-xref href="#sec-typed-regular-expressions"></emu-xref>), so a search is spelled as one.
+          1. If _result_ is *null*, return *false*.
+          1. If _sub_ is ~none~, return *true*.
+          1. Return ? PatternMatches(_sub_, _result_, _cache_, _env_).
+        </emu-alg>
+        <emu-note>
+          <p>The match result's Static Type is the exact result type the regular expression's captures give it, so `groups: { let year }` binds the typed group and a misspelled group name is a type error against that type. The result is constructed once and its reads enter the cache as any subject's do.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-pattern-static-semantics">
+      <h1>Static Semantics of Patterns</h1>
+      <p>The <dfn>pattern type</dfn> of a pattern _P_, PatternType(_P_), is the Type Record a successful match establishes, defined by the form of _P_: a |Type|, the type it denotes; a name resolving to a type or evaluating to a Type Object of known type, that type; a literal, its ~literal~ type at the position type by <emu-xref href="#sec-literal-propagation"></emu-xref>; a name denoting a constant of literal or enumerator type, that type; a binding with an annotation, the annotated type, and without one, ~any~; a range whose endpoints are compile-time constants, the position type refined by the interval's metadata (<emu-xref href="#sec-ranges"></emu-xref>); a regular expression, `string`; an extractor, the Static Type its matcher's parameter declares for the subject; a juxtaposition, PatternType of its structural part narrowed to its head's type; an |ObjectMatchPattern|, the ~object~ Type Record whose properties are the named members, each required, at the PatternType of its sub-pattern; an |ArrayMatchPattern| without rest, the ~tuple~ of its element PatternTypes, and with rest, ~any~; an `and`, the NarrowTo of its operands' pattern types in order; an `or`, the union of its alternatives'; a `not` or an interpolation of non-literal type, ~any~.</p>
+      <p>Within a pattern, each sub-pattern's <dfn>position type</dfn> is the subject's Static Type at that position, computed left to right: the subject narrowed by the preceding operand of an `and`, a named member's type in the members of a union position the pattern has not eliminated, an element's type from a ~tuple~ position or the element type of an ~array~ one, an extracted position's type from the matcher's declared return. A binding's Static Type is NarrowTo of its position type and its PatternType. It is a type error if NarrowTo of a sub-pattern's position type and its PatternType is ~empty~, the impossible-test rule of <emu-xref href="#sec-narrowing"></emu-xref>; and it is a type error if a numeric literal's position type is a union of two or more numeric types, since the literal has two types it could take, resolved by `and` with a type or by an interpolation.</p>
+      <p>The rows this clause adds to <emu-xref href="#table-narrowing-forms"></emu-xref>: in the arm of a `when` _P_, NarrowTo(_s_, PatternType(_P_)); in the arms after it, NarrowFrom(_s_, PatternType(_P_)) where the clause is unguarded; and `v is` _P_ narrows as `when` _P_ does, in the positions the test governs. The Static Type of a `match` expression is the canonicalized union of its arm types, a `throw` arm and a diverging block contributing nothing and a block arm not ending in an |ExpressionStatement| contributing ~void~; a contextual type on the `match` is the contextual type of each arm body.</p>
+
+      <emu-clause id="sec-match-exhaustiveness">
+        <h1>Exhaustiveness</h1>
+        <p>The <dfn>atoms</dfn> of a Type Record _t_ are: for an enum, its enumerators; for a sealed class, its direct subclasses and, where instantiable, itself; for `boolean`, *true* and *false*; for `null` and `undefined`, themselves; for a ~union~ of two or more members each of which is one of the preceding, an ~object~ type, a ~tuple~ type, or a composite type, the atoms of each member, an object, tuple, or composite member being its own atom; for a dependent record type whose predicate is a discriminating `where` chain, the atoms of the union that chain denotes (<emu-xref href="#sec-discriminated-where-chains"></emu-xref>); and ~none~ otherwise. A union with a member of ~literal~ kind has atoms ~none~: a closed set of literals that wants the check is an enum over its base, the standing decision of <emu-xref href="#sec-enums"></emu-xref>, restated rather than reopened.</p>
+        <p>An unguarded clause <dfn>covers</dfn> an atom _a_ when: its pattern's PatternType _pt_ satisfies IsSubtype(the type of _a_, _pt_, &laquo; &raquo;), reading an enumerator atom's type as its enumerator, covered by the constant pattern naming it or a type pattern naming its enum, and reading *true*, *false*, `null`, and `undefined` atoms as their literal patterns and types; an object, tuple, or composite atom is additionally covered by a structural pattern each of whose named members is declared required by the atom and whose sub-patterns each cover the member's declared type, the subsumption the impossible-test rule computes run in the other direction. A `default` covers every atom, and a guarded clause covers none.</p>
+        <p>It is a type error if the atoms of the subject's Static Type are not ~none~ and some atom is covered by no clause. It is a type error if a clause can match nothing the preceding unguarded clauses have left: where NarrowTo of the subject's remaining type, the Static Type folded by NarrowFrom over the preceding unguarded clauses' pattern types, and the clause's PatternType is ~empty~, or where every atom the clause covers is covered before it; a `default` whose preceding clauses cover every atom of a subject with atoms is that error's instance, so a covered `match` and a defaulted one cannot silently coexist.</p>
+        <emu-note>
+          <p>The `switch` exhaustiveness of <emu-xref href="#sec-enums"></emu-xref> and <emu-xref href="#sec-sealed-classes"></emu-xref> is the two-atom-kind instance of this rule, and nothing about `switch` changes. What patterns add is the members a pattern can provably blanket, which is what makes a discriminated union of object types and the `T | null` of every `tryParse` checkable with no `default`, and what a lone object or tuple type deliberately does not get, its atoms being ~none~ absent a qualifying `where` chain, because a subset pattern is the point of matching on one. Coverage is syntactic over declared types; the checker evaluates no guard and no predicate.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-is-pattern">
+      <h1>The is Operator Takes a Pattern</h1>
+      <p>The right operand of `is` (<emu-xref href="#sec-types-in-expression-position"></emu-xref>) is widened from |Type| to |MatchPattern|, of which a |Type| is one form, so every existing `is` keeps its parse and its meaning. `v is` _P_ evaluates PatternMatches(_P_, the value of `v`, a fresh Match Cache Record, _env_) and returns the Boolean, where _env_ is a new declarative Environment Record in which _P_'s BoundNames are created as immutable bindings; the bindings are in scope in exactly the positions the truth of the test governs, the positions <emu-xref href="#sec-narrowing"></emu-xref> enumerates, each such position evaluating in _env_. It is a type error to reference one of those bindings anywhere else, and it is a type error for a binding-carrying `is` to occur where no position is governed by its truth, since the bindings would then exist nowhere.</p>
+      <emu-note>
+        <p>`subject is P` is the one-arm `match`, exactly: it matches, binds, and narrows as `when P` would, which is what makes `while (read() is Ok(let chunk))` a loop whose body sees `chunk` and whose exit is the miss. The dependent-record `is` of <emu-xref href="#sec-is-operator"></emu-xref> is the |Type| case of this operator, unchanged.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-custommatcher-symbol">
+      <h1>%Symbol.customMatcher%</h1>
+      <p>This extension adds the well-known symbol <dfn>%Symbol.customMatcher%</dfn> (`Symbol.customMatcher`), the method a name and an extractor pattern consult. The typed protocol is a method from a subject to a tuple or `null`, or to a Boolean for the parenthesis-less membership form; its declared signature is the whole contract, overloads select on the subject's Static Type, and a generic matcher infers its parameters from the subject as any generic call does, which is how an extractor's bindings are typed with nothing annotated (design, patternmatching.md).</p>
     </emu-clause>
   </emu-clause>
 
