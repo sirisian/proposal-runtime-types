@@ -3274,7 +3274,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>The extensions not listed, including composites, pattern matching, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
+        <p>The extensions not listed, including composites, pattern matching, do expressions, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
         <p>The dependency now runs in one direction without exception. The metadata parameterization that <emu-xref href="#sec-issubtype"></emu-xref> once forward-referenced is core (<emu-xref href="#sec-parameterized-types"></emu-xref>), as the refinement relation it shares with an enum's underlying type and a class's base always suggested it should be. What remains with the primitive metadata extension is the protocol's hook surface: the judgments beyond the branding default, and the conversion machinery.</p>
       </emu-note>
     </emu-clause>
@@ -3301,6 +3301,7 @@ contributors: Sirisian
             <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
             <tr><td>composites.md</td><td>Specified: <emu-xref href="#sec-composites"></emu-xref>, layered on the upstream Composites proposal with the deviations of <emu-xref href="#sec-composite-deviations"></emu-xref>.</td></tr>
             <tr><td>patternmatching.md</td><td>Specified: <emu-xref href="#sec-pattern-matching"></emu-xref>, with the discriminated `where` chains it consumes in <emu-xref href="#sec-discriminated-where-chains"></emu-xref>.</td></tr>
+            <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
             <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
@@ -3722,7 +3723,7 @@ contributors: Sirisian
             <tr><td>Function</td><td>`Function`, `FunctionParameter`, `FunctionReturn`</td><td>A function declaration, its parameters, and its return.</td></tr>
             <tr><td>Binding</td><td>`Let`, `Const`</td><td>A declared binding.</td></tr>
             <tr><td>Object</td><td>`Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, `ObjectMethodReturn`</td><td>An object literal and its members, keyed on the instance rather than on a declaration, since that is where an object's metadata lives.</td></tr>
-            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`</td><td>A statement's block, and the block of a `match` clause's arm (<emu-xref href="#sec-match-expression"></emu-xref>). These are the one per-evaluation position of this extension: a block decorator runs on every entry to its block rather than once where the declaration is evaluated, which is what makes a block in a loop, or an arm of a `match`, countable.</td></tr>
+            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`, `DoBlock`, `DoGeneratorBlock`</td><td>A statement's block, and the block of a `match` clause's arm (<emu-xref href="#sec-match-expression"></emu-xref>). These are the one per-evaluation position of this extension: a block decorator runs on every entry to its block rather than once where the declaration is evaluated, which is what makes a block in a loop, or an arm of a `match`, countable.</td></tr>
             <tr><td>Enum</td><td>`Enum`, `EnumEnumerator`</td><td>An enum and its enumerators, parameterized by the underlying type.</td></tr>
             <tr><td>Structural</td><td>`Tuple`, `Record`</td><td>A tuple or record declaration.</td></tr>
           </tbody>
@@ -4719,9 +4720,9 @@ contributors: Sirisian
             1. Set the running execution context's LexicalEnvironment to _outerEnv_.
           1. Throw a *TypeError* exception.
         </emu-alg>
-        <p>MatchArmEvaluation of `AssignmentExpression ;` returns ? GetValue(? Evaluation of |AssignmentExpression|). Of `throw AssignmentExpression ;`, it evaluates as the `throw` statement does. Of a |Block|: if the |Block|'s |StatementList| ends in an |ExpressionStatement|, every preceding item is evaluated in order for effect, and the result is the value of that final expression; otherwise the |Block| is evaluated as a block and the result is *undefined*.</p>
+        <p>MatchArmEvaluation of `AssignmentExpression ;` returns ? GetValue(? Evaluation of |AssignmentExpression|). Of `throw AssignmentExpression ;`, it evaluates as the `throw` statement does. Of a |Block|, it is the evaluation of a `do` expression's |Block| (<emu-xref href="#sec-do-expressions"></emu-xref>): the block is evaluated and the result is its completion value.</p>
         <emu-note>
-          <p>The final-expression rule is deliberately syntactic rather than the completion-value plumbing of blocks, so a block ending in a declaration or an `if` is ~void~ and the value never silently comes from an earlier statement. The bindings of a clause are created immutable and are initialized by the pattern as it matches; a clause that does not match discards its environment, so a binding never leaks between arms, and the guard and body of the arm that runs see exactly what its own pattern bound.</p>
+          <p>An arm's block was given a narrower rule than this while do expressions were outstanding - its value was its final statement's only where that statement was an |ExpressionStatement|, and ~void~ otherwise - and that rule was a strict subset of this one, so no program changes meaning by its replacement. What it could not do was let an arm end in an `if` with an `else` or a `try`, and what it did badly was make an arm ending in a declaration a silent ~void~ rather than the Syntax Error <emu-xref href="#sec-do-expression-early-errors"></emu-xref> now gives. The bindings of a clause are created immutable and are initialized by the pattern as it matches; a clause that does not match discards its environment, so a binding never leaks between arms, and the guard and body of the arm that runs see exactly what its own pattern bound.</p>
         </emu-note>
       </emu-clause>
     </emu-clause>
@@ -5092,7 +5093,7 @@ contributors: Sirisian
       <h1>Static Semantics of Patterns</h1>
       <p>The <dfn>pattern type</dfn> of a pattern _P_, PatternType(_P_), is the Type Record a successful match establishes, defined by the form of _P_: a |Type|, the type it denotes; a name resolving to a type or evaluating to a Type Object of known type, that type; a literal, its ~literal~ type at the position type by <emu-xref href="#sec-literal-propagation"></emu-xref>; a name denoting a constant of literal or enumerator type, that type; a binding with an annotation, the annotated type, and without one, ~any~; a range whose endpoints are compile-time constants, the position type refined by the interval's metadata (<emu-xref href="#sec-ranges"></emu-xref>); a regular expression, `string`; an extractor whose head denotes a type, that type, which is the narrowing its matcher's author asserts and the checker takes, as it takes a declared narrowing predicate's, and ~any~ for a head that denotes no type; a juxtaposition, PatternType of its structural part narrowed to its head's type; an |ObjectMatchPattern|, the ~object~ Type Record whose properties are the named members, each required, at the PatternType of its sub-pattern; an |ArrayMatchPattern| without rest, the ~tuple~ of its element PatternTypes, and with rest, ~any~; an `and`, the NarrowTo of its operands' pattern types in order; an `or`, the union of its alternatives'; an `extends` pattern, the `type` type (<emu-xref href="#sec-the-type-type"></emu-xref>), since what a successful match establishes of the subject is that it is a Type Object; a wildcard, a `not`, or an interpolation of non-literal type, ~any~.</p>
       <p>Within a pattern, each sub-pattern's <dfn>position type</dfn> is the subject's Static Type at that position, computed left to right: the subject narrowed by the preceding operand of an `and`, a named member's type in the members of a union position the pattern has not eliminated, an element's type from a ~tuple~ position or the element type of an ~array~ one, an extracted position's type from the matcher's declared return. A binding's Static Type is NarrowTo of its position type and its PatternType. A pattern slot's Static Type is the type its |Type| denotes, which is the constraint the match checked, so `B: NumberBounds` binds a `NumberBounds` and `K: type` binds a `type`; a slot is a binding of the clause for every other purpose, immutable, in scope in the guard and the arm, and subject to the duplicate-name and `or`-consistency errors above. It is a type error if NarrowTo of a sub-pattern's position type and its PatternType is ~empty~, the impossible-test rule of <emu-xref href="#sec-narrowing"></emu-xref>; and it is a type error if a numeric literal's position type is a union of two or more numeric types, since the literal has two types it could take, resolved by `and` with a type or by an interpolation.</p>
-      <p>The rows this clause adds to <emu-xref href="#table-narrowing-forms"></emu-xref>: in the arm of a `when` _P_, NarrowTo(_s_, PatternType(_P_)); in the arms after it, NarrowFrom(_s_, PatternType(_P_)) where the clause is unguarded; and `v is` _P_ narrows as `when` _P_ does, in the positions the test governs. The Static Type of a `match` expression is the canonicalized union of its arm types, a `throw` arm and a diverging block contributing nothing and a block arm not ending in an |ExpressionStatement| contributing ~void~; a contextual type on the `match` is the contextual type of each arm body.</p>
+      <p>The rows this clause adds to <emu-xref href="#table-narrowing-forms"></emu-xref>: in the arm of a `when` _P_, NarrowTo(_s_, PatternType(_P_)); in the arms after it, NarrowFrom(_s_, PatternType(_P_)) where the clause is unguarded; and `v is` _P_ narrows as `when` _P_ does, in the positions the test governs. The Static Type of a `match` expression is the canonicalized union of its arm types, a `throw` arm and a diverging block contributing nothing (<emu-xref href="#sec-divergence"></emu-xref>) and a block arm contributing CompletionTypeOf of its |StatementList| (<emu-xref href="#sec-completiontypeof"></emu-xref>); a contextual type on the `match` is the contextual type of each arm body.</p>
 
       <emu-clause id="sec-match-exhaustiveness">
         <h1>Exhaustiveness</h1>
@@ -5128,6 +5129,150 @@ contributors: Sirisian
     <emu-clause id="sec-custommatcher-symbol">
       <h1>%Symbol.customMatcher%</h1>
       <p>This extension adds the well-known symbol <dfn>%Symbol.customMatcher%</dfn> (`Symbol.customMatcher`), the method a name and an extractor pattern consult. The typed protocol is a method from a subject to a tuple or `null`, or to a Boolean for the parenthesis-less membership form; its declared signature is the whole contract, overloads select on the subject's Static Type, and a generic matcher infers its parameters from the subject as any generic call does, which is how an extractor's bindings are typed with nothing annotated (design, patternmatching.md).</p>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-divergence">
+    <h1>Divergence</h1>
+    <p>This clause, like <emu-xref href="#sec-generator-types"></emu-xref>, is owed elsewhere and stated here because this is the first clause that computes with it. The design defines divergence in its `switch` chapter, and <emu-xref href="#sec-pattern-static-semantics"></emu-xref> already reads a `match` arm's type by it - "a `throw` arm and a diverging block contributing nothing" - without the notion having been defined.</p>
+
+    <p>A statement <dfn>diverges</dfn> when no path of control through it completes normally. The analysis is syntactic and reasons about no values:</p>
+    <ul>
+      <li>A `return`, a `throw`, and a `break` or `continue` targeting an enclosing statement diverge.</li>
+      <li>A |Block| diverges when any statement in it diverges.</li>
+      <li>An `if` statement diverges when it has an `else` and both branches diverge.</li>
+      <li>A `switch` statement diverges when it is exhaustive - every enumerator, every direct subclass, or a `default` - and every clause diverges.</li>
+      <li>`while (true)` and `for (;;)` diverge when no `break` targets them.</li>
+    </ul>
+    <p>Two consequences follow, both of which the design states. A `switch` clause whose body diverges needs no `break` and is not a fallthrough; and a function whose body diverges satisfies a non-~void~ return type with no trailing `return`.</p>
+    <emu-note>
+      <p>Syntactic is the whole of it: `while (cond)` does not diverge however plainly `cond` is *true* to a reader, because a rule that reasoned about the condition would have to reason about values, and the design's analyses do not. That is why the list names `while (true)` and `for (;;)` as forms rather than describing a condition.</p>
+    </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-generator-types">
+    <h1>The Generator Types</h1>
+    <p>This clause is owed to the generator forms the core already parses, not to the extension that follows it. <emu-xref href="#sec-annotations-on-the-remaining-function-forms"></emu-xref> admits a return annotation on a generator and says what it means in prose, that "a generator's annotation types the values the iterator yields", and the design writes `Generator.&lt;Y, R, N&gt;` throughout; the type itself has not been stated. It is stated here because <emu-xref href="#sec-do-expressions"></emu-xref> is the first clause that computes one.</p>
+
+    <p>`Generator` names the built-in generic whose instances are the objects a generator function returns, and `AsyncGenerator` the same for an async generator. `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` is the ~nominal~ Type Record for the first with those arguments, and `AsyncGenerator.&lt;`_Y_`, `_R_`, `_N_`&gt;` for the second. _Y_ is the type of the values the generator yields, _R_ the type of the value it returns, and _N_ the type of the value a caller sends to `next`. Both are generic classes, so each is invariant in its arguments by the rule of <emu-xref href="#sec-issubtype"></emu-xref>: a `Generator.&lt;uint8, void, void&gt;` is a subtype of no other instantiation.</p>
+
+    <p>A generator's return annotation is read as follows, which is the design's shorthand made precise. Where the annotation denotes a `Generator` instantiation, and an `AsyncGenerator` instantiation for an async generator, it is the declared type as written. Where it denotes any other type _T_, the declared type is `Generator.&lt;`_T_`, void, void&gt;`, or `AsyncGenerator.&lt;`_T_`, void, void&gt;`, so that `function* f(): int32` declares a generator of `int32`. It is a type error for the annotation of an async generator to denote a `Generator` instantiation, or for a synchronous generator's to denote an `AsyncGenerator` instantiation.</p>
+
+    <p>The Static Type of a call of a generator function is its declared type. Within the body, the Static Type of a |YieldExpression| without `*` is _N_, and it is a type error if the operand's type is not assignable to _Y_. The Static Type of a `yield*` is the _R_ of its operand's generator type, since delegation evaluates to what the delegated generator returned, and the operand's _Y_ must be assignable to the enclosing _Y_.</p>
+
+    <emu-note>
+      <p>Reading a bare annotation as the yield type rather than as the whole generator type is the design's choice and is the useful one: a generator's return and next types are `void` in almost every generator anyone writes, and requiring `Generator.&lt;int32, void, void&gt;` at each of them would make the common case the verbose one. The full form remains available and is what a generator with a meaningful `return` or a two-way protocol writes.</p>
+      <p>That `yield*` has the delegated generator's _R_ as its type, while contributing its _Y_ to the enclosing generator's, is the one part of the protocol a reader is likely to get backwards. It follows from the run time: `yield*` drives the operand to completion and evaluates to its return value.</p>
+    </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-do-expressions">
+    <h1>do Expressions</h1>
+    <p>A `do` expression is a block that produces a value: its statements are evaluated and its value is the completion value, the value of the last statement that completed normally. This clause specifies the design's do expressions extension, which integrates the <a href="https://github.com/tc39/proposal-do-expressions">do expressions proposal</a> under this type system and adds the generator forms of that proposal's issue 76.</p>
+
+    <emu-grammar type="definition">
+      <ins>PrimaryExpression[Yield, Await] :
+        DoExpression[?Yield, ?Await]
+
+      DoExpression[Yield, Await] :
+        `do` Block[?Yield, ?Await, ~Return]
+        `do` `*` `{` GeneratorBody `}`
+        `async` [no LineTerminator here] `do` `*` `{` AsyncGeneratorBody `}`</ins>
+    </emu-grammar>
+
+    <p>The |Block| of the first form carries the [Return] permission of the function enclosing the `do`, as a |MatchArmBody|'s does (<emu-xref href="#sec-match-expression"></emu-xref>), so `return`, `break`, and `continue` inside it mean what they mean in the surrounding code; the ~Return~ above is notational and the permission is threaded by the enclosing contexts. The `[no LineTerminator here]` is what keeps `async` a contextual keyword: `async` on one line and `do *` on the next must remain an identifier reference followed by something else, which is the restriction the productions above already carry before `function`.</p>
+
+    <p>It is a Syntax Error for a |DoExpression| to appear where a |Statement| is admitted, since `do` there begins a `do`-`while`. In statement position a program writes a |Block|, or parenthesizes.</p>
+
+    <emu-note>
+      <p>`do` is a reserved word, so this form costs the grammar less than `match` did (<emu-xref href="#sec-match-expression"></emu-xref>): there is no cover grammar and no program whose meaning changes, only a position where the word was previously a Syntax Error. The `do *` and `async do *` forms need no statement-position rule of their own, since `*` cannot begin a |Statement| and so cannot be a `do`-`while` body; they are refused there with the first form anyway, because a `do *` evaluated as a statement discards the generator it built, and a reader should not have to know which form the collision applies to.</p>
+    </emu-note>
+
+    <emu-clause id="sec-do-expression-early-errors">
+      <h1>Early Errors</h1>
+      <p>The following apply to the first form only. A `do *` has no completion value, its body being a generator body whose completion is discarded, so nothing here restricts it: a `do *` may end in a loop or a declaration, and the design's own motivating example does end in a loop.</p>
+      <ul>
+        <li>It is a Syntax Error if EndsInIterationOrDeclaration of the |Block|'s |StatementList| is *true*. That operation is the upstream proposal's and is adopted unchanged: it holds when the completion value of the list can be the completion value of an iteration statement or of a declaration, which reaches through nesting, so a |Block| whose last statement is an `if` with an `else` one of whose branches ends in a loop is a Syntax Error too.</li>
+        <li>It is a Syntax Error if the |Block|'s |StatementList| ends in an `if` statement with no `else`.</li>
+        <li>It is a Syntax Error for a |VariableStatement| to appear within a |DoExpression| that occurs in a parameter expression, since the function body its binding would hoist into does not yet exist.</li>
+        <li>It is a Syntax Error for an unlabelled `break` or `continue` to appear within a |DoExpression| in the head of an iteration statement.</li>
+        <li>It is a Syntax Error for a `return` to appear within a |DoExpression| in a computed property name in a class body, which is inside no function.</li>
+      </ul>
+      <emu-note>
+        <p>Each of the first two is about a completion value a reader would not predict rather than about a shape being hard to evaluate. A declaration's completion is ~empty~, so `do { 'before'; let x = 'after'; }` would be *"before"*; an `if` with no `else` is its consequent's value or *undefined* by a condition the reader has to trace; and a loop's is the last iteration's value, or *undefined* for none. The upstream proposal records that it intends to pursue changing the completion value of declarations in the base language, and this specification's rule follows whatever that settles: the restriction is stated in terms of EndsInIterationOrDeclaration rather than restated, so it moves with it.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-completiontypeof" type="abstract operation">
+      <h1>
+        CompletionTypeOf (
+          _list_: a |StatementList| Parse Node,
+        ): a Type Record
+      </h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd>It returns the type of the completion value of _list_: the union of the types of the statements that can be the last one to complete normally.</dd>
+      </dl>
+      <emu-alg>
+        1. If _list_ is empty, return the Type Record for `undefined`.
+        1. Let _last_ be the last |StatementListItem| of _list_.
+        1. If _last_ diverges (<emu-xref href="#sec-divergence"></emu-xref>), return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; }.
+        1. If _last_ is an |ExpressionStatement|, return the Static Type of its |Expression|.
+        1. If _last_ is a |Block| or a |LabelledStatement|, return CompletionTypeOf(its own |StatementList|).
+        1. If _last_ is an `if` statement with an `else`, return CanonicalizeType(the union of CompletionTypeOf(each branch's statement read as a one-item |StatementList|)).
+        1. If _last_ is a `try` statement, then
+          1. Let _members_ be a List whose elements are CompletionTypeOf(the |Block|'s |StatementList|) and, where a |Catch| is present, CompletionTypeOf(each |Catch|'s |Block|'s |StatementList|).
+          1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _members_ }).
+        1. If _last_ is a `switch` statement, then
+          1. Let _members_ be a List whose elements are CompletionTypeOf(each |CaseClause| and |DefaultClause|'s |StatementList|).
+          1. If the `switch` is not exhaustive (<emu-xref href="#sec-narrowing"></emu-xref>), append the Type Record for `undefined` to _members_.
+          1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _members_ }).
+        1. Return the Type Record for `undefined`.
+      </emu-alg>
+      <emu-note>
+        <p>The Static Type of a |DoExpression| of the first form is CompletionTypeOf(its |Block|'s |StatementList|). Nothing in the operation is new: divergence is the analysis of <emu-xref href="#sec-divergence"></emu-xref>, which is syntactic and reasons about no values, and the Early Errors above have already removed the forms whose completion type would have been hard to state. What is left is a union over the tails.</p>
+        <p>A `do` all of whose paths diverge has the empty union, which is `never` (<emu-xref href="#sec-never-type"></emu-xref>) and is a subtype of every type, so `const port: uint16 = do { throw new ConfigError('no port'); };` is accepted. This is the first construct in this specification where ordinary code produces `never` rather than a type computation producing it, and it is the answer a program wants: the binding is unreachable, so its declared type constrains nothing.</p>
+        <p>The `switch` step is the one place this operation is not the obvious rule, and it is the design's own. An exhaustive `switch` takes no path where no clause ran, so it contributes no *undefined*, which is the conclusion <emu-xref href="#sec-compile-time-evaluability"></emu-xref> already draws for a `switch` that maps a value to a type: "because enum and sealed-class exhaustiveness is checked, a `switch` used to map a value to a type covers every case its argument can take and therefore yields a Type Object rather than *undefined*". The same expression must not type one way inside a compile-time builder and another inside a `do`. A `switch` that is not exhaustive does contribute *undefined*, which is what makes `const u: uint8 = do { switch (s) { case 'a': 1; } };` a type error.</p>
+        <p>An empty `do {}` is *undefined*, the value `void 0`, and not ~void~: ~void~ is the absence of a value and is a return type, while `do {}` produces one.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-do-expression-contextual-type">
+      <h1>Contextual Typing</h1>
+      <p>A contextual type on a |DoExpression| of the first form (<emu-xref href="#sec-contextual-types"></emu-xref>) is the contextual type of every position CompletionTypeOf reads: the final |ExpressionStatement|'s |Expression|, each branch of a final `if`, each clause of a final `switch`, and the |Block| and each |Catch| |Block| of a final `try`, recursively. A numeric literal in one of those positions therefore takes the expected type by <emu-xref href="#sec-literal-propagation"></emu-xref>.</p>
+      <emu-note>
+        <p>Without this the form would be typed and not usable: every literal inside a `do` would need the annotation the surrounding declaration already carries, so `const level: uint8 = do { if (verbose) 3; else 0; };` would hold Numbers. It is the same propagation a `match` gives its arms, reaching the same kind of position, the one that carries the value out.</p>
+        <p>Narrowing needs no rule of its own. A test inside a `do` narrows inside it by <emu-xref href="#sec-narrowing"></emu-xref>, and no fact survives the expression, since which path ran is not visible outside it; what leaves is the type, and the union over the tails is what carries the narrowing outward.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-do-generator-expressions">
+      <h1>do * Generators</h1>
+      <p>A `do *` evaluates to a generator object, as a call of a generator function does, and its body is a generator body. The Static Type of `do *` `{` |GeneratorBody| `}` is `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` (<emu-xref href="#sec-generator-types"></emu-xref>), and of the `async` form `AsyncGenerator.&lt;`_Y_`, `_R_`, `_N_`&gt;`, where the three are found rather than declared, there being no annotation site:</p>
+      <ul>
+        <li>_Y_ is CanonicalizeType of the union of the type of each |YieldExpression| operand in the body that is not a `yield*`, and of the _Y_ of each `yield*` operand's generator type.</li>
+        <li>_R_ is CanonicalizeType of the union of the types of the body's `return` operands, or ~void~ where it has none.</li>
+        <li>_N_ is ~void~ unless a contextual type supplies it, in which case it is that type's _N_. A contextual type also supplies _Y_ and _R_, and it is a type error if what the body yields or returns is not assignable to them.</li>
+      </ul>
+      <p>A contextual type on a `do *` is the contextual type of each |YieldExpression| operand, so a literal yielded takes the expected type as one in a plain `do`'s tail does.</p>
+      <p>A `do *` is a function boundary and a `do` is not, which is where the two forms part company. `this`, `arguments`, and `new.target` inside a `do *` are the enclosing function's, as they are in an arrow: the design's motivating example exists to delete a `function* () { … }.call(this)`, and binding `this` any other way would reintroduce it. But the body is a generator body, so `yield` belongs to the `do *` rather than to the enclosing function, `return` sets the generator's return value rather than returning from the enclosing function, and an unlabelled `break` or `continue` cannot leave the body.</p>
+      <emu-note>
+        <p>That `return` means one thing in `do` and another in `do *` is the sharpest edge in this clause and is worth stating rather than deriving. In a `do` it returns from the enclosing function, which is what the upstream proposal's own `getUserId` depends on; in a `do *` it completes the generator. Nothing else in the language turns on a single token that way, and a reader who has just read the first form will assume the second.</p>
+        <p>The typed form is what the IIFE it replaces cannot easily give. `Promise.all` takes an iterable of promises, so _Y_ is checked against what it awaits and a `do *` yielding the wrong thing is refused at the `yield`; through `function* () { … }.call(this)` the same relation holds but is read through a call whose `this` is supplied separately.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-do-expression-modifications">
+      <h1>Modifications to Existing Clauses</h1>
+      <p>A `match` arm's |Block| (<emu-xref href="#sec-match-expression"></emu-xref>) is a |DoExpression|'s |Block| of the first form: its value is CompletionTypeOf(its |StatementList|) and it carries the Early Errors of <emu-xref href="#sec-do-expression-early-errors"></emu-xref>. This replaces the rule that clause stated, under which an arm's value was its final statement's only where that statement was an |ExpressionStatement| and the arm was ~void~ otherwise, and it correspondingly replaces the sentence in <emu-xref href="#sec-pattern-static-semantics"></emu-xref> that gave such an arm ~void~.</p>
+      <emu-note>
+        <p>No program changes meaning. The arm rule accepted a strict subset of this one - a block ending in an |ExpressionStatement| has the same value under both - and its own note reserved the difference, recording that it "errors exactly where full completion-value semantics would permit" so that a later general form could only make errors legal. Two things improve. An arm may now end in an `if` with an `else`, a `try`, or a `switch`, which the arm rule made ~void~ and therefore unreadable at the use site. And an arm ending in a declaration or a loop is now a Syntax Error naming what it ended with, where it was a silent ~void~ and a complaint at whatever read the `match`'s value.</p>
+        <p>An arm's block is the first form and never `do *`: an arm produces the arm's value, and a `do *` there would produce a generator.</p>
+      </emu-note>
+      <p>The Block family of <emu-xref href="#table-reflection-contexts"></emu-xref> gains `DoBlock` and `DoGeneratorBlock`, which are two contexts rather than one because what the block is differs, a block in one case and a generator body in the other, as `ForBlock` and `ForOfBlock` are two. They are the first block contexts to admit a return replacement: a `DoBlock` decorator may return a value of the do expression's type, and a `DoGeneratorBlock` decorator a `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;`, replacing what the expression produced. The exclusion of blocks from replacement was never about their being structural positions but about their having no value to replace, and these two have one.</p>
+      <emu-note>
+        <p>With the per-entry rule that family already carries - a block decorator runs on every entry rather than once where the declaration is evaluated - a replacement makes memoization, caching, tracing that substitutes, and stubbing expressible at an expression as small as one wants. The generator context is the more useful of the two, since what a `do *` decorator receives is an iterator and wrapping one is what a decorator over a sequence is for.</p>
+      </emu-note>
     </emu-clause>
   </emu-clause>
 
