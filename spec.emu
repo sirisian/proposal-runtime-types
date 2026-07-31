@@ -4873,9 +4873,17 @@ contributors: Sirisian
             1. If _v_ is an Object with a [[RegExpMatcher]] internal slot, return ? MatchRegExp(_subject_, _v_, ~none~, _cache_, _env_).
             1. If _P_'s |ShortCircuitExpression| is a |NumericLiteral| with no preceding `+` or `-` whose value is a zero, return the result of the sameValueZero comparison of _subject_ and _v_ within their type, *false* where their types differ.
             1. Return MatchConstant(_subject_, _v_).
-          1. If _P_ is a |Type|, return ? IsOfType(_subject_, the Type Record _P_ denotes).
+          1. If _P_ is a |Type|, then
+            1. Let _t_ be the Type Record _P_ denotes.
+            1. Let _structural_ be ? MatchStructuralType(_t_, _subject_, _cache_).
+            1. If _structural_ is not ~not-applicable~, return _structural_.
+            1. Return ? IsOfType(_subject_, _t_).
           1. If _P_ is a |MatchNamePattern| alone, then
-            1. If _P_ resolves to a type, return ? IsOfType(_subject_, the Type Record it denotes).
+            1. If _P_ resolves to a type, then
+              1. Let _t_ be the Type Record it denotes.
+              1. Let _structural_ be ? MatchStructuralType(_t_, _subject_, _cache_).
+              1. If _structural_ is not ~not-applicable~, return _structural_.
+              1. Return ? IsOfType(_subject_, _t_).
             1. Let _v_ be ? GetValue(? Evaluation of _P_ read as the member expression it spells).
             1. If _v_ is a Type Object, return ? IsOfType(_subject_, the Type Record _v_ reifies).
             1. If _v_ is a Range, return ? MatchRange(_subject_, _v_).
@@ -5042,6 +5050,41 @@ contributors: Sirisian
             1. Else, append _next_ to _it_.[[Elements]].
           1. Return ~unused~.
         </emu-alg>
+      </emu-clause>
+
+      <emu-clause id="sec-matchstructuraltype" type="abstract operation">
+        <h1>
+          MatchStructuralType (
+            _t_: a Type Record,
+            _subject_: an ECMAScript language value,
+            _cache_: a Match Cache Record,
+          ): either a normal completion containing either a Boolean or ~not-applicable~, or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It matches a structural object type MEMBER BY MEMBER, reading each member through _cache_, so that the guarantee in <emu-xref href="#sec-match-expression"></emu-xref> — that a property is read at most once however many patterns look — holds for a type pattern as it does for an object pattern. It returns ~not-applicable~ where _t_ is not a type this treatment applies to, and the caller then uses IsOfType.</dd>
+        </dl>
+        <emu-alg>
+          1. If _t_ is not an ~object~ Type Record and is not a structural nominal type whose [[Structure]] is one, return ~not-applicable~.
+          1. Let _shape_ be _t_ or its [[Structure]], as applicable.
+          1. If _shape_ has any index signature, return ~not-applicable~.
+          1. If any member of _shape_.[[Properties]] is optional or is not named by a String, return ~not-applicable~.
+          1. If _shape_.[[Properties]] is empty, return ~not-applicable~.
+          1. If _subject_ is not an Object, return *false*.
+          1. For each element _p_ of _shape_.[[Properties]], do
+            1. If no element of _cache_.[[Reads]] has [[Object]] _subject_ and [[Key]] _p_.[[Key]], then
+              1. Let _present_ be ? HasProperty(_subject_, _p_.[[Key]]).
+              1. If _present_ is *true*, let _value_ be ? Get(_subject_, _p_.[[Key]]); else let _value_ be *undefined*.
+              1. Append the Record { [[Object]]: _subject_, [[Key]]: _p_.[[Key]], [[Present]]: _present_, [[Value]]: _value_ } to _cache_.[[Reads]].
+            1. Let _read_ be the element of _cache_.[[Reads]] with [[Object]] _subject_ and [[Key]] _p_.[[Key]].
+            1. If _read_.[[Present]] is *false*, return *false*.
+            1. If ? IsOfType(_read_.[[Value]], _p_.[[Type]]) is *false*, return *false*.
+          1. Return *true*.
+        </emu-alg>
+        <emu-note>
+          <p>Three kinds of object type are excluded, and each is excluded because a member-by-member test cannot express it. An OPTIONAL member is satisfied by its absence, where this test requires presence. An INDEX SIGNATURE names no members to walk. A NOMINAL type rejects a value that merely has the right members, so it can never become a structural test; an interface is structural and is not excluded.</p>
+          <p>Without this, `IsOfType` reads the subject outside the cache, and two clauses of one `match` could see different values of one member. That is observable as a WRONG ARM rather than as a slower one: given a getter whose value changes, `when { g: 2 }` followed by `when { g: 1 }` reads twice and matches neither, where a single read matches the second.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-matchconstant" type="abstract operation">
