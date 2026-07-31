@@ -3315,6 +3315,7 @@ contributors: Sirisian
             <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
             <tr><td>composites.md</td><td>Specified: <emu-xref href="#sec-composites"></emu-xref>, layered on the upstream Composites proposal with the deviations of <emu-xref href="#sec-composite-deviations"></emu-xref>.</td></tr>
             <tr><td>patternmatching.md</td><td>Specified: <emu-xref href="#sec-pattern-matching"></emu-xref>, with the discriminated `where` chains it consumes in <emu-xref href="#sec-discriminated-where-chains"></emu-xref>.</td></tr>
+            <tr><td>The iteration types</td><td>Specified: <emu-xref href="#sec-iteration-types"></emu-xref>, owed to the protocols the core defines rather than to any extension, and the clause the generator types are now stated in terms of.</td></tr>
             <tr><td>pipelineoperator.md</td><td>Specified: <emu-xref href="#sec-pipeline-operator"></emu-xref>, with the token recorded as the proposal's current spelling and every rule stated in terms of the topic rather than the token.</td></tr>
             <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
             <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
@@ -5166,6 +5167,34 @@ contributors: Sirisian
     </emu-note>
   </emu-clause>
 
+  <emu-clause id="sec-iteration-types">
+    <h1>The Iteration Types</h1>
+    <p>This clause is owed to the iteration protocols the core already defines, not to any extension. `for`-`of` asks whether `[Symbol.iterator]` is callable and never asks what a value declared; the design writes `Iterator.&lt;T&gt;` throughout and this specification has named no such type, so what a helper returns and what a hand-written iterator satisfies have both been undescribable. It precedes <emu-xref href="#sec-generator-types"></emu-xref> because the generator types are stated in terms of it.</p>
+
+    <p>The <dfn>iteration result type</dfn> `IteratorResult.&lt;`_T_`, `_R_`&gt;` is the ~union~ of two ~object~ Type Records, one with members `value` of _T_ and `done` of the literal type *false*, the other with `value` of _R_ and `done` of the literal type *true*. It is discriminated by `done`, so a `match` over an iteration result binds `value` at _T_ in one arm and at _R_ in the other (<emu-xref href="#sec-match-exhaustiveness"></emu-xref>), and reading one requires no narrowing rule of its own.</p>
+
+    <p>The protocols are interface types, satisfied structurally through their structural form (<emu-xref href="#sec-object-types"></emu-xref>):</p>
+    <ul>
+      <li>`Iterator.&lt;`_T_`, `_R_`, `_N_`&gt;` declares `next`, taking an optional argument of _N_ and returning `IteratorResult.&lt;`_T_`, `_R_`&gt;`, and optionally `return` and `throw`.</li>
+      <li>`Iterable.&lt;`_T_`&gt;` declares `[Symbol.iterator]`, returning `Iterator.&lt;`_T_`&gt;`.</li>
+      <li>`IterableIterator.&lt;`_T_`, `_R_`, `_N_`&gt;` inherits both.</li>
+      <li>`AsyncIterator.&lt;`_T_`, `_R_`, `_N_`&gt;`, `AsyncIterable.&lt;`_T_`&gt;`, and `AsyncIterableIterator.&lt;`_T_`, `_R_`, `_N_`&gt;` are the same three with `[Symbol.asyncIterator]` in place of `[Symbol.iterator]` and `next` returning a promise of the iteration result.</li>
+    </ul>
+
+    <p>`Iterator` is also a built-in class, the one on which the iterator helper methods are defined, and it declares that it implements `IterableIterator`. `AsyncIterator` is the same for the asynchronous protocol. Both join the built-in type names of <emu-xref href="#sec-type-names"></emu-xref>. A value of the class satisfies the interface by refinement rather than by inspection (<emu-xref href="#sec-issubtype"></emu-xref>), so it is decided by the declaration; a value that merely has the members satisfies it through the structural form.</p>
+
+    <p>A bare argument is the first: `Iterator.&lt;uint8&gt;` is `Iterator.&lt;uint8, void, void&gt;`, and likewise for the other five. This is the shorthand <emu-xref href="#sec-generator-types"></emu-xref> states for the generator families, and it is one rule rather than two.</p>
+
+    <emu-note>
+      <p>_R_ and _N_ default to ~void~ because the generator families default them to ~void~, and that agreement is what makes a `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` satisfy `IterableIterator.&lt;`_Y_`, `_R_`, `_N_`&gt;`. Had the two been chosen separately a generator would have been *nearly* an iterator, which is a failure mode with a record: TypeScript's builtin iterator type and its generators disagreed on this parameter, and the type could not be given a usable default as a result.</p>
+      <p>There are no per-collection iteration types. TypeScript names `ArrayIterator`, `MapIterator`, and `SetIterator` because it needs somewhere to carry a narrower return type; the shorthand carries it here, so the family stays at six interfaces and two classes. The absence is a decision rather than an omission.</p>
+    </emu-note>
+
+    <emu-note>
+      <p>The element parameter is invariant, as every generic in this specification is (<emu-xref href="#sec-issubtype"></emu-xref>), so an `Iterable.&lt;`_Circle_`&gt;` is not an `Iterable.&lt;`_Shape_`&gt;` for a _Circle_ that extends _Shape_. Covariance would be sound for these types and for no container: an iterator produces its element and never accepts one, which is the condition the invariance rule states for a mutable container and which these types do not meet. Admitting a declared variance is the generics extension's to make, and the invariance rule already names C# and Kotlin as the precedent; both spend that feature on exactly these types. It can be admitted later without invalidating a program, since a variance annotation only adds legal conversions, which is how .NET added covariance to its enumerable interfaces after they had shipped invariant.</p>
+    </emu-note>
+  </emu-clause>
+
   <emu-clause id="sec-generator-types">
     <h1>The Generator Types</h1>
     <p>This clause is owed to the generator forms the core already parses, not to the extension that follows it. <emu-xref href="#sec-annotations-on-the-remaining-function-forms"></emu-xref> admits a return annotation on a generator and says what it means in prose, that "a generator's annotation types the values the iterator yields", and the design writes `Generator.&lt;Y, R, N&gt;` throughout; the type itself has not been stated. It is stated here because <emu-xref href="#sec-do-expressions"></emu-xref> is the first clause that computes one.</p>
@@ -5177,6 +5206,7 @@ contributors: Sirisian
     <p>The Static Type of a call of a generator function is its declared type. Within the body, the Static Type of a |YieldExpression| without `*` is _N_, and it is a type error if the operand's type is not assignable to _Y_. The Static Type of a `yield*` is the _R_ of its operand's generator type, since delegation evaluates to what the delegated generator returned, and the operand's _Y_ must be assignable to the enclosing _Y_.</p>
 
     <emu-note>
+      <p>A `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` satisfies `IterableIterator.&lt;`_Y_`, `_R_`, `_N_`&gt;` and `Iterable.&lt;`_Y_`&gt;` (<emu-xref href="#sec-iteration-types"></emu-xref>), and an `AsyncGenerator` the asynchronous three, which is why a generator may be spread, consumed by `for`-`of`, or passed where an iterator is expected. That holds because the two families default _R_ and _N_ the same way; the iteration types were written to match these rather than the reverse. The shorthand below is the one those types state, applied here.</p>
       <p>Reading a bare annotation as the yield type rather than as the whole generator type is the design's choice and is the useful one: a generator's return and next types are `void` in almost every generator anyone writes, and requiring `Generator.&lt;int32, void, void&gt;` at each of them would make the common case the verbose one. The full form remains available and is what a generator with a meaningful `return` or a two-way protocol writes.</p>
       <p>That `yield*` has the delegated generator's _R_ as its type, while contributing its _Y_ to the enclosing generator's, is the one part of the protocol a reader is likely to get backwards. It follows from the run time: `yield*` drives the operand to completion and evaluates to its return value.</p>
     </emu-note>
