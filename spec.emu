@@ -2064,6 +2064,7 @@ contributors: Sirisian
           <tbody>
             <tr><td>`v instanceof T`</td><td>NarrowTo(_s_, _T_)</td><td>NarrowFrom(_s_, _T_)</td></tr>
             <tr><td>`#f in v`, a brand check</td><td>NarrowTo(_s_, the class declaring `#f`)</td><td>NarrowFrom(_s_, the class declaring `#f`)</td></tr>
+            <tr><td>`%`, the pipeline topic (<emu-xref href="#sec-pipeline-operator"></emu-xref>)</td><td>Every row of this table, in the positions the test governs. The topic is a binding, so a test on it narrows it as a test on any reference does — which is a second reason it is a binding and not a substitution, since a substitution has no identity to narrow.</td></tr>
             <tr><td>`v is T` (<emu-xref href="#sec-is-operator"></emu-xref>), and generally `v is P` for a pattern _P_ (<emu-xref href="#sec-is-pattern"></emu-xref>)</td><td>NarrowTo(_s_, PatternType(_P_))</td><td>NarrowFrom(_s_, PatternType(_P_))</td></tr>
             <tr><td>`v === e` or `v !== e`, where the Static Type of _e_ is a literal type _L_</td><td>NarrowTo(_s_, _L_)</td><td>NarrowFrom(_s_, _L_)</td></tr>
             <tr><td>`v.p === e` or `v.p !== e` under the same condition, where _s_ is a ~union~</td><td>NarrowTo(_s_, the union of the members of _s_ whose type at `p` admits _L_)</td><td>NarrowFrom(_s_, that union)</td></tr>
@@ -3274,7 +3275,7 @@ contributors: Sirisian
       </emu-table>
 
       <emu-note>
-        <p>The extensions not listed, including composites, pattern matching, do expressions, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
+        <p>The extensions not listed, including composites, pattern matching, do expressions, the pipeline operator, serialization, structure of arrays, the regular expression types, Temporal, and the standard library, are specified in terms of the core and are relied on by nothing here. That is a claim about direction and not about importance: serialization is where a typed program meets a network, and it is built from the layout, the metadata hooks, and the `where` clauses this specification already gives, adding no rule any of them must accommodate. The one place the direction reverses is threading, whose heap sharing decides what a Type Object's identity means (<emu-xref href="#sec-types-across-agents"></emu-xref>), which is why it alone among the outer extensions has a clause here.</p>
         <p>The dependency now runs in one direction without exception. The metadata parameterization that <emu-xref href="#sec-issubtype"></emu-xref> once forward-referenced is core (<emu-xref href="#sec-parameterized-types"></emu-xref>), as the refinement relation it shares with an enum's underlying type and a class's base always suggested it should be. What remains with the primitive metadata extension is the protocol's hook surface: the judgments beyond the branding default, and the conversion machinery.</p>
       </emu-note>
     </emu-clause>
@@ -3301,6 +3302,7 @@ contributors: Sirisian
             <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
             <tr><td>composites.md</td><td>Specified: <emu-xref href="#sec-composites"></emu-xref>, layered on the upstream Composites proposal with the deviations of <emu-xref href="#sec-composite-deviations"></emu-xref>.</td></tr>
             <tr><td>patternmatching.md</td><td>Specified: <emu-xref href="#sec-pattern-matching"></emu-xref>, with the discriminated `where` chains it consumes in <emu-xref href="#sec-discriminated-where-chains"></emu-xref>.</td></tr>
+            <tr><td>pipelineoperator.md</td><td>Specified: <emu-xref href="#sec-pipeline-operator"></emu-xref>, with the token recorded as the proposal's current spelling and every rule stated in terms of the topic rather than the token.</td></tr>
             <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
             <tr><td>simd.md</td><td>Specified: <emu-xref href="#sec-vector-types"></emu-xref> and <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
@@ -4046,6 +4048,7 @@ contributors: Sirisian
     <p>An operator's own type parameters are written `.&lt;`&hellip;`&gt;` rather than `&lt;`&hellip;`&gt;` because the operator name may itself end in `&lt;` or `&gt;`: `operator&lt;.&lt;D2: Dimensions&gt;` lexes where `operator&lt; &lt;D2: Dimensions&gt;` would collide with the `&lt;&lt;` token. This is the one place a declaration site uses the application spelling, and the reason is lexical rather than principled.</p>
 
     <p>Resolution reads the left operand's type alone. For `a * b`, the operators of `a`'s type are searched for a signature whose parameter accepts `b`, and the operands are never reversed to find a match. Return type overloading applies as it does to any function (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>), and two applicable definitions with the same parameter types and no expected return type is an ambiguity and a type error. A `primitive` block adds to a global operator table; two definitions for one pair of types is a type error at the second declaration. A `static operator` defines an operator on the class object rather than on its instances, so that `A += 5` may mean something, and takes no part in any of the above.</p>
+    <p>`|&gt;` may not be declared (<emu-xref href="#sec-pipeline-operator"></emu-xref>). Resolution reads the left operand's type and searches it for a signature describing the operation, and a pipeline has no operation to describe: it binds one operand and evaluates the other rather than computing a value from both. The same reasoning excludes any future operator that binds rather than computes, and is why the exclusion is stated here, where resolution is defined, rather than only where the operator is.</p>
 
     <emu-note>
       <p>Never reversing the operands is the rule that makes `Matrix4 * Vector4` and `Vector4 * Matrix4` different operations, which in a column-major library they are: one transforms a column vector and the other a row vector. A language that reverses operands to find any match makes that bug unfindable. It is also why `2 * v` needs a `primitive` block rather than falling back to `v`'s operators: the left operand is a number, and the declaration belongs where the library author can write it.</p>
@@ -5274,6 +5277,95 @@ contributors: Sirisian
       <emu-note>
         <p>With the per-entry rule that family already carries - a block decorator runs on every entry rather than once where the declaration is evaluated - a replacement makes memoization, caching, tracing that substitutes, and stubbing expressible at an expression as small as one wants. The generator context is the more useful of the two, since what a `do *` decorator receives is an iterator and wrapping one is what a decorator over a sequence is for.</p>
       </emu-note>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-pipeline-operator">
+    <h1>Pipeline Operator</h1>
+    <p>`x |> f(%)` evaluates its left operand, binds it to the <dfn>topic</dfn>, and evaluates its right operand with that binding in scope. This clause specifies the design's pipeline operator extension, which integrates the <a href="https://github.com/tc39/proposal-pipeline-operator">pipeline operator proposal</a> under this type system.</p>
+
+    <emu-grammar type="definition">
+      <ins>PipelineExpression[In, Yield, Await] :
+        ShortCircuitExpression[?In, ?Yield, ?Await]
+        PipelineExpression[?In, ?Yield, ?Await] `|&gt;` ShortCircuitExpression[?In, ?Yield, ?Await]</ins>
+
+      ConditionalExpression[In, Yield, Await] :
+        <del>ShortCircuitExpression[?In, ?Yield, ?Await]</del>
+        <del>ShortCircuitExpression[?In, ?Yield, ?Await] `?` AssignmentExpression[+In, ?Yield, ?Await] `:` AssignmentExpression[?In, ?Yield, ?Await]</del>
+        <ins>PipelineExpression[?In, ?Yield, ?Await]</ins>
+        <ins>PipelineExpression[?In, ?Yield, ?Await] `?` AssignmentExpression[+In, ?Yield, ?Await] `:` AssignmentExpression[?In, ?Yield, ?Await]</ins>
+
+      PrimaryExpression[Yield, Await] :
+        IdentifierReference[?Yield, ?Await]
+        <ins>TopicReference</ins>
+
+      <ins>TopicReference :
+        `%`</ins>
+    </emu-grammar>
+
+    <p>`|&gt;` is left-associative, binds looser than `??` and tighter than the conditional operator, and so takes |ShortCircuitExpression| operands: `a |&gt; f(%) |&gt; g(%)` is `(a |&gt; f(%)) |&gt; g(%)`, and `c ? a |&gt; f(%) : b` needs no parentheses. The token `%` is the remainder punctuator, and the two are told apart by position — a |TopicReference| stands where an operand is expected and the remainder operator between two — which no operator declaration can change, since <emu-xref href="#sec-operators"></emu-xref> lets a type supply a *meaning* for the binary form and never a new arity.</p>
+
+    <emu-note>
+      <p>The upstream proposal records its grammar as incomplete (<a href="https://github.com/tc39/proposal-pipeline-operator/issues/290">issue 290</a>) and its topic token as unsettled after the longest bikeshed the committee has run (<a href="https://github.com/tc39/proposal-pipeline-operator/issues/91">issue 91</a>). This clause takes `%`, which is the proposal's current spelling; every rule below is stated in terms of the topic rather than the token, so a different token is an edit to the grammar and to nothing else.</p>
+      <p>An expression language with operator overloading has fewer free tokens than one without, which is a fact about this design that the committee's discussion has not had before it. `#` is a private name, `?` is optional chaining and the optional marker of <emu-xref href="#sec-type-annotations"></emu-xref>, `@` is a decorator in about twenty positions, `_` is the pattern wildcard (<emu-xref href="#sec-match-patterns"></emu-xref>), and `%` and `^` are operators a class or a `primitive` block may declare. The design's own token would be `_` and it cannot be: one glyph meaning "anything at all" in a pattern and "this exact value" in a pipeline is a worse collision than the remainder one.</p>
+    </emu-note>
+
+    <emu-clause id="sec-pipeline-early-errors">
+      <h1>Early Errors</h1>
+      <ul>
+        <li>It is a Syntax Error if a |TopicReference| is not contained within the right operand of a |PipelineExpression|. Outside one, `%` is the remainder punctuator and a `%` where an operand is expected is the ordinary Syntax Error it is today.</li>
+        <li>It is a Syntax Error if the right operand of a |PipelineExpression| contains no |TopicReference| that the operand binds. A step that does not mention the topic discards the value piped into it, which is not a pipeline and is more likely a mistaken tacit call than an intention.</li>
+        <li>It is a Syntax Error if a |TopicReference| is the target of an assignment, an update expression, or a destructuring pattern. The topic is an immutable binding: a step that reassigns what is being piped leaves the next step an input it cannot predict.</li>
+      </ul>
+      <emu-note>
+        <p>The second error is what keeps the tacit form from arriving by accident. `x |&gt; f()` is refused rather than read as `f(x)`, so a program that means the call writes `x |&gt; f(%)` and a program that meant something else is told. <emu-xref href="#sec-pipeline-static-semantics"></emu-xref> records what a typed language could do about a tacit form and why this specification does not.</p>
+        <p>"That the operand binds" excludes a topic belonging to a *nested* pipeline: in `a |&gt; f(b |&gt; g(%))` the only |TopicReference| is the inner pipeline's, so the outer operand contains none of its own and is a Syntax Error. It is written `a |&gt; f(%, b |&gt; g(%))` or not at all.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-pipeline-runtime-semantics">
+      <h1>Runtime Semantics</h1>
+      <p>Evaluation of `PipelineExpression : PipelineExpression |&gt; ShortCircuitExpression`:</p>
+      <emu-alg>
+        1. Let _ref_ be ? Evaluation of |PipelineExpression|.
+        1. Let _value_ be ? GetValue(_ref_).
+        1. Let _oldEnv_ be the running execution context's LexicalEnvironment.
+        1. Let _topicEnv_ be NewDeclarativeEnvironment(_oldEnv_).
+        1. Perform ! _topicEnv_.CreateImmutableBinding(the topic, *true*).
+        1. Perform ! _topicEnv_.InitializeBinding(the topic, _value_).
+        1. Set the running execution context's LexicalEnvironment to _topicEnv_.
+        1. Let _result_ be Completion(Evaluation of |ShortCircuitExpression|).
+        1. Set the running execution context's LexicalEnvironment to _oldEnv_.
+        1. Return ? _result_.
+      </emu-alg>
+      <p>Evaluation of `TopicReference : %` returns the value bound in the nearest enclosing topic environment.</p>
+      <emu-note>
+        <p>The left operand is evaluated once however many times the topic appears, which is the difference between a binding and a substitution and is what `expensive() |&gt; [%, %]` rests on. An immutable binding in its own environment also gives the shadowing rule for free: a nested pipeline creates a second topic environment, so its steps see its own value and the outer one is unreachable from within it.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-pipeline-static-semantics">
+      <h1>Static Semantics</h1>
+      <p>The Static Type of the topic is the Static Type of the |PipelineExpression| that binds it, and the Static Type of a |PipelineExpression| is the Static Type of its right operand evaluated with that binding. The topic is a binding for every purpose of this specification: it is narrowed by the tests that govern it, it is shadowed by an inner pipeline's, and it is immutable, which the early errors above enforce syntactically rather than through the assignability rules.</p>
+
+      <p>A contextual type (<emu-xref href="#sec-contextual-types"></emu-xref>) on a |PipelineExpression| is the contextual type of its right operand, so a numeric literal in a step takes the expected type by <emu-xref href="#sec-literal-propagation"></emu-xref> rather than defaulting. Without this the form would be typed and unusable, which is the failure <emu-xref href="#sec-do-expressions"></emu-xref> had to avoid in the same way.</p>
+
+      <p>It is a type error for a |TopicReference| to be the operand of `ref` (<emu-xref href="#sec-references-and-borrowing"></emu-xref>). A reference parameter binds the caller's location; the topic holds the value the left operand produced, so `o.a |&gt; f(ref %)` would bind a reference to a temporary and a write through it would reach nothing the caller can observe. It is refused rather than admitted and useless, because the expression reads as though the pipe were transparent to the place it came from.</p>
+
+      <p>Three consequences follow from the topic being an ordinary binding and are stated because a pipeline reads like a substitution. Overload resolution (<emu-xref href="#sec-resolveoverload"></emu-xref>) selects on the topic's type as on any argument. Generic parameters are inferred through it, and may be supplied explicitly as `x |&gt; f.&lt;uint8&gt;(%)`. And the topic is admitted wherever an expression is, including a spread and the argument positions a rest parameter distributes (<emu-xref href="#sec-bindarguments"></emu-xref>).</p>
+
+      <p>A |PipelineExpression| whose right operand diverges has the type of the empty union (<emu-xref href="#sec-divergence"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>). A |PipelineExpression| is compile-time evaluable exactly when both operands are: it introduces a binding and substitutes, reading nothing the surrounding code could not, so it is admitted in a type builder on the same terms as any other expression.</p>
+
+      <emu-note>
+        <p>The tacit form the proposal calls F# style — `x |&gt; f`, calling `f` with the value and no topic — is refused by the second early error, and the reason is worth recording precisely, because it is not the reason usually given. That reason is that a language cannot see what a function expects, so a two-parameter function piped one argument fails somewhere else. It does not hold here: a function has a Signature Record with Parameter Records (<emu-xref href="#sec-signature-records"></emu-xref>), so a tacit call could be checked, the topic tested against the first parameter and an under-supplied signature rejected at the pipe.</p>
+        <p>What survives is narrower and is enough. A tacit form cannot express the steps that are not calls — `% + 1`, `[%, %]`, `await %` — and `await` is not a function, so no signature rescues it. A pipeline whose steps are sometimes tacit and sometimes not would be two forms sharing an operator, and the second early error is what keeps them from being confused.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-pipeline-modifications">
+      <h1>Modifications to Existing Clauses</h1>
+      <p><emu-xref href="#table-narrowing-forms"></emu-xref> gains a row: a test governing a |TopicReference| narrows it in the positions the test governs, by the same rows the table gives `is`, `typeof`, `instanceof`, `in`, and a discriminant. `shape |&gt; (% is Circle ? %.radius : 0)` is the case, and it is the rule a pipeline cannot do without — a substitution has no identity to narrow, which is a second reason the topic is a binding.</p>
+      <p><emu-xref href="#sec-operators"></emu-xref> gains a sentence: `|&gt;` may not be declared as an operator. Resolution reads the left operand's type and searches it for a signature, and a pipeline has no operation for a signature to describe — it binds one operand and evaluates the other rather than computing a value from both. The same reasoning excludes any future operator that binds rather than computes.</p>
     </emu-clause>
   </emu-clause>
 
