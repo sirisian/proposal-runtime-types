@@ -346,6 +346,11 @@ contributors: Sirisian
               1. If _t_.[[Kind]] is ~tuple~ and _sShape_.[[Kind]] is ~tuple~, return IsSubtype(_sShape_, _t_, _assumptions_).
               1. If _t_ is an interface type with a structural form, return IsSubtype(_s_, that form, _assumptions_).
             1. Return *false*.
+          1. If _t_ is an interface type and _s_ does not refine _t_, then
+            1. Return IsSubtype(_s_, the structural form of _t_, _assumptions_).
+          1. If _s_.[[Kind]] is ~nominal~ and _t_.[[Kind]] is ~object~, then
+            1. If _s_ is an interface type, return IsSubtype(the structural form of _s_, _t_, _assumptions_).
+            1. Return *false*.
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. If _s_.[[Kind]] is ~nominal~, then
             1. If _t_.[[Declaration]] is _s_.[[Declaration]], return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
@@ -847,6 +852,10 @@ contributors: Sirisian
       <emu-clause id="sec-object-types">
         <h1>Object Types</h1>
         <p>An object type describes a value by its members. It is the inline form of an interface.</p>
+        <p>The relationship runs both ways, and the reverse direction needs a name. The <dfn>structural form</dfn> of an interface type is the ~object~ Type Record whose [[Members]] are the members the interface declares, taken together with those it inherits, and with the interface's type arguments substituted. Every interface has one. A class has none: a class states a construction and an identity as well as a shape, and it is the identity that its type is for.</p>
+        <emu-note>
+          <p>This is what lets a value satisfy an interface by having its members, which <emu-xref href="#sec-issubtype"></emu-xref> reads. Without it the rules would refuse `f({ a: 'a' })` for `interface IExample { a: string; }`, since an interface is a ~nominal~ type (<emu-xref href="#table-type-record-kinds"></emu-xref>) and an object literal's type is ~object~, and the step separating the kinds would answer before any member was inspected. The composite types have relied on the notion since they were specified, naming it in their own subtype rule; this clause is where it is defined rather than assumed.</p>
+        </emu-note>
 
         <emu-grammar type="definition">
           <ins>ObjectType[Yield, Await] :
@@ -1744,8 +1753,12 @@ contributors: Sirisian
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It determines whether _value_ is a value of the type _t_. It may call user code, since deciding a structural type reads the value's properties.</dd>
+          <dd>It determines whether _value_ is a value of the type _t_. It may call user code, since deciding a structural type reads the value's properties. A structural check reads each member of the type once and decides on what it read.</dd>
+
         </dl>
+        <emu-note>
+          <p>Reading each member once is a discipline rather than an optimization. Where the value is a Proxy or carries accessors, a trap or getter runs at most once per member per check, so it cannot answer one way to the step that admits the value and another to a later one. This is the rule the composite types already follow when reading a source's properties in a single pass (<emu-xref href="#sec-composite-types"></emu-xref>), generalized to every structural check now that <emu-xref href="#sec-object-types"></emu-xref> lets any interface be satisfied structurally.</p>
+        </emu-note>
         <emu-alg>
           1. If _t_.[[Kind]] is ~any~, return *true*.
           1. If _t_.[[Kind]] is ~void~, return *false*.
@@ -5303,7 +5316,7 @@ contributors: Sirisian
         `%`</ins>
     </emu-grammar>
 
-    <p>`|&gt;` is left-associative, binds looser than `??` and tighter than the conditional operator. The upstream proposal names |ShortCircuitExpression| as its operand, which assumes the base language's precedence table; this design has placed ranges at that level (<emu-xref href="#sec-ranges"></emu-xref>), so a pipeline's operands are |RangeExpression|s and `|&gt;` binds looser than `..`. `0..10 |&gt; sum(%)` pipes the range, which is what it reads as; the other order would make it `0..(10 |&gt; sum(%))`, which nothing writing it means. Otherwise the placement is the proposal's: `a |&gt; f(%) |&gt; g(%)` is `(a |&gt; f(%)) |&gt; g(%)`, and `c ? a |&gt; f(%) : b` needs no parentheses. The token `%` is the remainder punctuator, and the two are told apart by position — a |TopicReference| stands where an operand is expected and the remainder operator between two — which no operator declaration can change, since <emu-xref href="#sec-operators"></emu-xref> lets a type supply a *meaning* for the binary form and never a new arity.</p>
+    <p>`|&gt;` is left-associative, binds looser than `??` and tighter than the conditional operator. The upstream proposal names |ShortCircuitExpression| as its operand, which assumes the base language's precedence table; this design has placed ranges at that level (<emu-xref href="#sec-ranges"></emu-xref>), so a pipeline's operands are ranges and `|&gt;` binds looser than `..`. `0..10 |&gt; sum(%)` pipes the range, which is what it reads as; the other order would make it `0..(10 |&gt; sum(%))`, which nothing writing it means. Otherwise the placement is the proposal's: `a |&gt; f(%) |&gt; g(%)` is `(a |&gt; f(%)) |&gt; g(%)`, and `c ? a |&gt; f(%) : b` needs no parentheses. The token `%` is the remainder punctuator, and the two are told apart by position — a |TopicReference| stands where an operand is expected and the remainder operator between two — which no operator declaration can change, since <emu-xref href="#sec-operators"></emu-xref> lets a type supply a *meaning* for the binary form and never a new arity.</p>
 
     <emu-note>
       <p>The upstream proposal records its grammar as incomplete (<a href="https://github.com/tc39/proposal-pipeline-operator/issues/290">issue 290</a>) and its topic token as unsettled after the longest bikeshed the committee has run (<a href="https://github.com/tc39/proposal-pipeline-operator/issues/91">issue 91</a>). This clause takes `%`, which is the proposal's current spelling; every rule below is stated in terms of the topic rather than the token, so a different token is an edit to the grammar and to nothing else.</p>
