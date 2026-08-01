@@ -478,7 +478,10 @@ contributors: Sirisian
         <emu-note>
           <p>This is the same notion the `where` clauses and metadata annotations of the extensions require, and it is what lets a `switch` over a generic parameter be evaluated to a type during checking. A function that is not compile-time evaluable remains an ordinary function in expression position; only its use in type position is restricted. Local mutation is admitted because an accumulator array or a visited `Set` is how a walk over a type is written; shared module-level mutable state is not evaluable and is rejected statically, which also disposes of the hand-rolled memo cache, since the memoization of <emu-xref href="#sec-evaluatebuildercall"></emu-xref> is the supported mechanism and is observably equivalent. Fixing the fragment's grammar and semantics as a normative implementation target in its own right, with a conformance suite, is <emu-xref href="#annex-evaluable-fragment"></emu-xref>; the discipline above is the boundary it pins.</p>
         </emu-note>
-      </emu-clause>
+            <emu-note>
+        <p>A <emu-xref href="#sec-preprocessor-modules">preprocessor module</emu-xref> and every export of it used as a replacement decorator are required to be evaluable, for the reason a type builder is: both are user code an implementation runs while compiling, and the discipline is what makes the run deterministic. There is one notion here, not two.</p>
+      </emu-note>
+    </emu-clause>
 
       <emu-clause id="sec-deferred-applications">
         <h1>Deferred Applications</h1>
@@ -3774,6 +3777,241 @@ contributors: Sirisian
     <h1>Declaration Reflection and Decorators</h1>
     <p>The reflection of <emu-xref href="#sec-reflect-getreflection"></emu-xref> reads a type. This clause reads a <em>declaration</em>: the fields a class declares, the parameters a function takes, the enumerators an enum lists, and what a decorator has recorded about any of them. The two are one facility under one name, selected by a first type argument, and they answer different questions: a type is shared by everything of that shape, and a declaration is the one place a program wrote it down.</p>
 
+    <emu-clause id="sec-token-records">
+      <h1>Token Records</h1>
+      <p>A <dfn id="token-record">Token Record</dfn> is one token of source, as the lexical grammar produced it. It has the fields of <emu-xref href="#table-token-record"></emu-xref>.</p>
+      <p>Tokens are what a decorator reads of the syntax it decorates, and what a <emu-xref href="#sec-replacement-decorators">replacement decorator</emu-xref> returns. They are deliberately below a syntax tree: the lexical grammar of this specification is already normative and changes far more slowly than the syntactic grammar, so a token vocabulary is a surface that can be exposed without inventing one.</p>
+
+      <emu-table id="table-token-record" caption="Token Record Fields">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>[[Kind]]</td><td>~identifier~, ~punctuator~, ~numeric~, ~string~, ~template~, ~regexp~, or ~group~</td><td>Which lexical form the token is.</td></tr>
+            <tr><td>[[Value]]</td><td>a String</td><td>The token's source text. For a ~group~, the opening delimiter.</td></tr>
+            <tr><td>[[Span]]</td><td>a Span Record</td><td>Where the token came from.</td></tr>
+            <tr><td>[[Tokens]]</td><td>a List of Token Records or ~empty~</td><td>For a ~group~, the tokens it delimits. ~empty~ otherwise.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>~regexp~ and ~punctuator~ are distinct kinds because the lexical grammar of this specification is not context-free: |InputElementDiv| and |InputElementRegExp| resolve `/` differently, so a token stream is parse-informed rather than purely lexical. A token a replacement decorator PRODUCES must therefore say which it means, and the kind carries it — the ambiguity is resolved by construction rather than by re-scanning the output.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>Delimited runs are grouped rather than flat, so a macro cannot produce unbalanced output: the delimiters of a ~group~ are the record's, not two tokens a producer must remember to pair. The engine already matches delimiters to find a decoration's boundary, so the grouping costs nothing it was not doing.</p>
+      </emu-note>
+
+      <p>A <dfn id="span-record">Span Record</dfn> says where a token came from. It has the fields of <emu-xref href="#table-span-record"></emu-xref>.</p>
+
+      <emu-table id="table-span-record" caption="Span Record Fields">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>[[Source]]</td><td>a Source Reference Record</td><td>Which buffer the token's text is in.</td></tr>
+            <tr><td>[[Start]]</td><td>a non-negative integer</td><td>The index of the token's first code unit in that buffer.</td></tr>
+            <tr><td>[[End]]</td><td>a non-negative integer</td><td>The index after the token's last code unit.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>A <dfn id="source-reference-record">Source Reference Record</dfn> names a buffer. It has the fields of <emu-xref href="#table-source-reference-record"></emu-xref>.</p>
+
+      <emu-table id="table-source-reference-record" caption="Source Reference Record Fields">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>[[URL]]</td><td>a String or ~empty~</td><td>The module's URL, for a token from written source.</td></tr>
+            <tr><td>[[Macro]]</td><td>a String or ~empty~</td><td>The replacement decorator that produced the token, or ~empty~ for one that was written.</td></tr>
+            <tr><td>[[Generation]]</td><td>a non-negative integer</td><td>0 for written source; _n_ for the _n_th expansion that produced the token.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>A Span Record is not a source map. It says where ONE token came from, and it travels with that token wherever a replacement decorator moves it, so a chain of expansions needs no composition step: a token copied by one decorator and relocated by another still names the position a program was written at. The alternative — an offset map per expansion, composed across a chain — is where source-map correctness usually fails, and it fails silently.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-tokensof" type="abstract operation">
+      <h1>
+        TokensOf (
+          _node_: a Parse Node,
+        ): a List of Token Records
+      </h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd>It returns the tokens of _node_'s source text, with each token's [[Span]] naming the position it was written at. Delimited runs are returned as ~group~ tokens rather than as separate delimiters.</dd>
+      </dl>
+      <emu-alg>
+        1. Let _text_ be the source text matched by _node_.
+        1. Let _source_ be the Source Reference Record for the buffer containing _text_.
+        1. Return the List of Token Records produced by applying the lexical grammar to _text_, in order, where:
+          1. each token's [[Span]] has [[Source]] _source_ and the [[Start]] and [[End]] of that token in the buffer, and
+          1. each run delimited by `{`, `[`, or `(` is one Token Record with [[Kind]] ~group~, [[Value]] the opening delimiter, and [[Tokens]] the tokens of the run.
+      </emu-alg>
+      <emu-note>
+        <p>The lexical goal symbol at each position is the one the enclosing parse used, so `/` is already resolved to ~punctuator~ or ~regexp~ and no ambiguity reaches the caller.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-tokenstream-objects">
+      <h1>TokenStream Objects</h1>
+      <p>A <dfn id="tokenstream-object">TokenStream</dfn> is an Array exotic object whose elements are Token Records exposed as objects, and whose prototype is %TokenStream.prototype%. It is what a reflection's syntax-valued fields hold and what a <emu-xref href="#sec-replacement-decorators">replacement decorator</emu-xref> exchanges.</p>
+
+      <emu-clause id="sec-tokenstream.prototype.tostring">
+        <h1>TokenStream.prototype.toString ( )</h1>
+        <emu-alg>
+          1. Let _stream_ be the *this* value.
+          1. Return the source text the tokens of _stream_ were taken from, in order, including the trivia between adjacent tokens of one buffer.
+        </emu-alg>
+        <emu-note>
+          <p>Comments and whitespace are recoverable rather than discarded: consecutive tokens of one buffer have the text between their spans, so the gap IS the trivia. This is why no separate source-text field exists on a reflection — a second field would be a second way to say one thing, and the two would have to agree forever.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-tokenstream.gensym" type="abstract operation">
+        <h1>
+          TokenStream.gensym (
+            _hint_: a String,
+          ): a Token Record
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns an ~identifier~ Token Record that cannot collide with any identifier in any source text or in any other stream.</dd>
+        </dl>
+        <emu-alg>
+          1. Return a Token Record with [[Kind]] ~identifier~, a [[Value]] derived from _hint_ that is distinct from every identifier produced by any other call and from every |IdentifierName| in any source text, and a [[Span]] whose [[Source]] names the caller.
+        </emu-alg>
+        <emu-note>
+          <p>This is the hygiene mechanism. A replacement decorator uses it for every identifier it INTRODUCES, so a macro's temporaries cannot capture a binding at the position it is spliced into. It does not address a macro's REFERENCE to an identifier it did not create — a macro naming `Date` still meets a shadowing `Date` — which no mechanism short of syntax contexts on every binding addresses, and which the spans above make detectable even where they do not prevent it.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-preprocessor-modules">
+      <h1>Preprocessor Modules</h1>
+      <p>A module imported with the <emu-xref href="#sec-import-attributes">import attribute</emu-xref> `preprocessor` set to *true* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
+      <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
+      <p>A preprocessor module and every export of it used as a replacement decorator must be <emu-xref href="#sec-compile-time-evaluability">compile-time evaluable</emu-xref>. It is a Syntax Error otherwise, reported at the declaration that is not evaluable.</p>
+      <emu-note>
+        <p>Evaluability is the whole of the sandbox. An evaluable function reads only its parameters, constants, and other evaluable functions, so it cannot NAME the clock, randomness, I/O, or ambient state — `Date.now`, `Math.random`, `WeakRef`, and locale-sensitive operations are all unreachable by construction rather than withheld by a realm. Expansion is therefore a pure function of its input, which is what lets an implementation cache an expansion beside the code it compiled to, and what lets a build tool perform an expansion ahead of time and get the answer an implementation would.</p>
+        <p>The constraint binds evaluation as well as expansion: a module that could read the network while evaluating would close over what it read, and its decorators would not be pure however pure their bodies were.</p>
+      </emu-note>
+      <emu-note>
+        <p>Local mutation is evaluable — a Set of seen keys, an accumulator — and shared module-level mutable state is not, which is the same line <emu-xref href="#sec-compile-time-evaluability"></emu-xref> already draws for type builders and `where` clauses. A replacement decorator and a type builder are both user code an implementation runs while compiling, and they are one discipline.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-replacement-decorators">
+      <h1>Replacement Decorators</h1>
+      <p>A <dfn id="replacement-decorator">replacement decorator</dfn> is a decorator whose name was introduced by a <emu-xref href="#sec-preprocessor-modules">preprocessor module</emu-xref>'s import clause. It receives the tokens of what it decorates and returns tokens that replace them, before the importing module is parsed.</p>
+
+      <h2>The name is decided syntactically</h2>
+      <p>A decoration names a replacement decorator if and only if its |IdentifierReference| is a name the module's `preprocessor` import clauses introduce. The set of such names is determined by inspecting those import clauses and is fixed before expansion begins.</p>
+      <p>It is a Syntax Error for a declaration to shadow such a name.</p>
+      <emu-note>
+        <p>The rule is syntactic rather than scoped because a scope query would be circular: a replacement decorator may introduce declarations, so the scope to resolve against is not complete until expansion has finished, which is the thing the query would decide. Fixing the names by inspection breaks the cycle, and the cost is that a replacement decorator cannot be aliased or locally rebound.</p>
+      </emu-note>
+
+      <h2>Placement</h2>
+      <p>It is a Syntax Error for a decoration that names a replacement decorator to appear closer to the decorated declaration than a decoration that does not.</p>
+      <emu-note>
+        <p>Replacement decorators are written outermost because they run first, so source order agrees with execution order between the two kinds. It also gives them the capability the arrangement exists for: a replacement encloses the runtime decorations, so it can rewrite them, or remove them together with what it replaces.</p>
+      </emu-note>
+
+      <h2>Arguments</h2>
+      <p>The arguments of a replacement decorator are Token Records and are not evaluated. `@f(0)` passes a ~numeric~ token and `@f(Serialize)` passes an ~identifier~ token.</p>
+      <emu-note>
+        <p>This is an exception to the rule that decorator expressions are evaluated in document order (<emu-xref href="#sec-decorator-application"></emu-xref>): a replacement decorator runs before the module is parsed, so there is no scope to evaluate an argument against.</p>
+      </emu-note>
+
+      <h2>One function per name</h2>
+      <p>A replacement decorator name denotes one function. It is not resolved by overload resolution.</p>
+      <emu-note>
+        <p>Overload resolution selects on argument types, and the arguments of a replacement decorator are all Token Records. There is nothing for a type-directed rule to select on, and a macro that wishes to distinguish its arguments inspects them.</p>
+      </emu-note>
+
+      <h2>Frequency</h2>
+      <p>A replacement decorator runs once for each decoration, at expansion. This includes a decoration on a block, which a runtime block decorator would run on every entry to that block.</p>
+      <emu-note>
+        <p>A replacement block decorator rewrites the block once and may emit whatever per-entry work is wanted inline, so the work happens per entry where the decorator does not. The per-iteration cost a runtime block decorator carries does not arise.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-expansion">
+      <h1>Expansion</h1>
+      <p><dfn id="expansion">Expansion</dfn> is the phase in which replacement decorators run. It occurs after a module's source text has been scanned far enough to find its decoration boundaries, and before the module is parsed and checked.</p>
+
+      <emu-alg>
+        1. Let _names_ be the replacement decorator names of the module (<emu-xref href="#sec-replacement-decorators"></emu-xref>).
+        1. Let _depth_ be 0.
+        1. Repeat, while some decoration in the module names an element of _names_,
+          1. If _depth_ &gt; the implementation's expansion limit, throw a *SyntaxError* exception naming the decoration and _depth_.
+          1. Let _d_ be the outermost such decoration in source order.
+          1. Let _result_ be ? ApplyReplacementDecorator(_d_).
+          1. Replace the tokens _d_ decorated, and _d_ itself, with _result_.
+          1. Set _depth_ to _depth_ + 1.
+        1. Return the module's tokens.
+      </emu-alg>
+
+      <emu-note>
+        <p>Expansion is a fixpoint: the tokens a replacement decorator returns may themselves contain decorations, and those are expanded in turn. The order is OUTERMOST first, so a replacement decorator receives the decorations it encloses UNEXPANDED and may rewrite or remove them. The alternative — innermost first — would make an outer decorator unable to remove an inner one, because the inner one would already have run, which is the capability conditional compilation depends on.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>Nothing is re-scanned. What a replacement decorator returns is already tokens, so the implementation walks the returned stream for further decorations rather than lexing it. This is why the phase costs one pass over what was produced rather than a re-lex of the region per expansion.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>_names_ is fixed before the loop and nothing in the loop changes it, so a decoration that an expansion introduces cannot name a replacement decorator no import brought in. Such a decoration is an ordinary decorator and is resolved at run time, or is an error if nothing of that name exists. Re-resolving imports mid-expansion would be the alternative, and it is unavailable: <emu-xref href="#sec-preprocessor-modules"></emu-xref> leaves an expansion nothing to fetch with.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>The expansion limit is an implementation limit, but a specified one: a program that expands in one implementation and not another because the limits differ is the failure a limit exists to make loud.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-applyreplacementdecorator" type="abstract operation">
+      <h1>
+        ApplyReplacementDecorator (
+          _d_: a decoration,
+        ): either a normal completion containing a List of Token Records, or a throw completion
+      </h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd>It calls the replacement decorator _d_ names with the tokens _d_ decorates and its own arguments, and returns the tokens the call produced.</dd>
+      </dl>
+      <emu-alg>
+        1. Let _f_ be the function _d_'s name denotes.
+        1. Let _target_ be TokensOf(the declaration _d_ decorates).
+        1. Let _args_ be a List of the Token Records of _d_'s arguments, unevaluated.
+        1. Let _result_ be Completion(Call(_f_, *undefined*, « _target_ » followed by _args_)).
+        1. If _result_ is an abrupt completion, throw a *SyntaxError* exception whose message is _result_'s value and whose position is _d_.
+        1. If _result_ is not a List of Token Records, throw a *SyntaxError* exception.
+        1. If _result_ does not match the grammar the position of _d_ requires (<emu-xref href="#sec-syntax-replacement"></emu-xref>), throw a *SyntaxError* exception whose position is given by the [[Span]] of the first token of _result_ that does not.
+        1. Return _result_.
+      </emu-alg>
+      <emu-note>
+        <p>A replacement decorator rejects its input by throwing, which is what a function does to reject its arguments and which cannot be ignored. The exception becomes a Syntax Error at the decoration site carrying the macro's own message, so a decorator applied to something it does not handle says so where it was written.</p>
+      </emu-note>
+      <emu-note>
+        <p>A replacement decorator receives tokens and no reflection context. Every field of a context — a type, metadata, an initializer to add — needs either a resolved type or a running program, and expansion has neither.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-syntax-replacement">
+      <h1>Syntax Replacement</h1>
+      <p>The tokens a replacement decorator returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
+      <p>Every decorable position may be syntax-replaced, including the positions that do not admit value replacement: a block produces no value but has syntax, and so do a parameter, a return annotation, an enum, a tuple, a record, and a lexical declaration.</p>
+      <emu-note>
+        <p>This is a grammatical constraint where value replacement's is a typed one, and the two are different axes rather than one rule with exceptions. A position may admit both: a `do` block's value may be replaced by a runtime decorator and its syntax by a replacement decorator, and which a return means is decided by which kind of decorator returned it.</p>
+      </emu-note>
+      <emu-note>
+        <p>An empty result needs no separate permission. It parses where an empty token stream parses — as a statement, or as a class member — and does not where one does not, so removing a decorated statement is legal and removing a parameter from the middle of a list is the same error as returning a class declaration for one.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-decorator-contexts">
       <h1>Reflection Contexts</h1>
       <p>A <dfn id="reflection-context">reflection context</dfn> is a type in the `Reflect` namespace naming a kind of declaration or a part of one. `Reflect.getReflection.&lt;`_C_`, `_T_`&gt;(&hellip;)` reflects the part of _T_ that the context _C_ names, and is resolved by the specialized overloads of <emu-xref href="#sec-generics"></emu-xref>: the first argument selects among the signatures and the second is the declaration reflected, which is why one name serves every context with no `any` in it.</p>
@@ -3829,6 +4067,7 @@ contributors: Sirisian
       <emu-note>
         <p>Types are what remove the `(value, context)` return from a decorator that takes arguments: an erased system cannot tell `@f` from `@f(0)` without one, since it cannot see which `f` is meant, and this proposal resolves it by the annotation on the last parameter. So a decorator looks the same whether or not it takes arguments, and giving one an argument is editing its parameter list rather than rewriting it into a factory.</p>
       </emu-note>
+          <p>Both rules above are rules for decorators that run when the declaration they decorate is evaluated. A <emu-xref href="#sec-replacement-decorators">replacement decorator</emu-xref> runs at expansion, and neither applies to it: its arguments are Token Records and are not evaluated, and its name denotes one function rather than a set of overloads.</p>
     </emu-clause>
   </emu-clause>
 
