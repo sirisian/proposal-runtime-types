@@ -3942,9 +3942,14 @@ contributors: Sirisian
             <tr><td>[[Value]]</td><td>a String</td><td>The token's source text. For a ~group~, the opening delimiter.</td></tr>
             <tr><td>[[Span]]</td><td>a Span Record</td><td>Where the token came from.</td></tr>
             <tr><td>[[Tokens]]</td><td>a List of Token Records or ~empty~</td><td>For a ~group~, the tokens it delimits. ~empty~ otherwise.</td></tr>
+            <tr><td>[[LineTerminatorBefore]]</td><td>a Boolean</td><td>Whether a |LineTerminator| preceded the token in its source.</td></tr>
           </tbody>
         </table>
       </emu-table>
+
+      <emu-note>
+        <p>[[LineTerminatorBefore]] is carried because <b>a LineTerminator is semantically significant</b>: automatic semicolon insertion depends on it, so text produced from tokens that emitted a space where the source had a newline would join a statement to the one above it. A separator is enough to keep two tokens from merging; it is not enough to preserve what they mean.</p>
+      </emu-note>
 
       <emu-note>
         <p>~regexp~ and ~punctuator~ are distinct kinds because the lexical grammar of this specification is not context-free: |InputElementDiv| and |InputElementRegExp| resolve `/` differently, so a token stream is parse-informed rather than purely lexical. A token a replacement decorator PRODUCES must therefore say which it means, and the kind carries it — the ambiguity is resolved by construction rather than by re-scanning the output.</p>
@@ -4183,7 +4188,7 @@ contributors: Sirisian
       </dl>
       <emu-alg>
         1. Let _f_ be the function _d_'s name denotes.
-        1. Let _target_ be TokensOf(the declaration _d_ decorates).
+        1. Let _target_ be the Token Records of the source text from the end of _d_ to the end of the declaration _d_ decorates.
         1. Let _args_ be a List of the Token Records of _d_'s arguments, unevaluated.
         1. Let _result_ be Completion(Call(_f_, *undefined*, « _target_ » followed by _args_)).
         1. If _result_ is an abrupt completion, throw a *SyntaxError* exception whose message is _result_'s value and whose position is _d_.
@@ -4192,6 +4197,10 @@ contributors: Sirisian
         1. For each Token Record _t_ of _result_ whose [[Span]].[[Source]].[[Generation]] is 0 and which did not come from _target_, set _t_.[[Span]].[[Source]] to a Source Reference Record with [[URL]] ~empty~, [[Macro]] _d_'s name, and [[Generation]] the current expansion depth.
         1. Return _result_.
       </emu-alg>
+      <emu-note>
+        <p>_target_ is everything the decoration ENCLOSES, not the declaration alone. <emu-xref href="#sec-expansion"></emu-xref> replaces _d_ together with what it decorates, so any decoration written between them is inside the replaced range - and handing the macro only the declaration would drop those decorations silently, which contradicts a replacement decorator being able to rewrite or remove the runtime decorations it encloses.</p>
+      </emu-note>
+
       <emu-note>
         <p>A token the decorator COPIED from what it was given keeps the Span it arrived with, so it still names the position a program was written at however many expansions move it. Only a token the decorator CREATED is attributed to the decorator, which is what makes a diagnostic inside generated code point at the macro that generated it rather than at the splice — and why no offset map is needed anywhere: attribution travels on the token.</p>
       </emu-note>
