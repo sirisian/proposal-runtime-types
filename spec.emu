@@ -3479,6 +3479,11 @@ contributors: Sirisian
 
       <p>Before any application has bound it — while the declaration's own interior is checked — a higher-kinded parameter resolves to itself, exactly as a parameter of arity zero does. This is what lets a declaration be checked once rather than once per application.</p>
 
+      <p>A higher-kinded parameter may carry a default, on the same terms as any other parameter and with the same well-formedness rule: a parameter carrying a default may not precede one that does not. This clause adds no exception, so a declaration wanting a defaulted wrapper places it after its required parameters, and `Iterator.&lt;`_T_`&gt;` reads as it did before the parameter existed.</p>
+      <emu-note>
+        <p>The rule is what decides the parameter's position rather than the other way round. A wrapper defaulting to the identity alias is the least interesting parameter at most use sites, so placing it last costs nothing and keeps every existing annotation naming the type unchanged; a design that needed the exception would be one whose parameter is in the wrong place. Where both forms want names, the second is an alias rather than a second declaration — `type AsyncIterator&lt;`_T_`, `_R_`, `_N_`&gt; = Iterator&lt;`_T_`, `_R_`, `_N_`, Promise&gt;` — so what is deduplicated is the members, not the names.</p>
+      </emu-note>
+
       <p>An argument bound to a higher-kinded parameter must be a generic class, interface, or type alias whose parameter count equals the parameter's [[Arity]]. Two failures are distinguished, because they are different mistakes and a single diagnostic naming neither would leave a reader to work out which occurred:</p>
       <ul>
         <li>An argument that is not a generic declaration at all is a type error naming the argument and stating that the parameter expects a declaration taking arguments.</li>
