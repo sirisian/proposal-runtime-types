@@ -72,7 +72,7 @@ contributors: Sirisian
             <tr><td>~object~</td><td>[[Properties]] (a List of Property Type Records), [[IndexSignatures]] (a List of Index Signature Records)</td><td>A structural object type or interface type.</td></tr>
             <tr><td>~function~</td><td>[[Signatures]] (a List of Signature Records)</td><td>A function type. It has more than one signature when the function is overloaded.</td></tr>
             <tr><td>~reference~</td><td>[[Target]] (a Type Record)</td><td>A reference to a storage location holding a value of the target type, as introduced by `ref`.</td></tr>
-            <tr><td>~parameter~</td><td>[[Declaration]] (a TypeParameter Parse Node)</td><td>A generic parameter standing for the type or value an application will bind, within the body and signatures of its declaration (<emu-xref href="#sec-generics"></emu-xref>). Frozen: outside its declaration a fully specialized type contains none.</td></tr>
+            <tr><td>~parameter~</td><td>[[Declaration]] (a TypeParameter Parse Node), [[Arity]] (a non-negative integer)</td><td>A generic parameter standing for the type or value an application will bind, within the body and signatures of its declaration (<emu-xref href="#sec-generics"></emu-xref>). An [[Arity]] of 0 is such a parameter; an [[Arity]] of _n_ &gt; 0 is a higher-kinded parameter, which stands for a generic declaration of _n_ parameters rather than for a type, and is not itself a type (<emu-xref href="#sec-higher-kinded-parameters"></emu-xref>). Frozen: outside its declaration a fully specialized type contains none.</td></tr>
             <tr><td>~application~</td><td>[[Builder]] (a function), [[Arguments]] (a List of Type Records and ECMAScript language values, a ~parameter~ where an argument reads an unbound parameter)</td><td>A deferred compile-time application: a call of a compile-time-evaluable function at least one of whose arguments involves an unbound generic parameter, carried as a type until specialization evaluates it (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>).</td></tr>
           </tbody>
         </table>
@@ -90,7 +90,6 @@ contributors: Sirisian
         <p>The observable behaviour of a Type Object, including how it exposes its own structure to reflection, is defined by <emu-xref href="#sec-reflection"></emu-xref>. The remainder of the type system uses only its [[TypeRecord]] and its identity.</p>
       </emu-note>
     </emu-clause>
-
     <emu-clause id="sec-structural-identity">
       <h1>Structural Identity</h1>
       <p>Two types are the same when they have the same structure, with one exception: a ~nominal~ type is identified by its declaration, so two classes with identical members are still different types. This clause defines that notion and the canonical form that makes it decidable and internable. A pair of Type Records is carried through the recursive comparisons as a List so that comparison of a recursive type terminates; each such pair is represented as a Record with a [[First]] field and a [[Second]] field.</p>
@@ -535,6 +534,8 @@ contributors: Sirisian
       <emu-clause id="sec-evaluation-budget">
         <h1>The Evaluation Budget</h1>
         <p>Evaluation under this clause is metered by two host-defined limits: a count of evaluation steps and a count of constructed Type Records, each per top-level type-position evaluation. For a given source text, two hosts either produce, position for position, the same interned types, or at least one reports a type error: the limits decide whether compilation fails, never what it produces.</p>
+
+        <p>The budget bounds a computation, which either completes or is abandoned and reported. A rule requiring a SEARCH — over the types an argument could take, rather than over a fixed evaluation — is not metered by it and is refused where it would otherwise arise (<emu-xref href="#sec-higher-kinded-parameters"></emu-xref>), because truncating a search under a budget yields a wrong answer where truncating a computation yields none.</p>
 
         <p>Exhaustion is not an abrupt completion the evaluated code can observe. No `try` statement within the evaluation handles it; the evaluation is abandoned, and EvaluateToTypeObject of the containing type-position expression is ~empty~, with a diagnostic naming the outermost call and the deepest frames.</p>
 
@@ -3304,6 +3305,7 @@ contributors: Sirisian
             <tr><td>README</td><td>The core; specified throughout this document.</td></tr>
             <tr><td>typeobjects.md</td><td>Specified: the Type Object and the computed types of <emu-xref href="#sec-computed-types"></emu-xref>.</td></tr>
             <tr><td>typeprogramming.md</td><td>Specified: builders, canonicalization, the evaluation budget, structural matching (<emu-xref href="#sec-structural-matching"></emu-xref>), provenance (<emu-xref href="#sec-provenance"></emu-xref>), and the expansion artifact (<emu-xref href="#sec-expansion-artifact"></emu-xref>).</td></tr>
+            <tr><td>higherkindedtypes.md</td><td>Specified: <emu-xref href="#sec-higher-kinded-parameters"></emu-xref>, which states the [[Arity]] on a ~parameter~ Type Record, what may be bound to a higher-kinded parameter, and how the four clauses of <emu-xref href="#sec-generics"></emu-xref> read when a parameter is one. The refusals of the quantified constraint and of inference are normative, and both rest on <emu-xref href="#sec-evaluation-budget"></emu-xref>.</td></tr>
             <tr><td>generics.md</td><td>Partially specified: the parameters that are types and values, specialization, the `where` constraints, and variance are <emu-xref href="#sec-generics"></emu-xref>. Specialized overloads and their resolution, constraint families as specialization selectors, variadic packs, argument-bound value generics and inference from an expected type, the constraint-family forms, and generic parameters on a decorator are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
             <tr><td>dependentrecordtypes.md</td><td>Specified: <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>primitivemetadata.md</td><td>Specified: <emu-xref href="#sec-primitive-metadata"></emu-xref>.</td></tr>
@@ -3461,6 +3463,42 @@ contributors: Sirisian
       </emu-table>
       <emu-note>
         <p>This is the variance of C# and Kotlin, sound because the well-formedness rule confines a covariant parameter to positions a value is read from and a contravariant one to positions a value is written to. A `Producer.&lt;Dog&gt;` is usable as a `Producer.&lt;Animal&gt;` where `Producer` is declared covariant and only produces, which the container invariance of <emu-xref href="#sec-issubtype"></emu-xref> forbids for a `Map` precisely because a `Map` also consumes. The relation composes with the others: an instantiation is a subtype along a covariant position by the ordinary subtyping of the arguments, so a covariant position holding another generic type carries the polarity inward, which the last two table rows state.</p>
+      </emu-note>
+    </emu-clause>
+    <emu-clause id="sec-higher-kinded-parameters">
+      <h1>Higher-Kinded Parameters</h1>
+      <p>A generic parameter with an [[Arity]] of zero stands for a type. A <dfn>higher-kinded parameter</dfn> has an [[Arity]] of _n_ &gt; 0 and stands for a generic declaration of _n_ parameters: something that becomes a type once applied, rather than a type. This clause states how one is declared, what may be bound to it, what applying it means, and how the four clauses above read when a parameter is one (design, higherkindedtypes.md).</p>
+
+      <p>A higher-kinded parameter's arity is written and never inferred. Each hole in its own parameter list contributes one:</p>
+      <p>A parameter is higher-kinded when its |BindingIdentifier| is followed by a bracketed list of `_` tokens, as `W&lt;_&gt;` for an [[Arity]] of 1 and `W&lt;_, _&gt;` for 2. The count of tokens is the [[Arity]].</p>
+      <emu-note>
+        <p>`_` is the pattern wildcard of the pattern matching extension, and the reuse is positional in the way `%` already is: `%` is the remainder operator between two operands and the pipeline topic where an operand is expected, and here a type parameter list is a position where a pattern cannot appear. The token means *a hole* at both.</p>
+      </emu-note>
+
+      <p>Within the declaration that introduces it, a higher-kinded parameter may appear only applied. It is not a type, so a type position naming one unapplied is a type error, and the message states the arity the parameter expects. Applied, it is an ordinary application: the parameter is resolved to whatever the enclosing application bound it to, and that is then applied to the given arguments, so `W.&lt;`_X_`&gt;` means the same as writing the bound declaration applied to _X_ directly.</p>
+
+      <p>Before any application has bound it — while the declaration's own interior is checked — a higher-kinded parameter resolves to itself, exactly as a parameter of arity zero does. This is what lets a declaration be checked once rather than once per application.</p>
+
+      <p>An argument bound to a higher-kinded parameter must be a generic class, interface, or type alias whose parameter count equals the parameter's [[Arity]]. Two failures are distinguished, because they are different mistakes and a single diagnostic naming neither would leave a reader to work out which occurred:</p>
+      <ul>
+        <li>An argument that is not a generic declaration at all is a type error naming the argument and stating that the parameter expects a declaration taking arguments.</li>
+        <li>An argument that is a generic declaration of the wrong parameter count is a type error naming both counts.</li>
+      </ul>
+
+      <p>Specialization (<emu-xref href="#sec-generic-specialization"></emu-xref>) substitutes a bound declaration for the parameter and then applies it, so a specialized type contains no higher-kinded parameter and the resulting application is an ordinary one. Two applications binding different declarations are distinct types on the same terms as any other pair of applications, and interning follows from that with no rule of its own.</p>
+
+      <p>A `where` constraint (<emu-xref href="#sec-generic-where"></emu-xref>) on a higher-kinded parameter constrains its application at a stated argument, as in `where W.&lt;`_T_`&gt; is `Iterable`. A constraint quantified over every argument the parameter could receive is a type error.</p>
+      <emu-note>
+        <p>The quantified form is refused for a reason of correctness rather than of difficulty, and the reason is this specification's own. Type-position evaluation is metered (<emu-xref href="#sec-evaluation-budget"></emu-xref>): a budget of evaluation steps and constructed Type Records bounds it, and exhausting the budget abandons the evaluation and reports. That bounds a *computation*, which either finishes or does not. A constraint quantified over every argument is not a computation but a search over the types that could be supplied, and truncating a search under a budget yields a WRONG answer rather than no answer — whether the constraint held would depend on how much budget remained when the search stopped. A rule whose truth varies with a host-defined limit is not a rule, so the form is refused rather than metered.</p>
+      </emu-note>
+
+      <p>Declared variance (<emu-xref href="#sec-generic-variance"></emu-xref>) applies to a higher-kinded parameter on the same terms as to any other, meaning at the applied form what it means for a parameter of arity zero, and a parameter carrying no annotation is invariant. An application binding one declaration is therefore not a subtype of an application binding another, which is what keeps a synchronous iterator from being accepted where an asynchronous one is expected.</p>
+
+      <p>A higher-kinded parameter read as a value (<emu-xref href="#sec-generic-parameters-as-values"></emu-xref>) is the unapplied declaration bound to it. Applying that value yields the same Type Object the corresponding type-position application yields, since both reach the same interned record.</p>
+
+      <p>A higher-kinded parameter is bound only by explicit application. It is never inferred from an argument's type.</p>
+      <emu-note>
+        <p>Inference is declined for the reason the quantified constraint is. Recovering _W_ and _T_ from a single argument of type `Promise.&lt;uint8&gt;` admits at least two answers — _W_ is `Promise` and _T_ is `uint8`, or _W_ is `Identity` and _T_ is the whole promise — and both are consistent with the argument. Choosing between them is a search, and this specification meters computation rather than search. Requiring the argument costs a reader one type argument at each application and buys an evaluation that terminates with the same answer under every budget.</p>
       </emu-note>
     </emu-clause>
   </emu-clause>
