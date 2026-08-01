@@ -1366,6 +1366,54 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-vector-masks">
+      <h1>Mask Operations</h1>
+      <p><emu-xref href="#sec-vector-comparisons"></emu-xref> states what a comparison between vectors produces. This clause states what consumes one. A <dfn>mask</dfn> is a vector whose lane type is `uint.&lt;1&gt;`, which is what the design names `boolean`_N_ (<emu-xref href="#sec-vector-lanes"></emu-xref>), and the operations below are declared on such a vector alone.</p>
+
+      <p>For a mask of type `vector.&lt;uint.&lt;1&gt;, N&gt;`:</p>
+      <ul>
+        <li>`all()` has the Static Type `boolean`, and is *true* when every lane is set.</li>
+        <li>`any()` has the Static Type `boolean`, and is *true* when at least one lane is set.</li>
+        <li>`select(`_whenSet_`, `_whenClear_`)` takes two vectors of one type `vector.&lt;U, N&gt;` and has that Static Type. Lane _j_ of the result is lane _j_ of _whenSet_ where lane _j_ of the receiver is set, and lane _j_ of _whenClear_ otherwise.</li>
+      </ul>
+
+      <p>_U_ is not the receiver's lane type. A mask selects between vectors of any lane type, so long as they share its lane count.</p>
+
+      <p>`select` is an ordinary call, so **both arguments are evaluated** before it is made, whichever lanes of the receiver are set. It is not a conditional and does not have a conditional's evaluation.</p>
+
+      <emu-note>
+        <p>That is the trade `select` exists to make. A branch evaluates one side and costs a misprediction where the condition varies per lane; `select` evaluates both and costs neither, which is why branchless code is written with it. A design that must not evaluate one side writes a branch.</p>
+        <p>A mask is a vector and nothing about these operations makes it a separate kind of value: a lane of it is read by index, it permutes, and it carries component accessors like any other vector of its shape, so `m.x` is a lane of it and `m.xyxy` is a four-lane mask.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-vector-widths">
+      <h1>Vector Widths</h1>
+      <p>`vector.&lt;T, N&gt;` admits any positive lane count, which is what lets one kernel be written against a width. The width a target executes in one instruction is a property of the target, and `vector.preferredLanes(`_T_`)` is that width for a lane type _T_.</p>
+
+      <p>Its result is a compile-time constant, so a type may be formed from it and a generic declaration may specialize on it. Its value is host-defined.</p>
+
+      <emu-note>
+        <p>This is the one operation of this specification whose result may differ between hosts, so it is the one place a program's TYPES may differ between hosts: a `vector.&lt;float32, vector.preferredLanes(float32)&gt;` is a different type on a target with four lanes and on one with eight. That is the point of the operation rather than a defect in it — a program written against it is portable in the sense that matters, which is that it compiles to the target's own width rather than to a width chosen for another machine.</p>
+        <p>It is also why a design that needs one type across hosts writes the lane count rather than asking for it. The determinism this specification fixes elsewhere is determinism for a given host (<emu-xref href="#sec-evaluation-budget"></emu-xref>), and this operation does not weaken it: two evaluations on one host agree.</p>
+      </emu-note>
+
+      <p>A vector whose lane count exceeds the target's width is formed and used as any other, and an implementation executes it in as many instructions as it needs.</p>
+
+      <emu-note>
+        <p>Gather, scatter, and masked load and store are not specified. The design defers them (simd.md), and they are named here so that their absence reads as a boundary rather than an omission: they are the operations that vectorize an indirect access, and they need an addressing model this specification does not have.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-vector-wrapping">
+      <h1>Wrapping a Vector</h1>
+      <p>A type alias of a vector type is that vector type, so a value of it has the component accessors of <emu-xref href="#sec-vector-component-accessors"></emu-xref> and the operations of the clauses above. A class holding a vector as a member is a distinct nominal type, and does not have them: a class does not acquire the members of its own field's type.</p>
+
+      <emu-note>
+        <p>This follows from the rules for aliases and classes rather than adding one, and is stated because it decides a design question the design document poses. A `Vector4` written as an alias swizzles and a `Vector4` written as a class does not, unless it declares the accessors it wants. The trade is nominal distinction: two aliases of `vector.&lt;float32, 4&gt;` are one type, so a `Quaternion` and a `Vector4` written that way are mutually assignable, where two classes are not.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-any-type">
       <h1>The any Type</h1>
       <p>`any` is the type of every value. Every ECMAScript language value is a value of the `any` type, and a binding whose type is `any` accepts any value. It is described by the Type Record { [[Kind]]: ~any~ }, and it is the type of a binding that carries no annotation, which is what makes an untyped program a program whose bindings are all of the `any` type.</p>
@@ -3386,7 +3434,7 @@ contributors: Sirisian
             <tr><td>primitive metadata</td><td>The meta types the design ships over the protocol of <emu-xref href="#sec-primitive-metadata"></emu-xref>, which is where they are declared rather than specified: the `Dimensions` of units of measure with its unit aliases and dimensional algebra, the `NumberBounds` of the JSON Schema constraints, and the `DecimalContext` that fixes a decimal's scale and rounding. The protocol itself, its decomposition, its conversion, its narrowing, and the operator and cast declaration forms are delivered by that clause.</td></tr>
             <tr><td>memory layout</td><td>The placement construction that lands an instance on existing bytes, and the descriptor generation the layout is read for. The layout properties, the placement rule, the explicit controls, the bit-fields, and the finiteness condition that <emu-xref href="#sec-typed-classes"></emu-xref> states are delivered by <emu-xref href="#sec-memory-layout"></emu-xref>.</td></tr>
             <tr><td>SIMD</td><td>The lane-wise intrinsics an engine lowers to one instruction each, `swizzle`, `shuffle`, `lane`, `select`, and the reductions, together with the accessor vocabulary. The comparison operators and the lane counts are delivered by <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
-            <tr><td>simd</td><td>The design's SIMD surface beyond the vector type and its comparisons (<emu-xref href="#sec-vector-types"></emu-xref>, <emu-xref href="#sec-vector-comparisons"></emu-xref>): the operations that consume a mask, wrapping a vector in a named type, and portable widths. The vector type, its lane rules, and the comparison forms are stated above and are what such an extension builds on.</td></tr>
+            <tr><td>simd</td><td>Gather, scatter, and masked load and store, which vectorize an indirect access and need an addressing model this specification does not have. The design defers them too (simd.md), and every other operation of that document is stated in the clauses <emu-xref href="#sec-vector-types"></emu-xref> through <emu-xref href="#sec-vector-wrapping"></emu-xref>.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`; and the generic parameters a decorator declares, which the design writes and this specification neither states nor defers elsewhere. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
@@ -3431,7 +3479,7 @@ contributors: Sirisian
             <tr><td>The iteration types</td><td>Specified: <emu-xref href="#sec-iteration-types"></emu-xref>, owed to the protocols the core defines rather than to any extension, and the clause the generator types are now stated in terms of.</td></tr>
             <tr><td>pipelineoperator.md</td><td>Specified: <emu-xref href="#sec-pipeline-operator"></emu-xref>, with the token recorded as the proposal's current spelling and every rule stated in terms of the topic rather than the token.</td></tr>
             <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
-            <tr><td>simd.md</td><td>Partially specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>, its lanes, the broadcast cast, the horizontal sum, and the conversion between a bit vector and an integer are <emu-xref href="#sec-vector-lanes"></emu-xref>, permutation across one and two sources is <emu-xref href="#sec-vector-permutation"></emu-xref>, and the component accessors with their desugaring are <emu-xref href="#sec-vector-component-accessors"></emu-xref>, and the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>. The operations that consume a mask, vector wrapping, and portable widths are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
+            <tr><td>simd.md</td><td>Specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>; its lanes, the broadcast cast, the horizontal sum, and the conversion between a bit vector and an integer are <emu-xref href="#sec-vector-lanes"></emu-xref>; permutation across one and two sources is <emu-xref href="#sec-vector-permutation"></emu-xref>; the component accessors with their desugaring are <emu-xref href="#sec-vector-component-accessors"></emu-xref>; the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>; the operations that consume a mask are <emu-xref href="#sec-vector-masks"></emu-xref>; the target's preferred width is <emu-xref href="#sec-vector-widths"></emu-xref>; and what an alias of a vector type has that a class wrapping one does not is <emu-xref href="#sec-vector-wrapping"></emu-xref>. Gather, scatter, and masked load and store are deferred by the design itself, which <emu-xref href="#sec-vector-widths"></emu-xref> records.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; the deferred forms (a location-consuming return, a destructuring `ref` member, a user iterator or callback yielding references, and the `SoA` substrate) are noted there.</td></tr>
