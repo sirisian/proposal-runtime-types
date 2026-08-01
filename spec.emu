@@ -1291,6 +1291,7 @@ contributors: Sirisian
       <emu-note>
         <p>This is what makes a bit vector a bitfield rather than a name for a byte. A `boolean8` initialized from `0b00000010` has lane 1 set and the rest clear, so `a[1]` is 1 and `a[0]` is 0; assigning 1 to lane 3 and reading the value back as an integer gives `0b00001010`.</p>
         <p>The numbering is the one <emu-xref href="#sec-vector-comparisons"></emu-xref> states for the masks a comparison produces, and it is stated here as a rule because that clause states it as a remark about hardware. A bit vector converts whether or not a comparison produced it.</p>
+        <p>A bit vector is not a bit-field. The sub-byte integer members a class may declare, with their own bit order and offsets, are <emu-xref href="#sec-memory-layout"></emu-xref>'s and are a different feature: they pack members of differing widths into a layout, where a bit vector is _N_ lanes of one width that permute, compare, and select like any other vector. The two are stated in different clauses because they answer different questions, and a reader meeting `boolean8` here is not meeting the other.</p>
       </emu-note>
 
       <p>`sum()` has the Static Type _T_ and is the sum of the receiver's lanes. Its result is that of adding the lanes in an implementation-defined order, which for a binary floating-point lane type is observable: addition is not associative there, so two implementations may return different values for one receiver.</p>
@@ -1340,7 +1341,8 @@ contributors: Sirisian
       <p>An accessor whose key names no lane twice is assignable, and takes a value of the accessor's own Static Type. An accessor whose key names a lane twice is not assignable, since an assignment to it would give one lane two values; it is a type error to assign to one.</p>
 
       <emu-note>
-        <p>A vector of more than four lanes has no component accessors, because the two sets have four characters each. Such a vector permutes with <emu-xref href="#sec-vector-permutation"></emu-xref>, which is why that clause takes its indices rather than names.</p>
+        <p>A vector of more than four lanes has no component accessors, because the two sets have four characters each. Such a vector permutes with <emu-xref href="#sec-vector-permutation"></emu-xref>, which is why that clause takes indices rather than names.</p>
+        <p>That limit is a decision rather than a gap awaiting names. Every shading language that has these accessors stops at four, and no language with wider vectors has invented a set for them: Rust and Java give wide vectors indices and permutations and no names at all. Extending a set would collide, since `a` and `b` already name lanes in `rgba` and would name different lanes at a different width; adding a second pair of sets for lanes 4 through 7 does not reach sixteen; and numeric names in the manner of OpenCL's `s0` through `s7` would spell what `lane.&lt;`_I_`&gt;()` and `swizzle` already spell. The four names exist because geometry has conventional names for its axes, not because permutation wants sugar, so a vector with no such convention has no names and loses nothing.</p>
         <p>The design writes the third set GLSL provides, `stpq`, as deliberately absent: HLSL and WGSL dropped it, and two sets already name every lane.</p>
       </emu-note>
 
