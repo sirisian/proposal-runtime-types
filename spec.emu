@@ -1315,11 +1315,54 @@ contributors: Sirisian
       <emu-note>
         <p>Each index is a compile-time constant rather than an expression because the operation it compiles to has no other form: the lane selector of a permute instruction is an immediate operand, not a register. An index computed at run time is a different and slower operation, and the design does not give it a spelling — a permutation whose selection is data is an open question of simd.md, not an omission from this clause.</p>
         <p>The two-source numbering is the one place a reader is likely to err. For a four-lane receiver, indices 0 through 3 name the receiver's lanes and 4 through 7 name _other_'s, so `a.shuffle.&lt;0, 1, 4, 5&gt;(b)` takes the first half of each.</p>
-        <p>`swizzle` is how the eight- and sixteen-lane vectors permute, since the component accessors the design gives a vector name only its first four lanes and are not yet stated here (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+        <p>`swizzle` is how the eight- and sixteen-lane vectors permute, since the component accessors of <emu-xref href="#sec-vector-component-accessors"></emu-xref> name only a vector's first four lanes.</p>
       </emu-note>
 
       <emu-note>
         <p>The design writes the index list as a variadic value generic parameter, `swizzle&lt;...I: [].&lt;uint32&gt;&gt;()`, whose length gives the result's lane count. Value generics and their variadic form are the generics extension's (<emu-xref href="#table-extension-hooks"></emu-xref>); the rules above are what that spelling means, stated so that this clause does not wait on it.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-vector-component-accessors">
+      <h1>Vector Component Accessors</h1>
+      <p>A vector of four or fewer lanes has names for its lanes, drawn from two sets, and a sequence of those names is a permutation written as a property (design, simd.md). `xyzw` and `rgba` name the same lanes in that order, so `v.x` and `v.r` are one lane and `v.wzyx` and `v.abgr` are one permutation.</p>
+
+      <p>A property key is a component accessor of a receiver of type `vector.&lt;T, N&gt;` when all of the following hold:</p>
+      <ul>
+        <li>_N_ is at most 4.</li>
+        <li>The key is a sequence of 1 to 4 characters, each drawn from `xyzw` or each drawn from `rgba`. A key mixing the sets is not a component accessor.</li>
+        <li>Each character's index within its set is less than _N_.</li>
+      </ul>
+
+      <p>Such an accessor has the Static Type _T_ for a key of one character, and `vector.&lt;T, L&gt;` for a key of _L_ characters. _L_ is independent of _N_: a two-lane vector's `xyxy` has the Static Type `vector.&lt;T, 4&gt;`.</p>
+
+      <p>An accessor whose key names no lane twice is assignable, and takes a value of the accessor's own Static Type. An accessor whose key names a lane twice is not assignable, since an assignment to it would give one lane two values; it is a type error to assign to one.</p>
+
+      <emu-note>
+        <p>A vector of more than four lanes has no component accessors, because the two sets have four characters each. Such a vector permutes with <emu-xref href="#sec-vector-permutation"></emu-xref>, which is why that clause takes its indices rather than names.</p>
+        <p>The design writes the third set GLSL provides, `stpq`, as deliberately absent: HLSL and WGSL dropped it, and two sets already name every lane.</p>
+      </emu-note>
+
+      <p>A component accessor is a property, not a syntactic form, and the distinction is observable. The names are non-enumerable properties of the vector's prototype, shared by every value of that shape, so:</p>
+      <ul>
+        <li>`'xyz' in v` is *true*, and `v['xyz']` and `Reflect.get(v, 'wzyx')` reach the same value the dotted access does.</li>
+        <li>`Object.keys(v)` is empty, since the accessors are not own properties.</li>
+        <li>`Object.getOwnPropertyNames(`_C_`.prototype)` for a four-lane vector type _C_ includes every accessor name, of which there are 680 counting both sets and every result length from 1 to 4.</li>
+      </ul>
+
+      <emu-note>
+        <p>A form keyed on the receiver's static type would satisfy none of the first three: a computed access could not reach it, and reflection could not see it. Making the accessors properties is what keeps a vector an ordinary object, at the cost of several hundred prototype names that `Object.getOwnPropertyNames` reports. None of them collides with a method of the vector prototype, since every accessor name is drawn from `xyzw` and `rgba` alone.</p>
+      </emu-note>
+
+      <p>A component accessor is equivalent to the permutation of the same lanes:</p>
+      <ul>
+        <li>A read through a key of one character is `lane.&lt;`_I_`&gt;()` for that character's index _I_ (<emu-xref href="#sec-vector-lanes"></emu-xref>).</li>
+        <li>A read through a key of _L_ characters is `swizzle.&lt;`_I_&#8321;`, &hellip;, `_I_<sub>_L_</sub>`&gt;()` for their indices (<emu-xref href="#sec-vector-permutation"></emu-xref>).</li>
+        <li>An assignment through an assignable key replaces the named lanes with the corresponding lanes of the assigned value, leaving the receiver's other lanes unchanged.</li>
+      </ul>
+
+      <emu-note>
+        <p>The equivalence is why this clause adds no operation. `v.xzzw` is `v.swizzle.&lt;0, 2, 2, 3&gt;()` and `v.x` is `v.lane.&lt;0&gt;()`; the names are how a program reads, and the permutation is what an implementation compiles. A compound assignment such as `v.xy += `_w_ is the read, the operation, and the assignment in the order any compound assignment takes them, and needs no rule here.</p>
       </emu-note>
     </emu-clause>
 
@@ -3343,7 +3386,7 @@ contributors: Sirisian
             <tr><td>primitive metadata</td><td>The meta types the design ships over the protocol of <emu-xref href="#sec-primitive-metadata"></emu-xref>, which is where they are declared rather than specified: the `Dimensions` of units of measure with its unit aliases and dimensional algebra, the `NumberBounds` of the JSON Schema constraints, and the `DecimalContext` that fixes a decimal's scale and rounding. The protocol itself, its decomposition, its conversion, its narrowing, and the operator and cast declaration forms are delivered by that clause.</td></tr>
             <tr><td>memory layout</td><td>The placement construction that lands an instance on existing bytes, and the descriptor generation the layout is read for. The layout properties, the placement rule, the explicit controls, the bit-fields, and the finiteness condition that <emu-xref href="#sec-typed-classes"></emu-xref> states are delivered by <emu-xref href="#sec-memory-layout"></emu-xref>.</td></tr>
             <tr><td>SIMD</td><td>The lane-wise intrinsics an engine lowers to one instruction each, `swizzle`, `shuffle`, `lane`, `select`, and the reductions, together with the accessor vocabulary. The comparison operators and the lane counts are delivered by <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
-            <tr><td>simd</td><td>The design's SIMD surface beyond the vector type and its comparisons (<emu-xref href="#sec-vector-types"></emu-xref>, <emu-xref href="#sec-vector-comparisons"></emu-xref>): component accessors and the swizzles they compose into, the operations that consume a mask, wrapping a vector in a named type, and portable widths. The vector type, its lane rules, and the comparison forms are stated above and are what such an extension builds on.</td></tr>
+            <tr><td>simd</td><td>The design's SIMD surface beyond the vector type and its comparisons (<emu-xref href="#sec-vector-types"></emu-xref>, <emu-xref href="#sec-vector-comparisons"></emu-xref>): the operations that consume a mask, wrapping a vector in a named type, and portable widths. The vector type, its lane rules, and the comparison forms are stated above and are what such an extension builds on.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`; and the generic parameters a decorator declares, which the design writes and this specification neither states nor defers elsewhere. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
@@ -3388,7 +3431,7 @@ contributors: Sirisian
             <tr><td>The iteration types</td><td>Specified: <emu-xref href="#sec-iteration-types"></emu-xref>, owed to the protocols the core defines rather than to any extension, and the clause the generator types are now stated in terms of.</td></tr>
             <tr><td>pipelineoperator.md</td><td>Specified: <emu-xref href="#sec-pipeline-operator"></emu-xref>, with the token recorded as the proposal's current spelling and every rule stated in terms of the topic rather than the token.</td></tr>
             <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
-            <tr><td>simd.md</td><td>Partially specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>, its lanes, the broadcast cast, the horizontal sum, and the conversion between a bit vector and an integer are <emu-xref href="#sec-vector-lanes"></emu-xref>, permutation across one and two sources is <emu-xref href="#sec-vector-permutation"></emu-xref>, and the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>. Component accessors and their swizzles, the operations that consume a mask, vector wrapping, and portable widths are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
+            <tr><td>simd.md</td><td>Partially specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>, its lanes, the broadcast cast, the horizontal sum, and the conversion between a bit vector and an integer are <emu-xref href="#sec-vector-lanes"></emu-xref>, permutation across one and two sources is <emu-xref href="#sec-vector-permutation"></emu-xref>, and the component accessors with their desugaring are <emu-xref href="#sec-vector-component-accessors"></emu-xref>, and the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>. The operations that consume a mask, vector wrapping, and portable widths are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; the deferred forms (a location-consuming return, a destructuring `ref` member, a user iterator or callback yielding references, and the `SoA` substrate) are noted there.</td></tr>
