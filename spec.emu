@@ -533,9 +533,14 @@ contributors: Sirisian
 
       <emu-clause id="sec-evaluation-budget">
         <h1>The Evaluation Budget</h1>
-        <p>Evaluation under this clause is metered by two host-defined limits: a count of evaluation steps and a count of constructed Type Records, each per top-level type-position evaluation. For a given source text, two hosts either produce, position for position, the same interned types, or at least one reports a type error: the limits decide whether compilation fails, never what it produces.</p>
+        <p>Evaluation under this clause is metered by two host-defined limits: a count of evaluation steps and a count of constructed Type Records, each per top-level type-position evaluation. Every operation that evaluates a type is metered, the instantiation of a generic type alias among them, since an unmetered one is a way to recurse without spending the budget. For a given source text, two hosts either produce, position for position, the same interned types, or at least one reports a type error: the limits decide whether compilation fails, never what it produces.</p>
 
         <p>The budget bounds a computation, which either completes or is abandoned and reported. A rule requiring a SEARCH — over the types an argument could take, rather than over a fixed evaluation — is not metered by it and is refused where it would otherwise arise (<emu-xref href="#sec-higher-kinded-parameters"></emu-xref>), because truncating a search under a budget yields a wrong answer where truncating a computation yields none.</p>
+
+        <p>A limit must be one the implementation can actually reach. An implementation whose own resources — a native stack, a heap — are exhausted before the limit is has not met this clause, whatever the limit's value: the evaluation ends in a way no program can observe and no diagnostic names, which is the outcome this clause exists to prevent. Where an implementation cannot raise its own capacity, it lowers the limit instead. A limit above what an implementation can reach is not a limit.</p>
+        <emu-note>
+          <p>This bears on any floor a host is asked to meet. A step count in the millions bounds a computation that widens as it runs, and bounds nothing about one that RECURSES: a self-referential type alias reaches an implementation's native stack in thousands of steps, not millions, so an implementation meeting a high floor and reporting nothing has satisfied the number and failed the requirement. The requirement is that exhaustion be reported, and a host chooses limits low enough that it is.</p>
+        </emu-note>
 
         <p>Exhaustion is not an abrupt completion the evaluated code can observe. No `try` statement within the evaluation handles it; the evaluation is abandoned, and EvaluateToTypeObject of the containing type-position expression is ~empty~, with a diagnostic naming the outermost call and the deepest frames.</p>
 
