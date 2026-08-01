@@ -3991,8 +3991,12 @@ contributors: Sirisian
         1. If _result_ is an abrupt completion, throw a *SyntaxError* exception whose message is _result_'s value and whose position is _d_.
         1. If _result_ is not a List of Token Records, throw a *SyntaxError* exception.
         1. If _result_ does not match the grammar the position of _d_ requires (<emu-xref href="#sec-syntax-replacement"></emu-xref>), throw a *SyntaxError* exception whose position is given by the [[Span]] of the first token of _result_ that does not.
+        1. For each Token Record _t_ of _result_ whose [[Span]].[[Source]].[[Generation]] is 0 and which did not come from _target_, set _t_.[[Span]].[[Source]] to a Source Reference Record with [[URL]] ~empty~, [[Macro]] _d_'s name, and [[Generation]] the current expansion depth.
         1. Return _result_.
       </emu-alg>
+      <emu-note>
+        <p>A token the decorator COPIED from what it was given keeps the Span it arrived with, so it still names the position a program was written at however many expansions move it. Only a token the decorator CREATED is attributed to the decorator, which is what makes a diagnostic inside generated code point at the macro that generated it rather than at the splice — and why no offset map is needed anywhere: attribution travels on the token.</p>
+      </emu-note>
       <emu-note>
         <p>A replacement decorator rejects its input by throwing, which is what a function does to reject its arguments and which cannot be ignored. The exception becomes a Syntax Error at the decoration site carrying the macro's own message, so a decorator applied to something it does not handle says so where it was written.</p>
       </emu-note>
