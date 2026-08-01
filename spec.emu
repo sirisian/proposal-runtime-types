@@ -1257,7 +1257,7 @@ contributors: Sirisian
       <p>For a value type _T_ that is an integer, binary floating-point, or vector type, and a positive integer _N_, `vector.&lt;T, N&gt;` is a value type whose values are the sequences of exactly _N_ values of _T_. _T_ is the lane type and _N_ the lane count. The number of values of `vector.&lt;T, N&gt;` is the number of values of _T_ raised to the power _N_.</p>
 
       <emu-note>
-        <p>A vector's lane type may itself be a vector, which is how the boolean vectors of the design are built: `boolean8` is `vector.&lt;uint.&lt;1&gt;, 8&gt;`, eight one-bit lanes, and `boolean8x16` is `vector.&lt;boolean8, 16&gt;`. The lane counts an implementation can hold in a register are a matter for the SIMD extension; the type exists for every positive _N_.</p>
+        <p>A vector's lane type may itself be a vector, which is how the boolean vectors of the design are built: `boolean8` is `vector.&lt;boolean1, 8&gt;`, where `boolean1` is the design's name for `uint.&lt;1&gt;`, eight one-bit lanes, and `boolean8x16` is `vector.&lt;boolean8, 16&gt;`. The lane counts an implementation can hold in a register are a matter for the SIMD extension; the type exists for every positive _N_.</p>
 
         <p>It is a type error to form `vector.&lt;T, N&gt;` where _T_ is not a lane type or _N_ is not a positive integer, since neither denotes a vector type. Where the lane type is itself a vector, this applies to it in turn.</p>
 
@@ -1285,6 +1285,13 @@ contributors: Sirisian
       </emu-note>
 
       <p>`vector.&lt;T, N&gt;` declares a cast operator from _T_, so a value of the lane type converts to a vector by filling every lane with it, and the conversion is one of the user-defined casts of <emu-xref href="#sec-conversions"></emu-xref> rather than a rule of its own. A value whose type is not the lane type does not convert: for a `float32` _s_, `float32x4` accepts _s_ and `float64x2` does not, and a design that wants the second converts _s_ to `float64` first.</p>
+
+      <p>Where the lane type is `uint.&lt;1&gt;`, a lane and a bit coincide: lane _i_ of a `vector.&lt;uint.&lt;1&gt;, N&gt;` is bit _i_ of an _N_-bit integer, counting from the least significant. The conversion between such a vector and an integer type is that correspondence read in each direction. An integer value converted to the vector type gives the vector whose lane _i_ is bit _i_ of the value, and a value of the vector type converted to an integer type gives the integer whose bit _i_ is lane _i_.</p>
+
+      <emu-note>
+        <p>This is what makes a bit vector a bitfield rather than a name for a byte. A `boolean8` initialized from `0b00000010` has lane 1 set and the rest clear, so `a[1]` is 1 and `a[0]` is 0; assigning 1 to lane 3 and reading the value back as an integer gives `0b00001010`.</p>
+        <p>The numbering is the one <emu-xref href="#sec-vector-comparisons"></emu-xref> states for the masks a comparison produces, and it is stated here as a rule because that clause states it as a remark about hardware. A bit vector converts whether or not a comparison produced it.</p>
+      </emu-note>
 
       <p>`sum()` has the Static Type _T_ and is the sum of the receiver's lanes. Its result is that of adding the lanes in an implementation-defined order, which for a binary floating-point lane type is observable: addition is not associative there, so two implementations may return different values for one receiver.</p>
 
@@ -3358,7 +3365,7 @@ contributors: Sirisian
             <tr><td>The iteration types</td><td>Specified: <emu-xref href="#sec-iteration-types"></emu-xref>, owed to the protocols the core defines rather than to any extension, and the clause the generator types are now stated in terms of.</td></tr>
             <tr><td>pipelineoperator.md</td><td>Specified: <emu-xref href="#sec-pipeline-operator"></emu-xref>, with the token recorded as the proposal's current spelling and every rule stated in terms of the topic rather than the token.</td></tr>
             <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
-            <tr><td>simd.md</td><td>Partially specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>, its lanes, the broadcast cast, and the horizontal sum are <emu-xref href="#sec-vector-lanes"></emu-xref>, and the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>. Component accessors and their swizzles, permutation across two vectors, the conversion between a bit vector and an integer, the operations that consume a mask, vector wrapping, and portable widths are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
+            <tr><td>simd.md</td><td>Partially specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>, its lanes, the broadcast cast, the horizontal sum, and the conversion between a bit vector and an integer are <emu-xref href="#sec-vector-lanes"></emu-xref>, and the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>. Component accessors and their swizzles, permutation across two vectors, the operations that consume a mask, vector wrapping, and portable widths are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; the deferred forms (a location-consuming return, a destructuring `ref` member, a user iterator or callback yielding references, and the `SoA` substrate) are noted there.</td></tr>
@@ -4400,7 +4407,7 @@ contributors: Sirisian
 
     <emu-note>
       <p>The three forms are three instructions, which is the point of the overloading rather than a consequence of it: the wide mask is what a comparison natively produces on SSE and NEON, the compact mask is an AVX-512 mask register, and the all-ones vector is what a program blends with. Choosing among them by the annotation lets one spelling reach each without an intrinsic per form, and makes the ambiguity rule load-bearing rather than pedantic: an unannotated `a &lt; b` has no defensible default among three instructions, and a coin flip here is a performance cliff a program cannot see.</p>
-      <p>The bit vectors are the one place a lane and a bit coincide: lane _i_ of a `boolean8` is bit _i_ counting from the least significant, which is how `movmskps` and `vpmovmskb` number their results, and the conversion to and from an integer is that one rule read in each direction. They are not the bit-fields of <emu-xref href="#sec-memory-layout"></emu-xref>, which are sub-byte integer members of a class.</p>
+      <p>The bit vectors are the one place a lane and a bit coincide, and the numbering is stated as a rule in <emu-xref href="#sec-vector-lanes"></emu-xref> rather than here: a bit vector converts to and from an integer whether or not a comparison produced it. `movmskps` and `vpmovmskb` number their results the same way, which is why the rule costs nothing to honour. They are not the bit-fields of <emu-xref href="#sec-memory-layout"></emu-xref>, which are sub-byte integer members of a class.</p>
     </emu-note>
   </emu-clause>
 
