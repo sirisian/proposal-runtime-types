@@ -3907,6 +3907,8 @@ contributors: Sirisian
         </emu-note>
       </emu-clause>
 
+      <p>%TokenStream% is the intrinsic object holding the operation below; %TokenStream.prototype% is the prototype of every TokenStream.</p>
+
       <emu-clause id="sec-tokenstream.gensym" type="abstract operation">
         <h1>
           TokenStream.gensym (
@@ -3928,7 +3930,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-preprocessor-modules">
       <h1>Preprocessor Modules</h1>
-      <p>A module imported with the <emu-xref href="#sec-import-attributes">import attribute</emu-xref> `preprocessor` set to *true* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
+      <p>*"preprocessor"* is a supported import attribute key: HostGetSupportedImportAttributes returns a List containing it. A module imported with that <emu-xref href="#sec-import-attributes">import attribute</emu-xref> set to *"true"* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
       <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
       <p>A preprocessor module and every export of it used as a replacement decorator must be <emu-xref href="#sec-compile-time-evaluability">compile-time evaluable</emu-xref>. It is a Syntax Error otherwise, reported at the declaration that is not evaluable.</p>
       <emu-note>
@@ -3945,14 +3947,40 @@ contributors: Sirisian
       <p>A <dfn id="replacement-decorator">replacement decorator</dfn> is a decorator whose name was introduced by a <emu-xref href="#sec-preprocessor-modules">preprocessor module</emu-xref>'s import clause. It receives the tokens of what it decorates and returns tokens that replace them, before the importing module is parsed.</p>
 
       <h2>The name is decided syntactically</h2>
-      <p>A decoration names a replacement decorator if and only if its |IdentifierReference| is a name the module's `preprocessor` import clauses introduce. The set of such names is determined by inspecting those import clauses and is fixed before expansion begins.</p>
-      <p>It is a Syntax Error for a declaration to shadow such a name.</p>
+      <p>A decoration names a replacement decorator if and only if its |IdentifierReference| is an element of ReplacementDecoratorNames of the |Module|.</p>
+
+      <emu-clause id="sec-static-semantics-replacementdecoratornames" type="sdo">
+        <h1>Static Semantics: ReplacementDecoratorNames ( ): a List of Strings</h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the names a module's preprocessor imports introduce. It is computed from the |ImportDeclaration|s alone, so it is available before the module is expanded and cannot be changed by expanding it.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _names_ be a new empty List.
+          1. For each |ImportDeclaration| _d_ of the ModuleItemList of this |Module|, do
+            1. If _d_ has a |WithClause| with an attribute whose key is *"preprocessor"* and whose value is *"true"*, then
+              1. For each |ImportSpecifier| _i_ of _d_'s |NamedImports|, append the StringValue of _i_'s |ImportedBinding| to _names_.
+          1. Return _names_.
+        </emu-alg>
+        <emu-note>
+          <p>Only |NamedImports| contribute. A default import, a namespace import, and a bare |ModuleSpecifier| introduce no name a decoration can be spelled with, so a preprocessor module imported that way provides no replacement decorators.</p>
+        </emu-note>
+      </emu-clause>
+
+      <h2>Static Semantics: Early Errors</h2>
+      <emu-grammar>Module : ModuleBody?</emu-grammar>
+      <ul>
+        <li>It is a Syntax Error if the BoundNames of |ModuleBody| contains any element of ReplacementDecoratorNames of |Module|.</li>
+        <li>It is a Syntax Error if a decoration whose |IdentifierReference| is an element of ReplacementDecoratorNames of |Module| appears closer to the decorated declaration than a decoration whose |IdentifierReference| is not.</li>
+      </ul>
+      <emu-note>
+        <p>The first makes a name introduced by a preprocessor import unshadowable, which is what lets the second be decided without resolving a binding. Both are computed from the module's own text, so neither depends on anything expansion produces.</p>
+      </emu-note>
       <emu-note>
         <p>The rule is syntactic rather than scoped because a scope query would be circular: a replacement decorator may introduce declarations, so the scope to resolve against is not complete until expansion has finished, which is the thing the query would decide. Fixing the names by inspection breaks the cycle, and the cost is that a replacement decorator cannot be aliased or locally rebound.</p>
       </emu-note>
 
       <h2>Placement</h2>
-      <p>It is a Syntax Error for a decoration that names a replacement decorator to appear closer to the decorated declaration than a decoration that does not.</p>
       <emu-note>
         <p>Replacement decorators are written outermost because they run first, so source order agrees with execution order between the two kinds. It also gives them the capability the arrangement exists for: a replacement encloses the runtime decorations, so it can rewrite them, or remove them together with what it replaces.</p>
       </emu-note>
@@ -4007,6 +4035,18 @@ contributors: Sirisian
       <emu-note>
         <p>The expansion limit is an implementation limit, but a specified one: a program that expands in one implementation and not another because the limits differ is the failure a limit exists to make loud.</p>
       </emu-note>
+
+      <emu-clause id="sec-when-expansion-happens">
+        <h1>When Expansion Happens</h1>
+        <p>ParseModule is modified: after a module's source text has been scanned and before it is parsed as a |Module|, if ReplacementDecoratorNames of the module is not empty, Expansion is performed and the module is parsed from the resulting token stream rather than from its source text.</p>
+        <p>A module whose ReplacementDecoratorNames is empty is parsed unchanged, so a program that uses no replacement decorator observes no phase.</p>
+        <emu-note>
+          <p>ReplacementDecoratorNames is a static semantic of the |ImportDeclaration|s, so deciding whether to expand at all needs the module's imports and nothing else — which is what lets an implementation skip the phase entirely for the modules that do not use it, and what lets a loader know from the import clauses alone which modules it must fetch first.</p>
+        </emu-note>
+        <emu-note>
+          <p>Type checking follows parsing, so it sees only expanded code and never an unexpanded decoration. This ordering is normative: a program's validity depends on it, and an implementation that checked before expanding would reject syntax a replacement decorator was about to produce.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-applyreplacementdecorator" type="abstract operation">
