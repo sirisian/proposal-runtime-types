@@ -3906,9 +3906,16 @@ contributors: Sirisian
       <emu-alg>
         1. Let _text_ be the source text matched by _node_.
         1. Let _source_ be the Source Reference Record for the buffer containing _text_.
-        1. Return the List of Token Records produced by applying the lexical grammar to _text_, in order, where:
-          1. each token's [[Span]] has [[Source]] _source_ and the [[Start]] and [[End]] of that token in the buffer, and
-          1. each run delimited by `{`, `[`, or `(` is one Token Record with [[Kind]] ~group~, [[Value]] the opening delimiter, and [[Tokens]] the tokens of the run.
+        1. Let _tokens_ be a new empty List.
+        1. For each token _t_ matched by the lexical grammar over _text_, in order, do
+          1. Let _span_ be a Span Record with [[Source]] _source_, [[Start]] the index of _t_'s first code unit in that buffer, and [[End]] the index after _t_'s last code unit.
+          1. If _t_ opens a run delimited by `{`, `[`, or `(`, then
+            1. Let _inner_ be the result of performing this operation over the tokens the run delimits.
+            1. Append a Token Record with [[Kind]] ~group~, [[Value]] _t_'s source text, [[Span]] _span_, and [[Tokens]] _inner_ to _tokens_.
+            1. Advance past the run.
+          1. Else,
+            1. Append a Token Record with [[Kind]] the lexical form of _t_, [[Value]] _t_'s source text, [[Span]] _span_, and [[Tokens]] ~empty~ to _tokens_.
+        1. Return _tokens_.
       </emu-alg>
       <emu-note>
         <p>The lexical goal symbol at each position is the one the enclosing parse used, so `/` is already resolved to ~punctuator~ or ~regexp~ and no ambiguity reaches the caller.</p>
@@ -3953,7 +3960,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-preprocessor-modules">
       <h1>Preprocessor Modules</h1>
-      <p>*"preprocessor"* is a supported import attribute key: HostGetSupportedImportAttributes returns a List containing it. A module imported with that <emu-xref href="#sec-import-attributes">import attribute</emu-xref> set to *"true"* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
+      <p>*"preprocessor"* is a supported import attribute key: <emu-xref href="#sec-hostgetsupportedimportattributes"></emu-xref> returns a List containing it. A module imported with an <emu-xref href="#importattribute-record">ImportAttribute Record</emu-xref> whose [[Key]] is *"preprocessor"* and whose [[Value]] is *"true"* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
       <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
       <p>A preprocessor module and every export of it used as a replacement decorator must be <emu-xref href="#sec-compile-time-evaluability">compile-time evaluable</emu-xref>. It is a Syntax Error otherwise, reported at the declaration that is not evaluable.</p>
       <emu-note>
@@ -3981,7 +3988,7 @@ contributors: Sirisian
         <emu-alg>
           1. Let _names_ be a new empty List.
           1. For each |ImportDeclaration| _d_ of the ModuleItemList of this |Module|, do
-            1. If _d_ has a |WithClause| with an attribute whose key is *"preprocessor"* and whose value is *"true"*, then
+            1. If _d_ has a |WithClause| with an ImportAttribute Record whose [[Key]] is *"preprocessor"* and whose [[Value]] is *"true"*, then
               1. For each |ImportSpecifier| _i_ of _d_'s |NamedImports|, append the StringValue of _i_'s |ImportedBinding| to _names_.
           1. Return _names_.
         </emu-alg>
