@@ -1069,7 +1069,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>The positions above are representative rather than exhaustive: the remaining function forms, including methods, arrow functions, generators, and class constructors, take the same annotations and are patched by the clauses that specify them (<emu-xref href="#sec-annotations-on-the-remaining-function-forms"></emu-xref>). An arrow function's parameter list and return annotation interact with the arrow cover grammar and are given by <emu-xref href="#sec-typed-arrow-functions"></emu-xref>.</p>
-        <p>`ref` before a parameter is a contextual keyword. A parameter named `ref` remains valid, since an identifier that is not followed by a token that can begin a binding element is a parameter name; `function f(ref)` therefore continues to declare a parameter named `ref`, while `function f(ref a: int32)` declares a reference parameter named `a`.</p>
+        <p>`ref` before a parameter is a contextual keyword. A parameter named `ref` remains valid, since an identifier that is not followed by a token that can begin a binding element is a parameter name; `function f(ref)` therefore continues to declare a parameter named `ref`, while `function f(ref a: int32)` declares a reference parameter named `a`. The claim rule this shares with every other borrowing form, and the Early Errors of the `ref` parameter &mdash; no |BindingPattern| and no |Initializer| &mdash; are stated with the rest of the borrowing syntax in <emu-xref href="#sec-reference-syntax"></emu-xref>.</p>
       </emu-note>
     </emu-clause>
 
@@ -2673,6 +2673,26 @@ contributors: Sirisian
       <h1>Named Arguments</h1>
       <p>An argument at a call site may be written as a name and a value, `name: AssignmentExpression`, which supplies the value for the parameter of that name rather than for the parameter at that position. A named argument is a compact way to supply a later parameter while omitting earlier ones that have a default. The parameter names a signature carries (<emu-xref href="#sec-signature-records"></emu-xref>) are what a named argument selects by.</p>
       <p>The |Arguments| grammar admits a named argument alongside the positional and spread forms. A named argument is an |IdentifierName| followed by `:` and an |AssignmentExpression|, at the top of an argument. This is new syntax: a call argument that is an identifier followed by `:` is a syntax error in the base language, so no existing call changes meaning, and the form is available only where the runtime types feature is enabled.</p>
+
+      <emu-grammar type="definition">
+        ArgumentList[Yield, Await] :
+          <del>AssignmentExpression[+In, ?Yield, ?Await]</del>
+          <del>`...` AssignmentExpression[+In, ?Yield, ?Await]</del>
+          <del>ArgumentList[?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await]</del>
+          <del>ArgumentList[?Yield, ?Await] `,` `...` AssignmentExpression[+In, ?Yield, ?Await]</del>
+          <ins>Argument[?Yield, ?Await]</ins>
+          <ins>ArgumentList[?Yield, ?Await] `,` Argument[?Yield, ?Await]</ins>
+
+        <ins>Argument[Yield, Await] :
+          AssignmentExpression[+In, ?Yield, ?Await]
+          `...` AssignmentExpression[+In, ?Yield, ?Await]
+          NamedArgument[?Yield, ?Await]
+
+        NamedArgument[Yield, Await] :
+          IdentifierName `:` AssignmentExpression[+In, ?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>This is the first restatement of |ArgumentList|, factoring the pinned edition's four alternatives through an |Argument| element exactly as |FormalParameters| is factored above, so that a new argument form is one added alternative rather than two. The references extension adds one such alternative, the `ref` argument, by restating |Argument| (<emu-xref href="#sec-reference-syntax"></emu-xref>); per <emu-xref href="#sec-conventions"></emu-xref> that later block is the production's complete form.</p>
       <p>A call is bound to the parameters of the selected signature by BindArguments (<emu-xref href="#sec-bindarguments"></emu-xref>). It is a type error if a named argument's name is not a parameter of the signature, and it is a type error if BindArguments returns ~unmatched~.</p>
       <p>A rest parameter is filled by name as well as by position. A named argument whose name is a rest parameter's supplies a value of that rest, and the positional arguments that follow it join the same rest in the order written, so `function f(a: uint8, b: string = '', ...args: [].&lt;string&gt;) {}` called `f(8, args: 'a', 'b')` binds `a` to 8, leaves `b` its default, and gives `args` the elements 'a' and 'b'. Where a parameter after that rest must still be filled, the rest gives back what the parameters after it require, which is the same rule BindArguments applies to a positional call.</p>
 
@@ -3510,7 +3530,95 @@ contributors: Sirisian
 
   <emu-clause id="sec-references-and-borrowing">
     <h1>References and Borrowing</h1>
-    <p>A reference is a borrow: a handle to a storage location, a variable, an object property, or an array element, that reads and writes through to the original rather than to a copy. It is what lets a function mutate its caller's value and a loop write into an array in place. This clause specifies the borrowing forms of the design's references extension (<emu-xref href="#table-extension-hooks"></emu-xref>): the `ref` argument and `ref` return, the `ref` parameter, the `ref` lexical binding and its rebinding, and the reference `for`-`of` loop. The `ref` <emu-xref href="#sec-type-references">type</emu-xref> is already in the grammar; this clause adds the runtime that the type describes.</p>
+    <p>A reference is a borrow: a handle to a storage location, a variable, an object property, or an array element, that reads and writes through to the original rather than to a copy. It is what lets a function mutate its caller's value and a loop write into an array in place. This clause specifies the borrowing forms of the design's references extension (<emu-xref href="#table-extension-hooks"></emu-xref>): the `ref` argument and `ref` return, the `ref` parameter, the `ref` lexical binding and its rebinding, and the reference `for`-`of` loop. The `ref` <emu-xref href="#sec-type-references">type</emu-xref> is already in the grammar; this clause adds the syntax of the borrowing forms and the runtime that the type describes.</p>
+
+    <emu-clause id="sec-reference-syntax">
+      <h1>Syntax</h1>
+      <p>`ref` is a contextual keyword, not a reserved word, and every borrowing form claims it by one rule: `ref` is claimed only when the token that follows it, with no line terminator between, can begin the operand as written &mdash; an |IdentifierReference| or `this` for a |RefExpression|, whose operand is an expression, and a |BindingIdentifier| (an identifier, or `yield` or `await` where those are identifiers) for the binding forms, whose operand is a name. Everywhere else `ref` is the identifier it is today: `f(ref)` and `f(ref, x)` pass it, `ref(x)` calls it, `ref[i]` and `ref.x` read from it, `ref = 1` assigns to it, and `ref:` labels a statement. The rule is what makes every addition below conservative: each new alternative derives only source text that is a Syntax Error in the base language.</p>
+
+      <emu-grammar type="definition">
+        <ins>RefExpression[Yield, Await] :
+          `ref` [no LineTerminator here] LeftHandSideExpression[?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>The operand is a |LeftHandSideExpression| because a borrow names a place, and the claim rule restricts which tokens may begin it: `ref a`, `ref a[i]`, `ref o.x`, and `ref this.buffer` are borrows, while `ref (x)` and `ref [0]` keep their base readings as a call and an element access of an identifier named `ref`. In argument position one further token is admitted, the pipeline topic `%`, not to make `ref %` mean anything but so that its refusal (<emu-xref href="#sec-pipeline-static-semantics"></emu-xref>) carries its own diagnostic rather than surfacing as an unexplained token. A |RefExpression| appears in exactly two positions, an argument and a return; the rest of this clause gives each, and the binding forms, in turn.</p>
+
+      <p>An argument may be a borrow. |Argument| is restated from <emu-xref href="#sec-named-arguments"></emu-xref> with the one added alternative; per <emu-xref href="#sec-conventions"></emu-xref> this block is the production's complete form.</p>
+
+      <emu-grammar type="definition">
+        Argument[Yield, Await] :
+          AssignmentExpression[+In, ?Yield, ?Await]
+          `...` AssignmentExpression[+In, ?Yield, ?Await]
+          NamedArgument[?Yield, ?Await]
+          <ins>RefExpression[?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>A return may be a borrow. This is the first restatement of |ReturnStatement|.</p>
+
+      <emu-grammar type="definition">
+        ReturnStatement[Yield, Await] :
+          `return` `;`
+          `return` [no LineTerminator here] Expression[+In, ?Yield, ?Await] `;`
+          <ins>`return` [no LineTerminator here] RefExpression[?Yield, ?Await] `;`</ins>
+      </emu-grammar>
+
+      <p>`return ref` followed by a line terminator keeps its base meaning: the restriction inside |RefExpression| makes the new alternative unavailable, the |Expression| alternative derives the identifier, and automatic semicolon insertion completes the statement, exactly as it does today. `return ref x` derives only through the new alternative, since two adjacent identifiers have no expression reading.</p>
+
+      <p>A lexical binding may be a borrow. |LexicalBinding| is restated from <emu-xref href="#sec-type-annotations"></emu-xref>; the `ref` alternative requires its |Initializer| structurally, since an alias without a location to alias is nothing, and it joins neither the |BindingPattern| alternative, because the borrow binds one name to one location, nor the |TypedInitializer| alternative, because `:=` infers a binding's type from a value and the initializer of a `ref` binding must denote a location.</p>
+
+      <emu-grammar type="definition">
+        LexicalBinding[In, Yield, Await] :
+          BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]? Initializer[?In, ?Yield, ?Await]?
+          BindingIdentifier[?Yield, ?Await] TypedInitializer[?In, ?Yield, ?Await]
+          BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+          <ins>`ref` [no LineTerminator here] BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]? Initializer[?In, ?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>It is a Syntax Error if the `ref` alternative of |LexicalBinding| is contained in the |LexicalDeclaration| of a |ForStatement| head.</p>
+      <emu-note>
+        <p>The per-iteration environment of a `for` statement copies each head binding by value into every iteration, which would silently decay the alias into a copy after the first. The form is refused rather than given that meaning; lifting the restriction awaits per-iteration semantics for a location binding, which no design document yet states.</p>
+      </emu-note>
+
+      <p>A mutable `ref` binding may be re-aimed by a statement of its own. This is the first restatement of |Statement|.</p>
+
+      <emu-grammar type="definition">
+        Statement[Yield, Await, Return] :
+          BlockStatement[?Yield, ?Await, ?Return]
+          VariableStatement[?Yield, ?Await]
+          EmptyStatement
+          ExpressionStatement[?Yield, ?Await]
+          IfStatement[?Yield, ?Await, ?Return]
+          BreakableStatement[?Yield, ?Await, ?Return]
+          ContinueStatement[?Yield, ?Await]
+          BreakStatement[?Yield, ?Await]
+          [+Return] ReturnStatement[?Yield, ?Await]
+          WithStatement[?Yield, ?Await, ?Return]
+          LabelledStatement[?Yield, ?Await, ?Return]
+          ThrowStatement[?Yield, ?Await]
+          TryStatement[?Yield, ?Await, ?Return]
+          DebuggerStatement
+          <ins>RefRebindingStatement[?Yield, ?Await]</ins>
+
+        <ins>RefRebindingStatement[Yield, Await] :
+          `ref` [no LineTerminator here] BindingIdentifier[?Yield, ?Await] `=` LeftHandSideExpression[?Yield, ?Await] `;`</ins>
+      </emu-grammar>
+
+      <p>The claim is the exact shape: after the same-line name, the next token must be `=`, and otherwise the identifier reading stands &mdash; `ref = 1` assigns to a binding named `ref`, `ref(x)` calls one, and `ref:` labels a statement, all as today. The `=` itself may begin a new line, since `ref b` followed by anything but `=` has no reading in the base language either; an implementation that reads the name before deciding restores it on any other token. The production derives only strings an |ExpressionStatement| cannot, so no statement changes meaning.</p>
+
+      <p>A reference `for`-`of` head marks its binding. |ForDeclaration| gains the marked alternative; the claim declines when the token after `ref` is `of`, so `for (const ref of a)` continues to bind an identifier named `ref`.</p>
+
+      <emu-grammar type="definition">
+        ForDeclaration[Yield, Await] :
+          LetOrConst ForBinding[?Yield, ?Await]
+          <ins>LetOrConst `ref` [no LineTerminator here] ForBinding[?Yield, ?Await]</ins>
+      </emu-grammar>
+
+      <p>It is a Syntax Error if the `ref` alternative's |ForBinding| is a |BindingPattern|. It is a Syntax Error if the `ref` alternative of |ForDeclaration| occurs in a `for`-`in` or `for` `await` alternative of |ForInOfStatement|: the borrow aliases an element slot, which the index-based `for`-`of` of <emu-xref href="#sec-reference-iteration"></emu-xref> supplies, and which neither the property keys a `for`-`in` walks nor the values an async iterator yields can.</p>
+
+      <p>A parameter's `ref` is already in the grammar (|FormalParameter| in <emu-xref href="#sec-type-annotations"></emu-xref>, and the parameter lists of function types in <emu-xref href="#sec-function-types"></emu-xref>); this clause adds its two Early Errors. It is a Syntax Error if a |FormalParameter| has `ref` and its |BindingElement| is a |BindingPattern|: the borrow binds one name to one location, and destructuring a borrow is the pattern's own `(ref a)` member form, a deferred extension (<emu-xref href="#table-extension-hooks"></emu-xref>). It is a Syntax Error if a |FormalParameter| has `ref` and its |BindingElement| contains an |Initializer|: a default runs exactly when the caller supplied no argument, and a value the callee builds has no caller-side location to borrow, so the combination could never bind and is refused at the declaration rather than at the first defaulted call. The optional marker `?` remains admitted, as the function type grammar already admits it; a call that omits an optional `ref` parameter fails the borrow at that call, a *TypeError* exception.</p>
+
+      <p>An arrow function takes `ref` parameters through its covers. The parenthesized cover admits a `ref` parameter directly, refined exactly as <emu-xref href="#sec-typed-arrow-functions"></emu-xref> refines an annotated parameter, so `(ref a: int32) =&gt; {}` and the design's `zip(a, b, (ref x, ref y) =&gt; { x = x + y; })` are covered; and through the async call cover a |RefExpression| argument refines to the same parameter, so `async (ref a) =&gt; {}` is the one form reached by the other road. A cover containing a `ref` parameter has no expression reading, so claiming it is arrow-only and conservative &mdash; `(ref a)` without a following `=&gt;` is a Syntax Error, as it is today. The Initializer Early Error above applies to the refined parameter as to a declared one.</p>
+    </emu-clause>
 
     <emu-clause id="sec-reference-values">
       <h1>Reference Values and the Absence of Identity</h1>
@@ -3537,7 +3645,7 @@ contributors: Sirisian
     <emu-clause id="sec-reference-iteration">
       <h1>Reference Iteration</h1>
       <p>A `for` `(` LetOrConst `ref` _p_ `of` _e_ `)` loop binds _p_ to a reference to each element of the array _e_ in turn, so the body writes into the array in place. The iteration is index-based: it reads the length of _e_ once, evaluates the body once for each index below that length with _p_ bound to a reference to the element at that index, and does not go through `%Symbol.iterator%`, so patching the iterator protocol does not affect it and no result object is allocated. A `let ref` element binding may be written through and rebound and a `const ref` element binding may not, as for a `ref` lexical binding. It is a *TypeError* exception if _e_ is not an array.</p>
-      <p>The length read at the start of the loop is pinned for its duration. An operation that changes the length of the array while a reference into it is live, `push`, `pop`, `shift`, `unshift`, `splice`, or a store to `length`, is a *TypeError* exception, which a `ref` loop makes easy to reach since it holds a reference across the whole iteration. A user-defined iterator that yields references is not supported, and neither is a callback parameter declared `ref`; both compose from the forms above and belong to the design's extension (<emu-xref href="#table-extension-hooks"></emu-xref>), as does the meaning of a reference into an `SoA` column set (<emu-xref href="#sec-memory-layout"></emu-xref>).</p>
+      <p>The length read at the start of the loop is pinned for its duration. An operation that changes the length of the array while a reference into it is live, `push`, `pop`, `shift`, `unshift`, `splice`, or a store to `length`, is a *TypeError* exception, which a `ref` loop makes easy to reach since it holds a reference across the whole iteration. A user-defined iterator that yields references is not supported and belongs to the design's extension (<emu-xref href="#table-extension-hooks"></emu-xref>), as does the meaning of a reference into an `SoA` column set (<emu-xref href="#sec-memory-layout"></emu-xref>). The callback idiom needs no support of its own: a container that passes `ref a[i]` to a callback with a `ref` parameter composes from the argument and parameter forms above, which is how the design's `zip` writes through both arrays.</p>
       <emu-note>
         <p>The two liveness rules are the whole of what the borrow needs, in place of a borrow checker with lifetimes. A reference cannot dangle in the Rust sense because the array it points into is a garbage-collected object that stays alive as long as any reference to it exists; what remains to prevent is a reference into storage that moves, which is a length change while a reference is live, and a reference escaping its location, which the absence of identity (<emu-xref href="#sec-reference-values"></emu-xref>) already forecloses. Both are local checks and neither needs a lifetime system. This specification checks the length rule at run time; the design also permits a static rejection wherever the array's type makes the offending operation visible, which an implementation may add as a diagnostic without changing the meaning of any program this clause accepts.</p>
       </emu-note>
