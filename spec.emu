@@ -1281,7 +1281,10 @@ contributors: Sirisian
       </emu-note>
 
       <emu-note>
-        <p>Whether an assignment to a computed lane should be permitted at all is an open question of the design (simd.md, Open Questions): `withLane` expresses the same intent and returns a value, where `v[i] = `_value_` mutates one in place, which is what a value type is meant not to do. Two things bear on it. An array already permits a value type's element to be assigned, so refusing this would be inconsistent in the direction a reader notices. And `withLane`'s index is a compile-time constant, so refusing this would leave a lane whose index is COMPUTED with no way to be written at all. This clause states the design as it stands and settles nothing; a later revision that refuses the assignment would remove a rule from this clause rather than change one, and would owe a replacement for the computed case.</p>
+        <p>The assignment is asked about because `withLane` expresses the same intent and returns a value, where `v[i] = `_value_` mutates one in place, which is what a value type is meant not to do (simd.md, Open Questions). It is kept, and the reason is not the consistency one: an array does already permit a value type's element to be assigned, but the decisive point is that `withLane`'s index is a COMPILE-TIME CONSTANT. The two operations therefore do not overlap where it matters &mdash; refusing the assignment would leave a lane whose index is computed with no way to be written at all &mdash; so the redundancy the question supposes does not exist.</p>
+      <emu-note>
+        <p>An operation taking a computed index and returning a new vector would restore the redundancy and reopen the question honestly. Nothing here proposes one; a revision that added it could then refuse the assignment without leaving the computed case unwritable, which is the only ground on which refusing it would be complete.</p>
+      </emu-note>
       </emu-note>
 
       <p>`vector.&lt;T, N&gt;` declares a cast operator from _T_, so a value of the lane type converts to a vector by filling every lane with it, and the conversion is one of the user-defined casts of <emu-xref href="#sec-conversions"></emu-xref> rather than a rule of its own. A value whose type is not the lane type does not convert: for a `float32` _s_, `float32x4` accepts _s_ and `float64x2` does not, and a design that wants the second converts _s_ to `float64` first.</p>
@@ -1348,13 +1351,15 @@ contributors: Sirisian
 
       <p>A component accessor is a property, not a syntactic form, and the distinction is observable. The names are non-enumerable properties of the vector's prototype, shared by every value of that shape, so:</p>
       <ul>
-        <li>`'xyz' in v` is *true*, and `v['xyz']` and `Reflect.get(v, 'wzyx')` reach the same value the dotted access does.</li>
+        <li>`v['xyz']` reaches the same value the dotted access does, since the key is looked up rather than parsed.</li>
+        <li>Reflection over the object a vector converts to sees the accessors: `Object.getOwnPropertyNames(`_v_`)` includes every accessor name of that vector's lane count.</li>
         <li>`Object.keys(v)` is empty, since the accessors are not own properties.</li>
         <li>`Object.getOwnPropertyNames(`_C_`.prototype)` for a four-lane vector type _C_ includes every accessor name, of which there are 680 counting both sets and every result length from 1 to 4.</li>
       </ul>
 
       <emu-note>
-        <p>A form keyed on the receiver's static type would satisfy none of the first three: a computed access could not reach it, and reflection could not see it. Making the accessors properties is what keeps a vector an ordinary object, at the cost of several hundred prototype names that `Object.getOwnPropertyNames` reports. None of them collides with a method of the vector prototype, since every accessor name is drawn from `xyzw` and `rgba` alone.</p>
+        <p>`in` and `Reflect.get` are not among these, and the reason is the language's rather than this clause's: both require an Object, and a vector is a value type. A String behaves the same way &mdash; `'0' in 'abc'` is a *TypeError* though `'abc'[0]` reads &mdash; so an accessor being a property does not make these operations reach it. An earlier draft of this clause listed them, which was an error about JavaScript rather than about vectors.</p>
+        <p>A form keyed on the receiver's static type would satisfy neither: a computed access could not reach it, and reflection could not see it. Making the accessors properties is what keeps a vector an ordinary object, at the cost of several hundred prototype names that `Object.getOwnPropertyNames` reports. None of them collides with a method of the vector prototype, since every accessor name is drawn from `xyzw` and `rgba` alone.</p>
       </emu-note>
 
       <p>A component accessor is equivalent to the permutation of the same lanes:</p>
@@ -1392,11 +1397,13 @@ contributors: Sirisian
 
     <emu-clause id="sec-vector-widths">
       <h1>Vector Widths</h1>
-      <p>`vector.&lt;T, N&gt;` admits any positive lane count, which is what lets one kernel be written against a width. The width a target executes in one instruction is a property of the target, and `vector.preferredLanes(`_T_`)` is that width for a lane type _T_.</p>
+      <p>`vector.&lt;T, N&gt;` admits any positive lane count, which is what lets one kernel be written against a width. The width a target executes in one instruction is a property of the target, and `float32.preferredLanes` is that width for the lane type `float32`, and every lane type carries the same property.</p>
 
       <p>Its result is a compile-time constant, so a type may be formed from it and a generic declaration may specialize on it. Its value is host-defined.</p>
 
       <emu-note>
+        <p>The operation is on the LANE type rather than on `vector`, and the reason is that a bare parameterized primitive is not a value: `uint`, `int`, `rational`, `complex`, and `vector` denote types only when applied, so `const x: uint = 5` is refused for the same reason `const x: vector = ...` is. A `vector.preferredLanes(`_T_`)` would need `vector` to be a value, which would single it out among the five. A lane type is already a Type Object and already carries statics &mdash; `byteLength` and the parsing operations among them &mdash; so `float32.preferredLanes` is one more property on a surface that exists, and it reads as what the operation asks: how many lanes of this type fill a register.</p>
+
         <p>This is the one operation of this specification whose result may differ between hosts, so it is the one place a program's TYPES may differ between hosts: a `vector.&lt;float32, vector.preferredLanes(float32)&gt;` is a different type on a target with four lanes and on one with eight. That is the point of the operation rather than a defect in it — a program written against it is portable in the sense that matters, which is that it compiles to the target's own width rather than to a width chosen for another machine.</p>
         <p>It is also why a design that needs one type across hosts writes the lane count rather than asking for it. The determinism this specification fixes elsewhere is determinism for a given host (<emu-xref href="#sec-evaluation-budget"></emu-xref>), and this operation does not weaken it: two evaluations on one host agree.</p>
       </emu-note>
