@@ -72,6 +72,7 @@ contributors: Sirisian
             <tr><td>~object~</td><td>[[Properties]] (a List of Property Type Records), [[IndexSignatures]] (a List of Index Signature Records)</td><td>A structural object type or interface type.</td></tr>
             <tr><td>~function~</td><td>[[Signatures]] (a List of Signature Records)</td><td>A function type. It has more than one signature when the function is overloaded.</td></tr>
             <tr><td>~reference~</td><td>[[Target]] (a Type Record)</td><td>A reference to a storage location holding a value of the target type, as introduced by `ref`.</td></tr>
+            <tr><td>~shared~</td><td>[[Target]] (a Type Record)</td><td>A value type whose storage is shared between the threads of one heap, as introduced by `shared` (<emu-xref href="#sec-threading-shared-modifier"></emu-xref>). A value of it is a value of its [[Target]]; what the modifier decides is where the storage lives and what a checker may assume of it.</td></tr>
             <tr><td>~parameter~</td><td>[[Declaration]] (a TypeParameter Parse Node), [[Arity]] (a non-negative integer)</td><td>A generic parameter standing for the type or value an application will bind, within the body and signatures of its declaration (<emu-xref href="#sec-generics"></emu-xref>). An [[Arity]] of 0 is such a parameter; an [[Arity]] of _n_ &gt; 0 is a higher-kinded parameter, which stands for a generic declaration of _n_ parameters rather than for a type, and is not itself a type (<emu-xref href="#sec-higher-kinded-parameters"></emu-xref>). Frozen: outside its declaration a fully specialized type contains none.</td></tr>
             <tr><td>~application~</td><td>[[Builder]] (a function), [[Arguments]] (a List of Type Records and ECMAScript language values, a ~parameter~ where an argument reads an unbound parameter)</td><td>A deferred compile-time application: a call of a compile-time-evaluable function at least one of whose arguments involves an unbound generic parameter, carried as a type until specialization evaluates it (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>).</td></tr>
           </tbody>
@@ -166,7 +167,7 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~array~, then
             1. If _s_.[[Extent]] is not _t_.[[Extent]], return *false*.
             1. Return SameTypeWithAssumptions(_s_.[[Element]], _t_.[[Element]], _assumptions_).
-          1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
+          1. If _s_.[[Kind]] is ~reference~ or _s_.[[Kind]] is ~shared~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is ~function~, return SameFunctionType(_s_, _t_, _assumptions_).
           1. Assert: _s_.[[Kind]] is ~object~.
           1. Return SameObjectType(_s_, _t_, _assumptions_).
@@ -260,6 +261,7 @@ contributors: Sirisian
             1. Return the Type Record { [[Kind]]: ~tuple~, [[Elements]]: _elements_ }.
           1. If _t_.[[Kind]] is ~array~, return the Type Record { [[Kind]]: ~array~, [[Element]]: CanonicalizeType(_t_.[[Element]]), [[Extent]]: _t_.[[Extent]] }.
           1. If _t_.[[Kind]] is ~reference~, return the Type Record { [[Kind]]: ~reference~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
+          1. If _t_.[[Kind]] is ~shared~, return the Type Record { [[Kind]]: ~shared~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
           1. If _t_.[[Kind]] is ~literal~, return the Type Record { [[Kind]]: ~literal~, [[Value]]: _t_.[[Value]], [[Base]]: CanonicalizeType(_t_.[[Base]]) }.
           1. If _t_.[[Kind]] is ~parameterized~, return the Type Record { [[Kind]]: ~parameterized~, [[Base]]: CanonicalizeType(_t_.[[Base]]), [[Metadata]]: _t_.[[Metadata]] }.
           1. If _t_.[[Kind]] is ~application~, then
@@ -350,6 +352,8 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~nominal~ and _t_.[[Kind]] is ~object~, then
             1. If _s_ is an interface type, return IsSubtype(the structural form of _s_, _t_, _assumptions_).
             1. Return *false*.
+          1. If _s_.[[Kind]] is ~shared~ and _t_.[[Kind]] is not ~shared~, return IsSubtype(_s_.[[Target]], _t_, _assumptions_).
+          1. If _t_.[[Kind]] is ~shared~ and _s_.[[Kind]] is not ~shared~, return IsSubtype(_s_, _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. If _s_.[[Kind]] is ~nominal~, then
             1. If _t_.[[Declaration]] is _s_.[[Declaration]], return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
@@ -372,7 +376,7 @@ contributors: Sirisian
               1. If _s_ cannot supply position _i_, continue, where a tuple can supply each position below its maximum length.
               1. If IsSubtype(the type at position _i_ of _s_, the type at position _i_ of _t_, _assumptions_) is *false*, return *false*, where the type at a position of _t_ is the [[Type]] of the element that receives it and the type at a position of _s_ is the union of the [[Type]] fields of every element of _s_ that could receive it, an element receiving a position when some assignment of that many values to _s_.[[Elements]] gives it that one (<emu-xref href="#sec-sequenceassignment"></emu-xref>).
             1. Return *true*.
-          1. If _s_.[[Kind]] is ~reference~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
+          1. If _s_.[[Kind]] is ~reference~ or _s_.[[Kind]] is ~shared~, return SameTypeWithAssumptions(_s_.[[Target]], _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is ~function~, return IsFunctionSubtype(_s_, _t_, _assumptions_).
           1. If _s_.[[Kind]] is ~object~, return IsObjectSubtype(_s_, _t_, _assumptions_).
           1. Return *false*.
@@ -384,7 +388,7 @@ contributors: Sirisian
           <p>Where _t_ has more than one rest element, its positions are not determined by their index and the exact relation is inclusion between two regular languages, which a product construction decides and which a subtyping check cannot afford to run at every use. The rule above is conservative there: it requires the two element lists to correspond one for one, which is sound and is exact whenever they do. A program wanting a relation the conservative rule refuses writes the two tuple types in corresponding shapes, and the case is narrow, since the target of a subtyping check is a declared type and a declared type with two rests is already an unusual thing to write.</p>
           <p>A deferred ~application~ is a subtype only of itself and of the `any` type. Before specialization nothing finer than identity is known about its result, so nothing finer is assumed: two mentions of one deferred call are one type by interning, and two different calls are unrelated until they evaluate. No step above names the kind because none needs to; an ~application~ source reaches the final step for every target but itself and `any`.</p>
           <p>A generic class is invariant in its arguments, so `Map.&lt;string, uint8&gt;` is a subtype of no other instantiation of `Map`. This is the conservative choice and the only one that is sound for a mutable container, since a `Map.&lt;string, uint8&gt;` used as a `Map.&lt;string, number&gt;` would accept a Number into storage typed `uint8`. A parameter may be *declared* covariant or contravariant, as it may in C# and Kotlin, and <emu-xref href="#sec-generic-variance"></emu-xref> states what such a declaration means; the step above is what it relaxes. Invariance is what a parameter carrying no such declaration has.</p>
-          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target; a composite type is covariant in its shape, which the frozenness of every composite makes sound (<emu-xref href="#sec-composite-types"></emu-xref>). IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
+          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element; a ~tuple~ is covariant position-wise; a ~reference~ is invariant in its target, as is a ~shared~ (<emu-xref href="#sec-threading-shared-modifier"></emu-xref>); a composite type is covariant in its shape, which the frozenness of every composite makes sound (<emu-xref href="#sec-composite-types"></emu-xref>). IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
         </emu-note>
       </emu-clause>
 
@@ -855,7 +859,7 @@ contributors: Sirisian
         </emu-note>
         <p>It is a type error if a |TupleElement| with no |Initializer| follows one that has an |Initializer|, and it is a type error if a |TupleElement| with an |Initializer| follows a `...` element. A tuple is positional, so the only way to leave a position unsupplied is to stop short of it, which can omit a suffix and nothing else: a default anywhere but the tail could never be taken, since supplying the position after it supplies it too. The minimum length of <emu-xref href="#sec-array-membership"></emu-xref> therefore counts a prefix, and every length a tuple admits leaves unsupplied only positions that carry a default. A shape wanting to omit a member in the middle names its members, which is an object type.</p>
 
-        <p>`shared` before a type marks a type whose values may live in memory shared between agents, as `let a: shared [4].&lt;uint8&gt;`, a fixed-length array backed by a `SharedArrayBuffer`. It is a type error if the operand of `shared` is itself `shared`. Which types admit `shared`, and every rule of construction, publication, and access that follows, belongs to the threading extension and is recorded at its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+        <p>`shared` before a type marks a type whose storage is shared between the threads of one heap, as `let a: shared [4].&lt;uint8&gt;`, a fixed-length array so placed. It is a type error if the operand of `shared` is itself `shared`. Which types admit the modifier, what it places where, and what a checker may assume of a slot that carries it are given by <emu-xref href="#sec-threading-shared-modifier"></emu-xref>; the grammar is stated here because it is the type grammar, and the grammar is the core's.</p>
       </emu-clause>
 
       <emu-clause id="sec-object-types">
@@ -3470,7 +3474,7 @@ contributors: Sirisian
             <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
             <tr><td>complex numbers</td><td>The operators and `Math` overloads of the complex types. The type of an imaginary literal and the conversions are delivered by <emu-xref href="#sec-complex-numbers"></emu-xref>.</td></tr>
             <tr><td>operator overloading</td><td>The math library the design works the feature through, and the four conditions it states an engine must meet to compile that library well. The declaration forms, the receiver rule, and the resolution are delivered by <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
-            <tr><td>threading</td><td>The thread and synchronization surface: `callThread` and the promise that settles on the calling thread, the `Atomics` operations over typed values, the locks and channels, and parallel iteration. The heap sharing on which a Type Object's identity rests is delivered by <emu-xref href="#sec-types-across-agents"></emu-xref>.</td></tr>
+            <tr><td>threading</td><td>The thread and synchronization surface: `callThread` and the scheduling of promise reactions across threads, the `Atomics` operations over typed values, the `shared` modifier's placement and stability rules, the Lock, Condition, and ThreadLocal objects, and parallel iteration. The heap sharing on which a Type Object's identity rests is delivered by <emu-xref href="#sec-types-across-agents"></emu-xref>.</td></tr>
             <tr><td>ranges</td><td>The range literal's grammar and its lexical interaction with `.`, the members of `Range`, and the extensions that take a range as a bound. The case ranges and the bounded `for` counter that <emu-xref href="#sec-check-elision"></emu-xref> relies on are delivered by <emu-xref href="#sec-ranges"></emu-xref>.</td></tr>
             <tr><td>type programming</td><td>The tooling plan: an evaluator embedded in a language server, a computed type displayed as its application beside its expansion, and a builder stack on a budget diagnostic. Every other obligation recorded here is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>, the declarative checker facts by <emu-xref href="#sec-declarative-checker-facts"></emu-xref>, contracts, trials, and declared inverses by <emu-xref href="#sec-checked-contracts"></emu-xref> and <emu-xref href="#sec-inference-through-results"></emu-xref>, and structural matching, provenance, and distribution by <emu-xref href="#sec-structural-matching"></emu-xref>, <emu-xref href="#sec-provenance"></emu-xref>, and <emu-xref href="#sec-expansion-artifact"></emu-xref>.</td></tr>
           </tbody>
@@ -3513,7 +3517,7 @@ contributors: Sirisian
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; a returned reference is consumed as a location by the forms of <emu-xref href="#sec-location-consuming-contexts"></emu-xref>, and a borrow of an `SoA` element is <emu-xref href="#sec-soa-references"></emu-xref>; a destructuring `ref` member is <emu-xref href="#sec-typed-destructuring"></emu-xref>; the deferred form (a user iterator or callback yielding references) is noted there.</td></tr>
-            <tr><td>threading.md</td><td>Partially specified: `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative; the rest is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
+            <tr><td>threading.md</td><td>Being specified in <emu-xref href="#sec-threading"></emu-xref>, whose clauses are landing one at a time; `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative. What that clause does not yet reach is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>ranges.md</td><td>Partially specified: the range literals, the Range value, and its iteration are <emu-xref href="#sec-range-literals"></emu-xref> atop the hook of <emu-xref href="#sec-ranges"></emu-xref>; the interval in the type and its specialization, the `uint8.&lt;1..=6&gt;` bounds desugaring, slicing to a view, and the random and Temporal integrations are deferred.</td></tr>
             <tr><td>serialization.md</td><td>Partially specified: typed JSON parsing (the `JSON.parse.&lt;_T_&gt;` overload and its converting, validating walk) is <emu-xref href="#sec-typed-json-parsing"></emu-xref>, atop the boundary and metadata machinery the core already gives; the deferred surface (class targets, the exact wide numerics, typed `JSON.stringify`, streaming, typed JSON modules, `structuredClone`, and the binary layout) is noted there. <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
             <tr><td>soa.md</td><td>The type and its layout: <emu-xref href="#sec-structure-of-arrays"></emu-xref>; array views, which its own view form follows, are <emu-xref href="#sec-array-views"></emu-xref>. A reference into an `SoA` is <emu-xref href="#sec-soa-references"></emu-xref>, with its liveness rules in <emu-xref href="#sec-reference-liveness"></emu-xref>; the element and view semantics are still to come.</td></tr>
@@ -6231,6 +6235,92 @@ contributors: Sirisian
     </emu-note>
   </emu-clause>
 
+  <emu-clause id="sec-threading">
+    <h1>Threading</h1>
+    <p>The clause before this one settles what a shared heap means for the identity of a type. This one specifies the surface that puts a second thread on that heap: how a thread is created and when it ends, where a promise reaction runs when the thread that settles a promise is not the thread that attached to it, what the `shared` modifier claims about storage and about what a checker may assume of it, the `Atomics` operations over typed values, the Lock, Condition, and ThreadLocal objects, and parallel iteration over a range.</p>
+
+    <p>The whole of it rests on one decision the core has already made elsewhere and this clause only carries through: memory safety is unconditional and race freedom is not. A program that races produces a stale or surprising value, never a corrupted heap and never a value that is not of its declared type. Everything here that constrains an implementation constrains it in service of that line, and everything here that constrains a program is a discipline the program may keep or break without the engine's guarantees depending on which it does.</p>
+
+    <emu-note>
+      <p>The clauses that follow are ordered as they depend on each other. <emu-xref href="#sec-threading-agent-cluster"></emu-xref> and <emu-xref href="#sec-threading-scheduling"></emu-xref> establish what a thread is and where a job runs, which <emu-xref href="#sec-threading-callthread"></emu-xref> then uses. <emu-xref href="#sec-threading-shared-modifier"></emu-xref> gives `shared` its meaning in the type system and its placement, which <emu-xref href="#sec-threading-memory-model"></emu-xref> turns into the events the memory model of the pinned edition already reasons over, and only then can <emu-xref href="#sec-threading-atomics"></emu-xref> say what an atomic operation on a typed value is. <emu-xref href="#sec-threading-synchronization"></emu-xref> and <emu-xref href="#sec-threading-parallel-iteration"></emu-xref> are built from those. Cancellation is not a clause of its own: it is an `AbortSignal` observed at points the operations that can observe it each name.</p>
+    </emu-note>
+
+    <emu-clause id="sec-threading-agent-cluster">
+      <h1>Threads and the Agent Cluster</h1>
+      <p>This clause is not yet written. It will define a thread as an agent of an agent cluster that shares a heap, the per-thread state such an agent holds, and the lifetime of a thread from creation to termination.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-scheduling">
+      <h1>Job Scheduling Across Threads</h1>
+      <p>This clause is not yet written. It will bind each promise reaction to the agent that created it and refine the enqueueing of promise jobs so that a reaction runs on that agent, whichever agent settles the promise.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-callthread">
+      <h1>Function.prototype.callThread</h1>
+      <p>This clause is not yet written. It will specify thread creation from a function, the classification of an optional options argument, the handle the call returns, and the observation of an `AbortSignal`.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-shared-modifier">
+      <h1>The shared Modifier</h1>
+      <p>`shared` before a type produces the Type Record { [[Kind]]: ~shared~, [[Target]]: the Type Record of its operand }. The grammar that admits it is `PrimaryType : `shared` PrimaryType`, given with the array and tuple types (<emu-xref href="#sec-array-and-tuple-types"></emu-xref>).</p>
+
+      <p>It is a type error if the operand is not a value type (<emu-xref href="#sec-value-types"></emu-xref>): the sized numerics, the vector types, a value type class, a fixed-length array of a value type, and the `SoA.&lt;`_T_`&gt;` of the structure-of-arrays extension are what the modifier admits. It is a type error if the operand is itself ~shared~, and a type error if it is ~reference~, since `ref` denotes a location rather than a value and a location is already reached from wherever the thread that holds it can reach.</p>
+
+      <p>An object needs no modifier and is not given one. There is one heap, so a thread that can reach a reference reaches the object it denotes; `shared` would claim nothing of an object type that is not already true of every object type, and would falsely suggest that a marked collection is a concurrent one when what the design offers is the ordinary collection under a Lock. A composite (<emu-xref href="#sec-composites"></emu-xref>) is refused for a stronger reason: it is frozen, so the question the modifier answers does not arise for it.</p>
+
+      <p>A ~shared~ type is invariant in its [[Target]], as a ~reference~ is, and for the same reason: the storage it describes is read and written, so a mismatch in either direction is unsound. Between a ~shared~ type and a type that is not one, the modifier is instead transparent, because it is not observable in the value. IsSubtype (<emu-xref href="#sec-issubtype"></emu-xref>) reads, before its comparison of kinds: if _s_.[[Kind]] is ~shared~ and _t_.[[Kind]] is not ~shared~, return IsSubtype(_s_.[[Target]], _t_, _assumptions_); if _t_.[[Kind]] is ~shared~ and _s_.[[Kind]] is not ~shared~, return IsSubtype(_s_, _t_.[[Target]], _assumptions_). A value of type _T_ is therefore assignable to storage of type `shared `_T_, which is how a value is published, and a read of that storage yields a value of _T_.</p>
+
+      <p>The unwrapping is one-sided on purpose. Two ~shared~ types meet under the invariant rule, and SameType holds of `shared `_T_ and _T_ for no _T_, which is what keeps the distinction load-bearing exactly where it has to be: a writable member is invariant (<emu-xref href="#sec-isobjectsubtype"></emu-xref>), so `{ x: shared uint32 }` is not viewable as `{ x: uint32 }`, and the regime a slot is under (<emu-xref href="#sec-shared-stability"></emu-xref>) cannot be laundered by aliasing the slot through an object type that drops the marker.</p>
+
+      <p>RequireType (<emu-xref href="#sec-requiretype"></emu-xref>) enforces a ~shared~ type by enforcing its [[Target]]: publishing a value into shared storage applies the same check and the same conversion as storing it in unmarked storage of that type. The conversion is the part that matters. A boundary that tested membership without it would refuse `let a: shared uint32 = 5` while accepting `let a: uint32 = 5`, since a Number is not a member of `uint32` but converts to one, and no rule of this clause asks for those two to differ.</p>
+
+      <emu-clause id="sec-shared-storage">
+        <h1>Placement</h1>
+        <p>Storage of a ~shared~ type is backed by a Shared Data Block, laid out at the offsets <emu-xref href="#table-layout-by-type"></emu-xref> gives its [[Target]]. The modifier decides placement and nothing about layout: `shared `_T_ and _T_ have the same size, alignment, and field offsets, so a value moves between marked and unmarked storage by copying and no representation changes.</p>
+
+        <p>A `shared SoA.&lt;`_T_`&gt;` allocates each of its columns its own region. Two threads writing two different fields of one element therefore write two different regions, and no false sharing arises between them, which an interleaved layout cannot promise at any alignment.</p>
+
+        <emu-note>
+          <p>Unmarked storage of a value type is not thereby unreachable from another thread, and this clause does not make it so. A binding a function closes over is reached by whatever thread runs that function. What the modifier buys is that the storage is shared-capable from the start: an implementation that discovers a second thread touching unmarked storage may place it in a Shared Data Block at that point, at a cost the marked case does not pay. That is an implementation's affair, and no operation of this specification consults the modifier to decide whether it is permitted (<emu-xref href="#sec-threading-atomics"></emu-xref>).</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-shared-stability">
+        <h1>Stability and Narrowing</h1>
+        <p>Narrowing a binding or a field (<emu-xref href="#sec-narrowing"></emu-xref>) records at one program point a type narrower than the declared one and carries it to a later point. Carrying it assumes the storage did not change in between. The two regimes of this clause are the two answers to whether that assumption may be made.</p>
+
+        <p>For storage that is not ~shared~, it may. A narrowing established before an operation that no thread of this agent can have changed the storage through survives that operation, and a check the narrowing makes redundant is elidable exactly as <emu-xref href="#sec-check-elision"></emu-xref> allows in a program with one thread. If another thread writes the storage anyway, the narrowing may be stale, and a stale narrowing is a branch taken on old information: the value read is still of the storage's declared type, because a write from any thread passes the same boundary check every write passes (<emu-xref href="#sec-typed-storage"></emu-xref>), so what the program loses is the refinement and never the declared type.</p>
+
+        <p>For storage that is ~shared~, it may not. The slot carries no narrowing across any operation: each read of it yields its declared type, and a program that wants a narrowing reads once into a local binding, which is unmarked storage, and narrows that. A program with no reachable second thread is unaffected in either regime, since a narrowing is only lost where another thread could have written.</p>
+
+        <emu-note>
+          <p>Declared types hold in both regimes, so every elision <emu-xref href="#sec-check-elision"></emu-xref> justifies at a declared type is justified here unchanged, and that clause needs no threading caveat. What differs is only how long a narrowing lives, which is a claim about refinement and not about type.</p>
+          <p>This is the position a C or C++ compiler takes on non-atomic storage, transplanted into a language where the failure it permits is bounded. There, a compiler that assumes no concurrent mutation and is wrong may produce anything at all. Here the memory safety the core guarantees is unconditional, so the same assumption, when wrong, costs a value that is out of date and nothing else. That bound is what makes the assumption affordable, and it is why the modifier can be a claim the program makes rather than one the implementation must verify.</p>
+        </emu-note>
+      </emu-clause>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-memory-model">
+      <h1>Shared Typed Memory</h1>
+      <p>This clause is not yet written. It will state accesses to shared typed storage as events of the memory model the pinned edition defines, so that the candidate executions of a racing program are those that clause already admits.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-atomics">
+      <h1>Atomics on Typed Values</h1>
+      <p>This clause is not yet written. It will extend the `Atomics` operations to a typed binding reached through a reference and to a typed own data property, and state the restrictions each operation carries.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-synchronization">
+      <h1>Synchronization Objects</h1>
+      <p>This clause is not yet written. It will specify the Lock, Condition, and ThreadLocal constructors and their prototypes.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-threading-parallel-iteration">
+      <h1>Parallel Iteration</h1>
+      <p>This clause is not yet written. It will specify the `Thread` namespace object and the two range operations it carries, the partition they are defined over, and how a failure in a body is reported.</p>
+    </emu-clause>
+  </emu-clause>
+
   <emu-clause id="sec-typed-json-parsing">
     <h1>Typed JSON Parsing</h1>
     <p>`JSON.parse` gains a generic overload, written `JSON.parse.&lt;_T_&gt;(_text_)`, that parses and validates in one pass. It parses _text_ as JSON, which is a *SyntaxError* on malformed input exactly as the untyped `JSON.parse` is, and then converts the resulting value against _T_ by <emu-xref href="#sec-coercejsonvalue"></emu-xref>. Well-formed JSON that does not satisfy _T_ is a *TypeError* naming the path at which the mismatch occurred, so a typed `catch (_e_: SyntaxError)` and `catch (_e_: TypeError)` separate a malformed document from a well-formed one of the wrong shape.</p>
@@ -6249,7 +6339,7 @@ contributors: Sirisian
       </dl>
       <emu-alg>
         1. If _type_.[[Kind]] is ~any~, return _value_.
-        1. If _type_.[[Kind]] is ~reference~, return ? CoerceJSONValue(_value_, _type_.[[Target]], _path_).
+        1. If _type_.[[Kind]] is ~reference~ or _type_.[[Kind]] is ~shared~, return ? CoerceJSONValue(_value_, _type_.[[Target]], _path_).
         1. If _type_ is a composite type (<emu-xref href="#sec-composite-types"></emu-xref>), then
           1. If _type_ is the top composite type, throw a *TypeError* exception.
           1. Let _shape_ be the shape of _type_.
