@@ -6247,17 +6247,135 @@ contributors: Sirisian
 
     <emu-clause id="sec-threading-agent-cluster">
       <h1>Threads and the Agent Cluster</h1>
-      <p>This clause is not yet written. It will define a thread as an agent of an agent cluster that shares a heap, the per-thread state such an agent holds, and the lifetime of a thread from creation to termination.</p>
+      <p>A <dfn>thread</dfn> is an agent. The threads of one program are the agents of one agent cluster, and what distinguishes that cluster from the one an ECMAScript program has today is that its agents share a heap rather than only a block of memory: one realm, one global object, one already-executed module graph, one intern table, one Composite Registry (<emu-xref href="#sec-types-across-agents"></emu-xref>). Nothing is copied between them, so no rule of this specification describes a value crossing from one to another. There is nowhere to cross to.</p>
+
+      <p>Each thread holds what an agent already holds, per-thread: an execution context stack, the microtask queue its jobs are drained from, and its Agent Record fields, of which [[CanBlock]] is the one this extension consults (<emu-xref href="#sec-threading-synchronization"></emu-xref>). Each thread drains its own queue, and a job of one thread's queue never runs on another. The main thread is the agent that evaluated the program; it is a thread like the others in everything this clause says, and hosts commonly give it [[CanBlock]] *false*.</p>
+
+      <p>A thread runs to completion and then ends. CreateThread (<emu-xref href="#sec-createthread"></emu-xref>) gives the steps; the shape is that the function is called, a thenable result is adopted, the thread's own microtask queue is drained, the settlement is posted, and the agent is removed from the cluster. The drain comes before the post, so everything the thread did, its trailing microtasks included, happens-before the thread that awaits the result observes it.</p>
+
+      <p>Whether a thread may receive host-defined work &mdash; a timer, an I/O completion, a host job of any kind &mdash; and what becomes of such work still pending when the thread's function has settled, is host-defined. A host that keeps a thread alive to run it does not thereby change what the thread's handle means: the handle settles when the function does, which is the rule the thread's caller was given.</p>
+
+      <emu-note>
+        <p>A thread costs a native stack and the per-thread allocator state an agent needs, and not another evaluation of the program: the module graph is already executed and is shared, so nothing about starting a thread re-runs it. That is what makes a thread per request or per connection a reasonable structure rather than one to be pooled around, and it is the concrete difference from an agent that does not share a heap, which must be given its own copy of everything before it can run a line.</p>
+      </emu-note>
     </emu-clause>
 
     <emu-clause id="sec-threading-scheduling">
       <h1>Job Scheduling Across Threads</h1>
-      <p>This clause is not yet written. It will bind each promise reaction to the agent that created it and refine the enqueueing of promise jobs so that a reaction runs on that agent, whichever agent settles the promise.</p>
+      <p>A promise is an ordinary object of the shared heap, so any thread that holds one may settle it and any thread may attach to it. Where the reaction runs is a separate question, and this clause answers it: <strong>a promise reaction runs on the thread that created it</strong>.</p>
+
+      <p>A PromiseReaction Record gains an [[Agent]] field, set to the surrounding agent when the record is created. PerformPromiseThen creates the reactions it appends to a pending promise's lists, and the Await machinery creates the reaction that resumes a suspended execution context, so in both cases [[Agent]] is the agent that attached. NewPromiseReactionJob returns its job paired with [[Agent]] rather than with the settling agent, and HostEnqueuePromiseJob enqueues a job on the microtask queue of the agent it is paired with. Attaching a handler to a promise that has already settled enqueues on the attaching agent, which is the agent running PerformPromiseThen at that moment, so that path needs no rule of its own.</p>
+
+      <p>Settling a promise from another thread therefore posts to the reaction's home queue. The post carries a happens-before edge: every operation the settling thread performed before the settle happens-before every step of the reaction. This is the ordinary release-acquire pairing the memory model already gives a synchronizing operation (<emu-xref href="#sec-threading-memory-model"></emu-xref>), and it is what makes a value written before `resolve` visible to the code that awaits it.</p>
+
+      <p>The handle returned by `callThread` is not an exception to this rule. It settles on the thread that created it, which is the thread that called `callThread`, because that is where its reactions were attached &mdash; the same reason every other promise behaves the way it does.</p>
+
+      <emu-note>
+        <p>The alternative rule &mdash; run a reaction on whichever thread settled the promise, saving the post &mdash; does not survive `await`. An `await` resumption IS a promise reaction, so under that rule the continuation of an async function runs wherever the awaited promise happened to settle. `await lock.asyncHold()` would resume the waiter on the thread that released the lock, stacking every waiter's critical section onto the releasing thread; a main-thread function awaiting anything another thread can settle would silently continue off the main thread, which is fatal to a thread-affine host API and invisible at the `await` that caused it; a `ThreadLocal` read would not survive an `await`; and placement would become a race, since a handler attached before a settle would run on one thread and the same handler attached after it on another.</p>
+        <p>It would also separate `await` from `.then`, which this language specifies in terms of each other. A threading model in which rewriting one into the other changes which thread runs the body is one a programmer cannot hold in mind. The cost of the rule chosen here is a cross-thread enqueue, and settle-side execution is never *needed*, since the settling thread may always do the work before it settles. Recovering it where a program wants it is a matter for an explicit opt-in, not for the default.</p>
+      </emu-note>
+
+      <emu-clause id="sec-finalizationregistry-across-threads">
+        <h1>Weak References Across Threads</h1>
+        <p>A target is live while it is reachable from any thread of the cluster. Reachability is a property of the heap, and the heap is one, so no thread's stack is privileged in deciding it and a target held only by a thread other than the registering one is not collectable.</p>
+        <p>A cleanup callback registered with a FinalizationRegistry is called on the thread that registered it, whichever thread's collection observed the target become unreachable. This is the rule of <emu-xref href="#sec-threading-scheduling"></emu-xref> applied to a callback rather than to a reaction: the work runs where it was attached. What may be held weakly at all is unchanged &mdash; an instance of a typed class may not be (<emu-xref href="#sec-weak-references-and-typed-objects"></emu-xref>).</p>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-threading-callthread">
       <h1>Function.prototype.callThread</h1>
-      <p>This clause is not yet written. It will specify thread creation from a function, the classification of an optional options argument, the handle the call returns, and the observation of an `AbortSignal`.</p>
+      <p>`callThread` calls a function on a new thread and returns a promise for its result.</p>
+
+      <emu-clause id="sec-function.prototype.callthread">
+        <h1>Function.prototype.callThread ( ..._args_ )</h1>
+        <p>This method performs the following steps when called:</p>
+        <emu-alg>
+          1. Let _func_ be the *this* value.
+          1. If IsCallable(_func_) is *false*, throw a *TypeError* exception.
+          1. Let _options_ and _callArgs_ be the result of ClassifyThreadArguments(_func_, _args_).
+          1. Let _signal_ be *undefined*.
+          1. If _options_ is not ~empty~, then
+            1. Set _signal_ to ? Get(_options_, *"signal"*).
+            1. If _signal_ is not *undefined* and _signal_ is not an AbortSignal, throw a *TypeError* exception.
+          1. Return CreateThread(_func_, _callArgs_, _signal_).
+        </emu-alg>
+        <p>The declared type of this method is `(options?: { signal?: AbortSignal }, ...args) =&gt; Promise.&lt;`_Return_`, any&gt;`, where _Return_ is the declared return type of the function it is called on. The rejection type is `any` because a function may throw anything.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-classifythreadarguments" type="abstract operation">
+        <h1>
+          ClassifyThreadArguments (
+            _func_: a function object,
+            _args_: a List of ECMAScript language values,
+          ): a pair of an Object or ~empty~ and a List of ECMAScript language values
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It decides whether the first element of _args_ is the options bag or the first forwarded argument.</dd>
+        </dl>
+        <emu-alg>
+          1. If _args_ is empty, return the pair (~empty~, _args_).
+          1. Let _first_ be _args_[0].
+          1. If _first_ is not an ordinary Object, return the pair (~empty~, _args_).
+          1. If the declared type of _func_ has a signature whose first parameter admits _first_, return the pair (~empty~, _args_).
+          1. If _first_ has no own property keys, return the pair (_first_, the List of the elements of _args_ from index 1).
+          1. If _first_ has an own property *"signal"* whose value is an AbortSignal, return the pair (_first_, the List of the elements of _args_ from index 1).
+          1. Return the pair (~empty~, _args_).
+        </emu-alg>
+        <p>The bag is recognized by the brand of the value it carries and not by the shape of the object carrying it, because a brand is the stronger evidence: an ordinary object whose `signal` is an actual AbortSignal is an options bag in every program that is not deliberately constructed to look like one. An empty object is admitted so that a bag may be passed explicitly with nothing in it.</p>
+
+        <p>The declared signature overrides the brand, which is the step no untyped resolution can perform. A function that declares a first parameter admitting the object receives it as an argument, whatever it carries, so a program that wants to forward a signal-carrying object as data annotates the parameter and is answered exactly. Argument count plays no part: rest parameters and overloads make a declared length useless for this.</p>
+
+        <emu-note>
+          <p>One case is left over, and it is the intersection of three opt-outs: an untyped variadic function whose one intended argument is an object carrying a real AbortSignal under the key `signal` sees it taken as the bag. Annotating the parameter resolves it, and so does wrapping the value.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-createthread" type="abstract operation">
+        <h1>
+          CreateThread (
+            _func_: a function object,
+            _args_: a List of ECMAScript language values,
+            _signal_: an AbortSignal or *undefined*,
+          ): a Promise
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It creates an agent of the surrounding agent's cluster, calls _func_ on it, and returns a promise for the result.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _capability_ be ! NewPromiseCapability(%Promise%).
+          1. If _signal_ is not *undefined* and _signal_ is aborted, then
+            1. Perform ! Call(_capability_.[[Reject]], *undefined*, &laquo; the abort reason of _signal_ &raquo;).
+            1. Return _capability_.[[Promise]].
+          1. Let _thread_ be a new agent of the surrounding agent's agent cluster, sharing its heap and its realm. The [[CanBlock]] field of _thread_ is host-defined.
+          1. Enqueue on the microtask queue of _thread_ a job that performs the following steps:
+            1. Let _result_ be Completion(Call(_func_, *undefined*, _args_)).
+            1. If _result_ is a normal completion and _result_.[[Value]] is an Object with a callable *"then"* property, then
+              1. Set _result_ to the completion with which that thenable settles, resolved as ! PromiseResolve(%Promise%, _result_.[[Value]]) settles.
+            1. Drain the microtask queue of _thread_.
+            1. If _result_ is a normal completion, perform ! Call(_capability_.[[Resolve]], *undefined*, &laquo; _result_.[[Value]] &raquo;).
+            1. Else, perform ! Call(_capability_.[[Reject]], *undefined*, &laquo; _result_.[[Value]] &raquo;).
+            1. Remove _thread_ from the agent cluster.
+          1. Return _capability_.[[Promise]].
+        </emu-alg>
+        <p>The capability is created on the calling thread, so its reactions are that thread's reactions and the handle settles there (<emu-xref href="#sec-threading-scheduling"></emu-xref>). The drain precedes the settle, so the trailing microtasks of the thread happen-before the observation of its result.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-thread-cancellation">
+        <h1>Cancellation</h1>
+        <p>The `signal` option is an AbortSignal, the mechanism the platform already has. A signal already aborted when `callThread` is called rejects the handle with the signal's abort reason and starts no thread.</p>
+
+        <p>Otherwise the thread observes the abort at a <dfn>cancellation checkpoint</dfn>, and the checkpoints are the points at which it is between things or waiting for one: when it takes a job from its microtask queue, at the resumption of an `await`, and in a wait &mdash; `Atomics.wait` and `Atomics.waitAsync` (<emu-xref href="#sec-threading-atomics"></emu-xref>), and the Lock and Condition waits (<emu-xref href="#sec-threading-synchronization"></emu-xref>). A wait that is already parked when the abort happens is woken by it. A wait that could only be observed on entry would leave a parked thread uncancellable, which is most of what cancellation is for.</p>
+
+        <p>Observing it throws the signal's abort reason from whatever operation was pending. That is an ordinary abrupt completion and unwinds ordinarily: `finally` blocks run, `using` declarations dispose, a lock held through `hold` is released, and a reason that reaches the top of the thread's function rejects the handle.</p>
+
+        <p>There is no checkpoint at a loop back-edge. A computation with no suspension point is cancelled cooperatively, by reading the signal's aborted state, which crosses threads because the signal is an object of the shared heap and because an abort on one thread and the read that observes it on another are ordered by <emu-xref href="#sec-threading-memory-model"></emu-xref>.</p>
+
+        <emu-note>
+          <p>Cancellation interrupts; it does not destroy. A thread torn down where it stands would leave broken exactly the invariants a lock was protecting, which is why `Thread.stop` and `Thread.Abort` were both removed from the languages that had them, and why the surviving design everywhere is an exception thrown at a point the thread can be caught at.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-threading-shared-modifier">
