@@ -6427,12 +6427,102 @@ contributors: Sirisian
 
     <emu-clause id="sec-threading-memory-model">
       <h1>Shared Typed Memory</h1>
-      <p>This clause is not yet written. It will state accesses to shared typed storage as events of the memory model the pinned edition defines, so that the candidate executions of a racing program are those that clause already admits.</p>
+      <p>This clause adds no memory model. The one the pinned edition defines already says what a racing program may observe, in terms of a candidate execution over a set of events and the agent-order, reads-from, and synchronizes-with relations among them. What was missing was only that its events were reachable exclusively through a TypedArray over a SharedArrayBuffer. Typed storage has byte addresses too (<emu-xref href="#sec-memory-layout"></emu-xref>), so this clause names the events that typed accesses are, and everything that clause proves then applies to them unchanged.</p>
+
+      <p>Let a <dfn>shared typed slot</dfn> be storage of a ~shared~ type, which <emu-xref href="#sec-shared-storage"></emu-xref> places in a Shared Data Block at a known offset for a known number of bytes. Then:</p>
+      <ul>
+        <li>A read of a shared typed slot is a ReadSharedMemory event whose [[Order]] is ~unordered~, whose [[Block]] is that Shared Data Block, whose [[ByteIndex]] is the slot's offset, and whose [[ElementSize]] is the laid-out size of the slot's type.</li>
+        <li>A write of a shared typed slot is a WriteSharedMemory event with the same fields and [[Order]] ~unordered~.</li>
+        <li>An `Atomics` operation on a shared typed slot (<emu-xref href="#sec-threading-atomics"></emu-xref>) is the corresponding event with [[Order]] ~seq-cst~, a read-modify-write being a ReadModifyWriteSharedMemory event as it is over a TypedArray.</li>
+      </ul>
+
+      <p>A slot whose type is one of the sized numerics or `boolean` has [[NoTear]] *true*: a read of it reads the bytes of a single write and never a mixture of two. A slot whose type is an aggregate &mdash; a value type class, a fixed-length array, a vector &mdash; has no such guarantee, and a read of it concurrent with a write may compose bytes of both. This is what <emu-xref href="#sec-types-across-agents"></emu-xref> states in prose and this clause states as events.</p>
+
+      <emu-note>
+        <p>Tearing is bounded in a way it is not in an unmanaged language. A torn read of an aggregate composes bytes that were each written by some thread through the typed-storage boundary (<emu-xref href="#sec-typed-storage"></emu-xref>), so every field of the result holds a value of that field's declared type. What the program loses is the relation between the fields &mdash; a point whose `x` is from one write and whose `y` is from another &mdash; and never the type of either. A program that needs the whole aggregate at once either takes a Lock (<emu-xref href="#sec-threading-synchronization"></emu-xref>) or builds the value, freezes it, and publishes it by a single reference store, which is the composite idiom (<emu-xref href="#sec-composites"></emu-xref>) and is tear-free because a reference is one slot.</p>
+      </emu-note>
+
+      <p>Accesses to storage that is not ~shared~ are not events of this model, and a program with no `shared` storage and no `Atomics` has the memory model of the pinned edition unchanged. Where such storage is nonetheless reached by two threads, an implementation that has placed it in a Shared Data Block gives its accesses the same event vocabulary; where it has not, the accesses are not shared-memory accesses and the checker's assumption of thread stability (<emu-xref href="#sec-shared-stability"></emu-xref>) is what governs. Either way the outcome is bounded the same way: a stale value of the declared type, never an unsafe one.</p>
+
+      <p>Two threads are ordered by the relations of the memory model and by nothing this extension adds. Settling a promise whose reaction belongs to another thread synchronizes-with the running of that reaction (<emu-xref href="#sec-threading-scheduling"></emu-xref>), and the release of a Lock synchronizes-with the acquisition that follows it (<emu-xref href="#sec-threading-synchronization"></emu-xref>); those are the edges an ordinary program is built from, and each is an ordinary seq-cst pairing rather than a new kind of ordering.</p>
     </emu-clause>
 
     <emu-clause id="sec-threading-atomics">
       <h1>Atomics on Typed Values</h1>
-      <p>This clause is not yet written. It will extend the `Atomics` operations to a typed binding reached through a reference and to a typed own data property, and state the restrictions each operation carries.</p>
+      <p>The `Atomics` operations of the pinned edition take a TypedArray and an index. This clause admits two further targets: a typed binding reached through a reference, and a typed own data property of an object. A program that has a `uint32` may operate on it atomically without first arranging for it to live inside a byte buffer.</p>
+
+      <emu-clause id="sec-atomics-reference-arguments">
+        <h1>Reference Arguments</h1>
+        <p>An `Atomics` operation whose first argument position is written `ref` _binding_ receives a Reference Record rather than the value of the binding, as a call to any function declaring a `ref` parameter does (<emu-xref href="#sec-references-and-borrowing"></emu-xref>).</p>
+
+        <p>A built-in function is therefore able to declare a parameter position as taking a reference, and each of the operations of this clause declares its first. This is a change to the references extension, which until now needed no such thing: a built-in had no `ref` parameter, so a reference argument decayed to its referent at every built-in boundary without exception. The exception is unavoidable here, since operating on a copy of the binding is not the operation the program asked for. Nothing else changes, and in particular the reflective call paths remain decay channels: `f.call(*null*, ref x)` decays at %Function.prototype.call%, which declares no such position, so what it forwards carries a value.</p>
+
+        <p>The borrow is validated where the `ref` argument is evaluated, by RequireBorrowableReference (<emu-xref href="#sec-requireborrowablereference"></emu-xref>), which is how every `ref` argument reaches every callee. A reference that arrives at one of these operations has already passed it, so these operations do not apply it a second time.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-validateatomictarget" type="abstract operation">
+        <h1>
+          ValidateAtomicTarget (
+            _args_: a List of ECMAScript language values,
+            _operation_: ~integer-only~ or ~any-value-type~,
+          ): either a normal completion containing an Atomic Target Record or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It resolves the shapes an `Atomics` operation admits to one description of a place in memory.</dd>
+        </dl>
+        <p>An <dfn>Atomic Target Record</dfn> has fields [[Block]] (a Data Block or Shared Data Block), [[ByteIndex]] (a non-negative integer), and [[Type]] (a Type Record).</p>
+        <emu-alg>
+          1. If _args_[0] is a Reference Record, then
+            1. Let _ref_ be ? RequireBorrowableReference(_args_[0]).
+            1. Let _type_ be the declared type of the storage _ref_ denotes.
+            1. Let _block_ and _byteIndex_ be the Data Block and offset at which that storage is placed.
+          1. Else if _args_[0] is an Object that is not a TypedArray, then
+            1. Let _key_ be ? ToPropertyKey(_args_[1]).
+            1. If _args_[0] does not have a typed own data property whose key is _key_, throw a *TypeError* exception.
+            1. Let _type_ be the declared type of that property.
+            1. Let _block_ and _byteIndex_ be the Data Block and offset at which that property is placed.
+          1. Else,
+            1. Return ? ValidateIntegerTypedArray(_args_[0], _args_[1]) as an Atomic Target Record whose [[Type]] is the element type of the TypedArray.
+          1. If _type_ is not a value type, throw a *TypeError* exception.
+          1. If _operation_ is ~integer-only~ and _type_ is not an integer type, throw a *TypeError* exception.
+          1. If the laid-out size of _type_ (<emu-xref href="#sec-memory-layout"></emu-xref>) is not one the implementation performs atomically, throw a *TypeError* exception.
+          1. Return the Atomic Target Record { [[Block]]: _block_, [[ByteIndex]]: _byteIndex_, [[Type]]: _type_ }.
+        </emu-alg>
+
+        <p>The `shared` modifier is not consulted. A binding carrying it and one not carrying it are equally valid targets, and the restrictions this operation enforces are restrictions of <em>type</em>: an integer type where the operation needs bit patterns, a value type of a size the implementation can operate on atomically, and a typed own data property rather than an ordinary one, an `any`-typed slot having no width for an operation to be atomic over.</p>
+
+        <emu-note>
+          <p>Requiring the modifier would buy no invariant. Unmarked storage is not unreachable from another thread &mdash; a binding a function closes over is reached by whatever thread runs that function &mdash; so plain racing writes to it are possible whether or not the synchronized ones are permitted, and forbidding only the synchronized ones would leave a program the worse tool for the same storage. It would also fracture generic code: a function taking `ref uint32` would have to know whether its caller's storage carried a marker, and expressing that would mean a sharedness dimension through the reference types for no gain. What the modifier changes is cost, not legality (<emu-xref href="#sec-shared-storage"></emu-xref>).</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-atomics-typed-operations">
+        <h1>The Operations</h1>
+        <p>`Atomics.load`, `Atomics.store`, `Atomics.exchange`, and `Atomics.compareExchange` accept any target ValidateAtomicTarget admits with _operation_ ~any-value-type~. `Atomics.add` and `Atomics.sub` accept the integer types and the floating-point types. `Atomics.and`, `Atomics.or`, `Atomics.xor`, `Atomics.wait`, `Atomics.waitAsync`, and `Atomics.notify` are ~integer-only~: a bitwise operation on a floating-point value has no meaning the program intended, and a wait compares bit patterns.</p>
+
+        <p>A value stored through any of these operations passes the typed-storage boundary (<emu-xref href="#sec-typed-storage"></emu-xref>), so a store of a value not of the target's type throws as an ordinary assignment to that storage would, and the same conversion applies.</p>
+
+        <emu-clause id="sec-atomics-float-arithmetic">
+          <h1>Floating-Point Addition</h1>
+          <p>`Atomics.add` and `Atomics.sub` on a target whose [[Type]] is a floating-point type perform the read-modify-write as a sequentially consistent compare-exchange loop: read the current value, compute the sum, and attempt to replace the value read with the sum, repeating until the replacement succeeds. Each attempt is one ReadModifyWriteSharedMemory event.</p>
+          <p>The result is therefore atomic but not deterministic across interleavings, floating-point addition not being associative. A program that needs a reproducible sum accumulates per-slice partials and combines them in a fixed order, which is what <emu-xref href="#sec-threading-parallel-iteration"></emu-xref> does.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-atomics-compare-exchange-predicate">
+          <h1>The compareExchange Comparison</h1>
+          <p>`Atomics.compareExchange` converts the expected value to the target's [[Type]] and then compares it with the value read using SameValueZero. The conversion is not optional: a comparison of an unconverted operand against a typed value read from the target never succeeds, so every compare-exchange would silently fail and a claim loop would spin rather than throw. The TypedArray form of the operation converts for the same reason. On an integer target this is indistinguishable from every other candidate. On a floating-point target it is the choice that makes a compare-exchange loop terminate, which <emu-xref href="#sec-types-across-agents"></emu-xref> already states normatively and this clause does not restate.</p>
+          <emu-note>
+            <p>Strict equality would not terminate: *NaN* is not strictly equal to itself, so a loop whose observed value is *NaN* would retry against the very value it read, forever. A comparison of representations would terminate but is not specifiable, since an implementation may write an implementation-chosen *NaN* encoding when it stores a floating-point value, which would leave the success of a compare-exchange varying by implementation. SameValue terminates and distinguishes *+0*<sub>𝔽</sub> from *-0*<sub>𝔽</sub>, which breaks the commonest use of the operation in the subtlest way: a computed *-0*<sub>𝔽</sub> fails to match a *+0*<sub>𝔽</sub> sentinel, so a claim loop intermittently refuses a slot that is arithmetically zero. SameValueZero is also the language's own storage equality, the predicate of Map, Set, and Array.prototype.includes, which is the role an expected-value comparison plays.</p>
+          </emu-note>
+        </emu-clause>
+
+        <emu-clause id="sec-atomics-typed-wait">
+          <h1>Waiting</h1>
+          <p>`Atomics.wait`, `Atomics.waitAsync`, and `Atomics.notify` on a typed target use the WaiterList of the pinned edition, keyed by the target's [[Block]] and [[ByteIndex]] as they are keyed for a TypedArray. A wait on storage the implementation has not placed in a Shared Data Block places it in one, which is the promotion <emu-xref href="#sec-shared-storage"></emu-xref> describes and the one case in which it is forced rather than discovered.</p>
+          <p>`Atomics.wait` throws a *TypeError* exception where the surrounding agent's [[CanBlock]] is *false*, as it does today. A wait is a cancellation checkpoint (<emu-xref href="#sec-thread-cancellation"></emu-xref>): a signal aborted while a wait is parked wakes it, and the wait then throws the signal's abort reason. The reactions of `Atomics.waitAsync` run on the agent that created them, as every reaction does (<emu-xref href="#sec-threading-scheduling"></emu-xref>).</p>
+        </emu-clause>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-threading-synchronization">
