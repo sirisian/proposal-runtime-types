@@ -6508,7 +6508,7 @@ contributors: Sirisian
 
       <emu-clause id="sec-atomics-typed-operations">
         <h1>The Operations</h1>
-        <p>`Atomics.load`, `Atomics.store`, `Atomics.exchange`, and `Atomics.compareExchange` accept any target ValidateAtomicTarget admits with _operation_ ~any-value-type~. `Atomics.add` and `Atomics.sub` accept the integer types and the floating-point types. `Atomics.and`, `Atomics.or`, `Atomics.xor`, `Atomics.wait`, `Atomics.waitAsync`, and `Atomics.notify` are ~integer-only~: a bitwise operation on a floating-point value has no meaning the program intended, and a wait compares bit patterns.</p>
+        <p>`Atomics.load`, `Atomics.store`, `Atomics.exchange`, and `Atomics.compareExchange` accept any target ValidateAtomicTarget (<emu-xref href="#sec-validateatomictarget"></emu-xref>) admits with _operation_ ~any-value-type~. `Atomics.add` and `Atomics.sub` accept the integer types and the floating-point types. `Atomics.and`, `Atomics.or`, `Atomics.xor`, `Atomics.wait`, `Atomics.waitAsync`, and `Atomics.notify` are ~integer-only~: a bitwise operation on a floating-point value has no meaning the program intended, and a wait compares bit patterns.</p>
 
         <p>A value stored through any of these operations passes the typed-storage boundary (<emu-xref href="#sec-typed-storage"></emu-xref>), so a store of a value not of the target's type throws as an ordinary assignment to that storage would, and the same conversion applies.</p>
 
@@ -6536,7 +6536,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-threading-synchronization">
       <h1>Synchronization Objects</h1>
-      <p>`Atomics` covers a single location. For anything larger &mdash; a multi-field update, a shared collection, a handoff &mdash; this clause specifies three ordinary objects: a Lock, a Condition, and a ThreadLocal.</p>
+      <p>`Atomics` covers a single location. For anything larger &mdash; a multi-field update, a shared collection, a handoff &mdash; this clause specifies three ordinary objects: a Lock (<emu-xref href="#sec-lock-objects"></emu-xref>), a Condition (<emu-xref href="#sec-condition-objects"></emu-xref>), and a ThreadLocal (<emu-xref href="#sec-threadlocal-objects"></emu-xref>).</p>
 
       <p>Where the surrounding agent's [[CanBlock]] is *false*, `Lock.prototype.hold`, `Lock.prototype.acquire`, and `Condition.prototype.wait` throw a *TypeError* exception, as `Atomics.wait` does. They throw rather than quietly becoming their `async` counterparts: an operation returning _T_ on one thread and `Promise.&lt;`_T_`&gt;` on another would have a return type that depends on which thread is running it, which is not a thing a typed language can say.</p>
 
@@ -6633,7 +6633,7 @@ contributors: Sirisian
 
       <emu-clause id="sec-thread.parallelfor">
         <h1>Thread.parallelFor ( _begin_, _end_, _body_ )</h1>
-        <p>It calls _body_ once with each integer in the range, in slices, and returns *undefined* when every slice has finished.</p>
+        <p>It calls _body_ once with each integer in the range, in slices (<emu-xref href="#sec-thread-partition"></emu-xref>), and returns *undefined* when every slice has finished.</p>
 
         <p>The calling agent participates: it executes slices itself, and when none remain to claim it waits out the slices still in flight without parking on a WaiterList. A call therefore never blocks in the sense <emu-xref href="#sec-threading-synchronization"></emu-xref> uses, and is permitted on an agent whose [[CanBlock]] is *false* &mdash; a host's main thread included, which is where a frame loop lives and which is the reason the operation is shaped this way.</p>
 
@@ -6644,7 +6644,7 @@ contributors: Sirisian
 
       <emu-clause id="sec-thread.parallelreduce">
         <h1>Thread.parallelReduce ( _begin_, _end_, _initial_, _perElement_, _combine_ )</h1>
-        <p>Each slice folds _perElement_ over its own elements, starting from _initial_, producing one partial. The partials are then combined with _combine_ in ascending slice order, left to right. The calling agent participates as it does for `parallelFor`.</p>
+        <p>Each slice (<emu-xref href="#sec-thread-partition"></emu-xref>) folds _perElement_ over its own elements, starting from _initial_, producing one partial. The partials are then combined with _combine_ in ascending slice order, left to right. The calling agent participates as it does for `parallelFor`.</p>
 
         <p>The result is therefore a function of the range, the body, and the callbacks &mdash; and not of the scheduling. Given one implementation, the same _begin_ and _end_ and the same callbacks produce the same value on a busy machine and an idle one, on four cores and on sixty-four. This holds although _combine_ need not be associative, which matters because floating-point addition is not and is the case the operation exists for.</p>
 
