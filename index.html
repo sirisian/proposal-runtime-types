@@ -6224,6 +6224,7 @@ a === b; <span class=hljs-comment>// true, one object</span>
 
         <emu-note><span class=note>Note</span><div class=note-contents>
           <p>One case is left over, and it is the intersection of three opt-outs: an untyped variadic function whose one intended argument is an object carrying a real AbortSignal under the key <code>signal</code> sees it taken as the bag. Annotating the parameter resolves it, and so does wrapping the value.</p>
+          <p>This operation counts <em>own</em> <emu-xref href=#property-key><a href=https://tc39.es/ecma262/#property-key>property keys</a></emu-xref>, while <code>callThread</code> reads the option with <emu-xref aoid=Get><a href=https://tc39.es/ecma262/#sec-get-o-p>Get</a></emu-xref>, which walks the prototype chain. The asymmetry is deliberate and is what makes <code>callThread</code>'s validation step reachable: an object with no own keys is an explicit empty bag, so one created with an inherited <code>signal</code> is classified as a bag and the inherited value is then read. An inherited AbortSignal is used, and an inherited value that is not one throws rather than being silently ignored. Were both steps to consult only own properties, no object could reach that step with a bad <code>signal</code> and the check would be unreachable.</p>
         </div></emu-note>
       </emu-clause>
 
