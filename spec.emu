@@ -6536,7 +6536,84 @@ contributors: Sirisian
 
     <emu-clause id="sec-threading-synchronization">
       <h1>Synchronization Objects</h1>
-      <p>This clause is not yet written. It will specify the Lock, Condition, and ThreadLocal constructors and their prototypes.</p>
+      <p>`Atomics` covers a single location. For anything larger &mdash; a multi-field update, a shared collection, a handoff &mdash; this clause specifies three ordinary objects: a Lock, a Condition, and a ThreadLocal.</p>
+
+      <p>Where the surrounding agent's [[CanBlock]] is *false*, `Lock.prototype.hold`, `Lock.prototype.acquire`, and `Condition.prototype.wait` throw a *TypeError* exception, as `Atomics.wait` does. They throw rather than quietly becoming their `async` counterparts: an operation returning _T_ on one thread and `Promise.&lt;`_T_`&gt;` on another would have a return type that depends on which thread is running it, which is not a thing a typed language can say.</p>
+
+      <emu-clause id="sec-lock-objects">
+        <h1>Lock Objects</h1>
+        <p>A Lock has internal slots [[Owner]], an Agent Record or ~none~, and [[Waiters]], a List of waiting agents in the order they arrived.</p>
+
+        <p>A Lock is not reentrant. Reentrant monitors buy tolerance of self-nesting at the price of owner-and-count bookkeeping on the fast path, a Condition that must release and restore a nesting depth, and the silent tolerance of a layering violation that a non-reentrant lock reports the moment it appears.</p>
+
+        <p>It is therefore a *TypeError* exception for an agent to acquire a Lock it already owns through `hold` or `acquire`. Those forms block, so the acquisition cannot make progress: the agent that would have to release is the agent now parked, which is a certain deadlock, and the owner is known because `Condition.prototype.wait` must check it anyway. A specification cannot leave the outcome unstated, and the platform's answer for an operation that can never proceed is to throw &mdash; the same choice made when `Atomics.wait` on a host's main thread became an error rather than a frozen page.</p>
+
+        <p>`asyncHold` while holding is not a deadlock and is permitted. The acquisition queues, and the holder may release from a later job before anything awaits the pending promise.</p>
+
+        <emu-clause id="sec-lock.prototype.hold">
+          <h1>Lock.prototype.hold ( _callback_ )</h1>
+          <p>It acquires the Lock, calls _callback_ with no arguments, releases the Lock, and returns what _callback_ returned. If _callback_ returns an abrupt completion, the Lock is released and the completion propagates, so the release has the force of a `finally`.</p>
+          <p>The closure does not escape the call, so an implementation may allocate nothing for it and may inline the critical section. It may not be marked `inline`, for the reason a `ref` callback may not (<emu-xref href="#sec-references-and-borrowing"></emu-xref>).</p>
+        </emu-clause>
+
+        <emu-clause id="sec-lock.prototype.acquire">
+          <h1>Lock.prototype.acquire ( )</h1>
+          <p>It acquires the Lock and returns a <dfn>lock guard</dfn>, an object with a `[Symbol.dispose]` method that releases it. `using guard = lock.acquire()` therefore holds the Lock for the enclosing block, which reads better than `hold` where the critical section wants an early `return` or spans a `try`.</p>
+          <p>Disposing a guard twice is a *TypeError* exception, as calling a release function twice is, and for the same reason.</p>
+          <emu-note>
+            <p>A guard is where the type system can do what a callback cannot. A guard type the checker requires to be consumed by a `using` declaration, or disposed on every path, turns forgetting to release into a type error rather than a deadlock at run time. That refinement is not specified here, the guard being an ordinary disposable, but the shape is chosen so that it can be.</p>
+          </emu-note>
+        </emu-clause>
+
+        <emu-clause id="sec-lock.prototype.asynchold">
+          <h1>Lock.prototype.asyncHold ( )</h1>
+          <p>It returns a promise for a release function, fulfilled when the Lock has been acquired for the calling agent. The promise's reactions run on the agent that created them, as every reaction does (<emu-xref href="#sec-threading-scheduling"></emu-xref>), so the critical section that follows the `await` runs on the thread that asked for the Lock.</p>
+          <p>The release function may be called once, by the agent that received it. A second call, or a call from another agent, is a *TypeError* exception. Tolerating a stale release would unlock a critical section that by then belongs to somebody else, which is the one failure a Lock exists to prevent.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-lock-release-ordering">
+          <h1>Ordering</h1>
+          <p>Releasing a Lock synchronizes-with the acquisition that next obtains it, in the sense of <emu-xref href="#sec-threading-memory-model"></emu-xref>. Everything an agent did while holding the Lock therefore happens-before everything the next holder does, which is what makes a Lock a way to publish a multi-field update that <emu-xref href="#sec-threading-memory-model"></emu-xref> would otherwise permit to tear.</p>
+          <p>Which waiter obtains a released Lock is implementation-defined. An implementation is not required to be fair, and a program that requires fairness builds it rather than assuming it.</p>
+        </emu-clause>
+      </emu-clause>
+
+      <emu-clause id="sec-condition-objects">
+        <h1>Condition Objects</h1>
+        <p>A Condition has an internal slot [[Waiters]].</p>
+
+        <emu-clause id="sec-condition.prototype.wait">
+          <h1>Condition.prototype.wait ( _lock_ )</h1>
+          <p>It is a *TypeError* exception if _lock_ is not a Lock owned by the surrounding agent. It releases _lock_ and parks the agent in one step, so no notification can be missed between the release and the park, and reacquires _lock_ before returning.</p>
+          <p>An implementation may wake a waiter that was not notified. A program therefore tests its condition in a loop rather than assuming that returning from `wait` means the condition holds &mdash; which is the discipline every condition variable requires, and which this clause states rather than leaving to be discovered.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-condition.prototype.asyncwait">
+          <h1>Condition.prototype.asyncWait ( _lock_ )</h1>
+          <p>It returns a promise fulfilled when the waiter has been notified and _lock_ reacquired, so the code after the `await` holds the Lock exactly as the code after `wait` does. Its reactions run on the agent that created them.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-condition-notify-operations">
+          <h1>Condition.prototype.notify and Condition.prototype.notifyAll</h1>
+          <p>`notify` wakes one waiter, `notifyAll` wakes every waiter. Which one `notify` wakes is implementation-defined. Neither requires the calling agent to hold any Lock, since the Lock a waiter reacquires is the waiter's and not the notifier's.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-condition-cancellation">
+          <h1>Cancellation</h1>
+          <p>A `wait` and an `asyncWait` are cancellation checkpoints (<emu-xref href="#sec-thread-cancellation"></emu-xref>). An abort delivered while a waiter is parked wakes it, and the wait then completes abruptly with the signal's abort reason &mdash; after reacquiring the Lock, so that the unwinding runs with the invariant the waiter was holding. A Lock acquisition is a checkpoint on the same terms.</p>
+        </emu-clause>
+      </emu-clause>
+
+      <emu-clause id="sec-threadlocal-objects">
+        <h1>ThreadLocal Objects</h1>
+        <p>`ThreadLocal.&lt;`_T_`&gt;` is a generic intrinsic, in the manner of `SoA.&lt;`_T_`&gt;` and `Composite.&lt;`_T_`&gt;`. An instance holds storage per agent: reading its `value` reads the storage of the surrounding agent, and writing it writes that agent's, so no two threads see one another's.</p>
+        <p>An agent that has not written the storage reads DefaultValueOf(_T_) (<emu-xref href="#sec-defaultvalueof"></emu-xref>). An agent's storage is unreachable once the agent is not, so a ThreadLocal does not keep the values of ended threads alive.</p>
+        <emu-note>
+          <p>A ThreadLocal is coherent here because a reaction runs on the thread that created it (<emu-xref href="#sec-threading-scheduling"></emu-xref>). Were a continuation to resume on whichever thread settled the promise it awaited, a ThreadLocal read before an `await` and one after it could answer differently in the same function, and the primitive would be a trap rather than a tool. The two rules stand or fall together, which is why one specification carries both.</p>
+        </emu-note>
+      </emu-clause>
+
+      <p>None of these is compile-time evaluable (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>). Each is either shared mutable state or a question about which thread is asking, and neither survives being answered at compile time.</p>
     </emu-clause>
 
     <emu-clause id="sec-threading-parallel-iteration">
