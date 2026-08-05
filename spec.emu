@@ -6317,7 +6317,9 @@ contributors: Sirisian
           1. If _args_ is empty, return the pair (~empty~, _args_).
           1. Let _first_ be _args_[0].
           1. If _first_ is not an ordinary Object, return the pair (~empty~, _args_).
-          1. If the declared type of _func_ has a signature whose first parameter admits _first_, return the pair (~empty~, _args_).
+          1. For each signature _sig_ of the declared type of _func_, do
+            1. Let _p_ be the type of the first parameter of _sig_, or ~unresolvable~ if _sig_ has no parameters or that type is not resolvable at this point.
+            1. If _p_ is not ~unresolvable~ and ! IsOfType(_first_, _p_) is *true*, return the pair (~empty~, _args_).
           1. If _first_ has no own property keys, return the pair (_first_, the List of the elements of _args_ from index 1).
           1. If _first_ has an own property *"signal"* whose value is an AbortSignal, return the pair (_first_, the List of the elements of _args_ from index 1).
           1. Return the pair (~empty~, _args_).
@@ -6325,6 +6327,10 @@ contributors: Sirisian
         <p>The bag is recognized by the brand of the value it carries and not by the shape of the object carrying it, because a brand is the stronger evidence: an ordinary object whose `signal` is an actual AbortSignal is an options bag in every program that is not deliberately constructed to look like one. An empty object is admitted so that a bag may be passed explicitly with nothing in it.</p>
 
         <p>The declared signature overrides the brand, which is the step no untyped resolution can perform. A function that declares a first parameter admitting the object receives it as an argument, whatever it carries, so a program that wants to forward a signal-carrying object as data annotates the parameter and is answered exactly. Argument count plays no part: rest parameters and overloads make a declared length useless for this.</p>
+
+        <p>Admission is membership and not assignability. The operation holds a value rather than a type, so IsOfType is what it can ask, and asking it means an object is admitted by a parameter type it actually satisfies rather than by one it could be converted to. <em>Any</em> signature suffices, not only a sole one: an overloaded callee that can receive the object in at least one of its shapes is a callee the program meant to hand it to, and choosing among the shapes is the ordinary work of overload resolution at the call rather than of this operation.</p>
+
+        <p>A parameter type that is not resolvable at this point &mdash; the unbound type parameter of a generic function, which names a type the call has not yet bound &mdash; does not admit. Both answers are defensible and neither is more correct, but refusing keeps the bag reachable on a generic function, and a program that wants the other reading has the concrete annotation available to say so.</p>
 
         <emu-note>
           <p>One case is left over, and it is the intersection of three opt-outs: an untyped variadic function whose one intended argument is an object carrying a real AbortSignal under the key `signal` sees it taken as the bag. Annotating the parameter resolves it, and so does wrapping the value.</p>
