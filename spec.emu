@@ -6334,6 +6334,7 @@ contributors: Sirisian
 
         <emu-note>
           <p>One case is left over, and it is the intersection of three opt-outs: an untyped variadic function whose one intended argument is an object carrying a real AbortSignal under the key `signal` sees it taken as the bag. Annotating the parameter resolves it, and so does wrapping the value.</p>
+          <p>This operation counts <em>own</em> property keys, while `callThread` reads the option with Get, which walks the prototype chain. The asymmetry is deliberate and is what makes `callThread`'s validation step reachable: an object with no own keys is an explicit empty bag, so one created with an inherited `signal` is classified as a bag and the inherited value is then read. An inherited AbortSignal is used, and an inherited value that is not one throws rather than being silently ignored. Were both steps to consult only own properties, no object could reach that step with a bad `signal` and the check would be unreachable.</p>
         </emu-note>
       </emu-clause>
 
