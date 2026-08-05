@@ -6356,17 +6356,24 @@ contributors: Sirisian
             1. Perform ! Call(_capability_.[[Reject]], *undefined*, &laquo; the abort reason of _signal_ &raquo;).
             1. Return _capability_.[[Promise]].
           1. Let _thread_ be a new agent of the surrounding agent's agent cluster, sharing its heap and its realm. The [[CanBlock]] field of _thread_ is host-defined.
+          1. Let _finish_ be a new Abstract Closure with parameters (_completion_) that captures _capability_, _thread_, and the surrounding agent and performs the following steps when called:
+            1. If _completion_ is a normal completion, perform ! Call(_capability_.[[Resolve]], *undefined*, &laquo; _completion_.[[Value]] &raquo;).
+            1. Else, perform ! Call(_capability_.[[Reject]], *undefined*, &laquo; _completion_.[[Value]] &raquo;).
+            1. Remove _thread_ from the agent cluster.
           1. Enqueue on the microtask queue of _thread_ a job that performs the following steps:
             1. Let _result_ be Completion(Call(_func_, *undefined*, _args_)).
             1. If _result_ is a normal completion and _result_.[[Value]] is an Object with a callable *"then"* property, then
-              1. Set _result_ to the completion with which that thenable settles, resolved as ! PromiseResolve(%Promise%, _result_.[[Value]]) settles.
-            1. Drain the microtask queue of _thread_.
-            1. If _result_ is a normal completion, perform ! Call(_capability_.[[Resolve]], *undefined*, &laquo; _result_.[[Value]] &raquo;).
-            1. Else, perform ! Call(_capability_.[[Reject]], *undefined*, &laquo; _result_.[[Value]] &raquo;).
-            1. Remove _thread_ from the agent cluster.
+              1. Let _inner_ be ! PromiseResolve(%Promise%, _result_.[[Value]]).
+              1. Perform PerformPromiseThen(_inner_, a function that calls _finish_ with a normal completion of its argument, a function that calls _finish_ with a throw completion of its argument).
+              1. Return ~unused~.
+            1. Perform _finish_(_result_).
           1. Return _capability_.[[Promise]].
         </emu-alg>
-        <p>The capability is created on the calling thread, so its reactions are that thread's reactions and the handle settles there (<emu-xref href="#sec-threading-scheduling"></emu-xref>). The drain precedes the settle, so the trailing microtasks of the thread happen-before the observation of its result.</p>
+        <p>The capability is created on the calling thread, so its reactions are that thread's reactions and the handle settles there (<emu-xref href="#sec-threading-scheduling"></emu-xref>).</p>
+
+        <p>Adopting a thenable is a suspension of the thread and not a step it runs through. An async function returns a pending promise the moment it reaches its first `await`, so a thread that settled its handle with the returned value and ended would end while its function was still suspended: the body past the `await` would never run and the handle would resolve with a promise rather than with a result. The reactions on _inner_ are created on _thread_, so they are _thread_'s reactions and run on it, and _thread_ is therefore alive and running its own continuation until the adoption completes. That is the whole of what "the thread ends when the completion settles" means.</p>
+
+        <p>There is no separate step draining the thread's microtask queue. The settlement is delivered by a job on the spawning agent's queue, enqueued when _finish_ runs, and by then every job the thread queued before it has already run &mdash; the drain is a consequence of the queue rather than an operation performed on it. What the clause promises, that everything the thread did happens-before the spawner observes its result, holds for that reason.</p>
       </emu-clause>
 
       <emu-clause id="sec-thread-cancellation">
@@ -6376,6 +6383,8 @@ contributors: Sirisian
         <p>Otherwise the thread observes the abort at a <dfn>cancellation checkpoint</dfn>, and the checkpoints are the points at which it is between things or waiting for one: when it takes a job from its microtask queue, at the resumption of an `await`, and in a wait &mdash; `Atomics.wait` and `Atomics.waitAsync` (<emu-xref href="#sec-threading-atomics"></emu-xref>), and the Lock and Condition waits (<emu-xref href="#sec-threading-synchronization"></emu-xref>). A wait that is already parked when the abort happens is woken by it. A wait that could only be observed on entry would leave a parked thread uncancellable, which is most of what cancellation is for.</p>
 
         <p>Observing it throws the signal's abort reason from whatever operation was pending. That is an ordinary abrupt completion and unwinds ordinarily: `finally` blocks run, `using` declarations dispose, a lock held through `hold` is released, and a reason that reaches the top of the thread's function rejects the handle.</p>
+
+        <p>Those two sentences have an order, and it decides what a host may throw away. A thread parked on a wait is not idle: the abort is delivered <em>through</em> the wait, which completes abruptly with the reason. A thread that has been delivered an abort is not idle either: it is unwinding, and its remaining jobs are the `finally` blocks and `catch` clauses of that unwinding. So an abort abandons a thread's queued work only where the thread has nothing pending to deliver it through and has not already been delivered it &mdash; a thread that has not yet begun, or one between jobs. Abandoning the work of a thread that is unwinding would discard exactly the steps the paragraph above promises will run.</p>
 
         <p>There is no checkpoint at a loop back-edge. A computation with no suspension point is cancelled cooperatively, by reading the signal's aborted state, which crosses threads because the signal is an object of the shared heap and because an abort on one thread and the read that observes it on another are ordered by <emu-xref href="#sec-threading-memory-model"></emu-xref>.</p>
 
