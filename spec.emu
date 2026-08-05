@@ -3474,7 +3474,7 @@ contributors: Sirisian
             <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
             <tr><td>complex numbers</td><td>The operators and `Math` overloads of the complex types. The type of an imaginary literal and the conversions are delivered by <emu-xref href="#sec-complex-numbers"></emu-xref>.</td></tr>
             <tr><td>operator overloading</td><td>The math library the design works the feature through, and the four conditions it states an engine must meet to compile that library well. The declaration forms, the receiver rule, and the resolution are delivered by <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
-            <tr><td>threading</td><td>The thread and synchronization surface: `callThread` and the scheduling of promise reactions across threads, the `Atomics` operations over typed values, the `shared` modifier's placement and stability rules, the Lock, Condition, and ThreadLocal objects, and parallel iteration. The heap sharing on which a Type Object's identity rests is delivered by <emu-xref href="#sec-types-across-agents"></emu-xref>.</td></tr>
+            <tr><td>threading</td><td>Specified by <emu-xref href="#sec-threading"></emu-xref>. What remains at this hook is what that clause leaves to a host: the sizing and management of the pool (<emu-xref href="#sec-thread-pool"></emu-xref>), the disposition of host-scheduled work still pending when a thread's function has settled (<emu-xref href="#sec-threading-agent-cluster"></emu-xref>), the AbortSignal the cancellation rules refer to, and the concurrent Map and Set the design would like but does not require. Two things the clause records as possible future work rather than as gaps: an explicit opt-in to settle-side execution of a promise reaction, and an option pinning the parallel partition so that a result reproduces across implementations and not only within one.</td></tr>
             <tr><td>ranges</td><td>The range literal's grammar and its lexical interaction with `.`, the members of `Range`, and the extensions that take a range as a bound. The case ranges and the bounded `for` counter that <emu-xref href="#sec-check-elision"></emu-xref> relies on are delivered by <emu-xref href="#sec-ranges"></emu-xref>.</td></tr>
             <tr><td>type programming</td><td>The tooling plan: an evaluator embedded in a language server, a computed type displayed as its application beside its expansion, and a builder stack on a budget diagnostic. Every other obligation recorded here is discharged: construction, relations, `never`, and evaluation by <emu-xref href="#sec-reflect-maketype"></emu-xref>, <emu-xref href="#sec-reflect-isassignable"></emu-xref>, <emu-xref href="#sec-never-type"></emu-xref>, and <emu-xref href="#sec-compile-time-evaluability"></emu-xref>, the kit and the evaluable fragment by <emu-xref href="#annex-standard-kit"></emu-xref> and <emu-xref href="#annex-evaluable-fragment"></emu-xref>, symbol literal types by <emu-xref href="#sec-literal-types"></emu-xref>, the declarative checker facts by <emu-xref href="#sec-declarative-checker-facts"></emu-xref>, contracts, trials, and declared inverses by <emu-xref href="#sec-checked-contracts"></emu-xref> and <emu-xref href="#sec-inference-through-results"></emu-xref>, and structural matching, provenance, and distribution by <emu-xref href="#sec-structural-matching"></emu-xref>, <emu-xref href="#sec-provenance"></emu-xref>, and <emu-xref href="#sec-expansion-artifact"></emu-xref>.</td></tr>
           </tbody>
@@ -3517,7 +3517,7 @@ contributors: Sirisian
             <tr><td>standardlibrary.md</td><td>Specified: <emu-xref href="#sec-numeric-library"></emu-xref> and the overloaded library rules.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; a returned reference is consumed as a location by the forms of <emu-xref href="#sec-location-consuming-contexts"></emu-xref>, and a borrow of an `SoA` element is <emu-xref href="#sec-soa-references"></emu-xref>; a destructuring `ref` member is <emu-xref href="#sec-typed-destructuring"></emu-xref>; the deferred form (a user iterator or callback yielding references) is noted there.</td></tr>
-            <tr><td>threading.md</td><td>Being specified in <emu-xref href="#sec-threading"></emu-xref>, whose clauses are landing one at a time; `shared` is in the grammar and <emu-xref href="#sec-types-across-agents"></emu-xref> is normative. What that clause does not yet reach is deferred to its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
+            <tr><td>threading.md</td><td>Specified by <emu-xref href="#sec-threading"></emu-xref>: threads and their lifetime, the scheduling of promise reactions across them, `callThread` and cancellation, the `shared` modifier's placement and stability rules, shared typed memory as events of the memory model, `Atomics` over typed values, Lock, Condition, and ThreadLocal, and parallel iteration. The host latitude that remains is listed at its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
             <tr><td>ranges.md</td><td>Partially specified: the range literals, the Range value, and its iteration are <emu-xref href="#sec-range-literals"></emu-xref> atop the hook of <emu-xref href="#sec-ranges"></emu-xref>; the interval in the type and its specialization, the `uint8.&lt;1..=6&gt;` bounds desugaring, slicing to a view, and the random and Temporal integrations are deferred.</td></tr>
             <tr><td>serialization.md</td><td>Partially specified: typed JSON parsing (the `JSON.parse.&lt;_T_&gt;` overload and its converting, validating walk) is <emu-xref href="#sec-typed-json-parsing"></emu-xref>, atop the boundary and metadata machinery the core already gives; the deferred surface (class targets, the exact wide numerics, typed `JSON.stringify`, streaming, typed JSON modules, `structuredClone`, and the binary layout) is noted there. <emu-xref href="#sec-types-across-agents"></emu-xref> is the adjacent normative text.</td></tr>
             <tr><td>soa.md</td><td>The type and its layout: <emu-xref href="#sec-structure-of-arrays"></emu-xref>; array views, which its own view form follows, are <emu-xref href="#sec-array-views"></emu-xref>. A reference into an `SoA` is <emu-xref href="#sec-soa-references"></emu-xref>, with its liveness rules in <emu-xref href="#sec-reference-liveness"></emu-xref>; the element and view semantics are still to come.</td></tr>
@@ -6618,7 +6618,55 @@ contributors: Sirisian
 
     <emu-clause id="sec-threading-parallel-iteration">
       <h1>Parallel Iteration</h1>
-      <p>This clause is not yet written. It will specify the `Thread` namespace object and the two range operations it carries, the partition they are defined over, and how a failure in a body is reported.</p>
+      <p>The `Thread` namespace object carries two operations over a range of integers. They exist because the alternative &mdash; spawning a thread per slice by hand and joining it &mdash; is both more code and worse, since a thread per call is a thread the pool would have reused.</p>
+
+      <emu-clause id="sec-thread-partition">
+        <h1>The Partition</h1>
+        <p>Both operations cut _begin_ through _end_ into <dfn>slices</dfn>: disjoint contiguous sub-ranges covering the whole range, numbered from zero in ascending order of the elements they contain. How many, and where the cuts fall, is implementation-defined <em>as a function of _begin_ and _end_ alone</em>. Nothing else may influence it &mdash; not how many threads the host has, not how many are idle, not how long a body took on a previous call.</p>
+
+        <p>Which agent executes which slice is not fixed and may vary between runs of one program. An implementation may move whole slices between agents freely, which is what lets it balance work; what it may not do is cut differently because of what its agents are doing.</p>
+
+        <emu-note>
+          <p>The constraint is what gives `parallelReduce` a reproducible answer over floating-point values, and it is chosen at the level where it costs least. Fixing the partition in this specification would deliver reproducibility across implementations too, but any constant this clause named would be arbitrary today and wrong on the hardware of a few years from now. Leaving the partition entirely to the implementation would deliver nothing: a result that changed with core count, or with whether a machine was busy, is not what a program means by deterministic. A partition that depends only on the range gives an implementation every tuning decision that matters and takes away only the one that would make the answer move.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-thread.parallelfor">
+        <h1>Thread.parallelFor ( _begin_, _end_, _body_ )</h1>
+        <p>It calls _body_ once with each integer in the range, in slices, and returns *undefined* when every slice has finished.</p>
+
+        <p>The calling agent participates: it executes slices itself, and when none remain to claim it waits out the slices still in flight without parking on a WaiterList. A call therefore never blocks in the sense <emu-xref href="#sec-threading-synchronization"></emu-xref> uses, and is permitted on an agent whose [[CanBlock]] is *false* &mdash; a host's main thread included, which is where a frame loop lives and which is the reason the operation is shaped this way.</p>
+
+        <p>Two properties follow, and both are normative. Executing every slice on the calling agent, in ascending slice order, is a conforming implementation: a host with no threads to give still runs the program, and gets the same answer. And a _body_ that itself calls `parallelFor` cannot deadlock by exhausting the pool, since the inner call participates on the same terms; the worst case is that the inner range runs on the agent that entered it.</p>
+
+        <p>A reference into an element is valid for the slice that borrows it (<emu-xref href="#sec-reference-liveness"></emu-xref>), and it is a *TypeError* exception to change the length of an array a slice holds a reference into for the duration of the call. Because slices are disjoint, writes to distinct elements never contend; over a `shared SoA.&lt;`_T_`&gt;`, writes to distinct <em>fields</em> do not contend either, each field being its own region (<emu-xref href="#sec-shared-storage"></emu-xref>).</p>
+      </emu-clause>
+
+      <emu-clause id="sec-thread.parallelreduce">
+        <h1>Thread.parallelReduce ( _begin_, _end_, _initial_, _perElement_, _combine_ )</h1>
+        <p>Each slice folds _perElement_ over its own elements, starting from _initial_, producing one partial. The partials are then combined with _combine_ in ascending slice order, left to right. The calling agent participates as it does for `parallelFor`.</p>
+
+        <p>The result is therefore a function of the range, the body, and the callbacks &mdash; and not of the scheduling. Given one implementation, the same _begin_ and _end_ and the same callbacks produce the same value on a busy machine and an idle one, on four cores and on sixty-four. This holds although _combine_ need not be associative, which matters because floating-point addition is not and is the case the operation exists for.</p>
+
+        <p>The guarantee is only as strong as the callbacks. A _perElement_ or _combine_ that consults a ThreadLocal, asks which agent is running, or observes the scheduling in any other way reintroduces exactly the variation the partition rule removes, and this clause promises nothing about such a program.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-thread-parallel-errors">
+        <h1>Errors</h1>
+        <p>If a call to _body_ or _perElement_ completes abruptly in slice _k_, slices numbered above _k_ are cancelled, slices numbered below _k_ are allowed to finish, and the operation completes abruptly with the completion of the lowest-numbered slice that failed. A _combine_ that completes abruptly is attributed to the later of the two slices it was combining.</p>
+
+        <p>That is the completion a sequential execution would have produced, since a sequential execution reaches the lowest failing index first and stops there. Failures are therefore as reproducible as results, and for the same reason.</p>
+
+        <emu-note>
+          <p>Reporting whichever failure happened first in time would be simpler and is what an unordered pool naturally does, but it would make the error a program sees depend on scheduling &mdash; so a program with two bad elements would report one of them on a fast machine and the other on a slow one. Collecting every failure would run work already known to be doomed, and the <em>set</em> collected would be scheduling-dependent anyway unless every slice ran to completion.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-thread-pool">
+        <h1>The Pool</h1>
+        <p>The agents these operations execute slices on are a resource of the agent cluster, sized and managed by the host, and reused across calls. Creating a thread per call would make the operations too expensive for the loop they are meant to sit inside.</p>
+        <p>Neither operation is compile-time evaluable (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>).</p>
+      </emu-clause>
     </emu-clause>
   </emu-clause>
 
