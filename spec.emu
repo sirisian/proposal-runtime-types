@@ -1418,6 +1418,11 @@ contributors: Sirisian
 
       <p>_U_ is not the receiver's lane type. A mask selects between vectors of any lane type, so long as they share its lane count.</p>
 
+      <emu-note>
+        <p>`select` over an arithmetic result is how a program computes some lanes and leaves the others, which a target with predicated instructions performs in one instruction rather than two. `m.select(_a_ + _b_, _src_)` is the write-masked form, whose untaken lanes come from _src_, and `m.select(_a_ + _b_, _zero_)` is the zero-masked form. An implementation may lower either to such an instruction, computing only the lanes the mask takes, when the arm whose lanes it elides is an expression whose evaluation has no effect an ECMAScript program can observe; arithmetic over vectors is such an expression.</p>
+        <p>That condition, and not the shape of the call, is what bounds the permission. `select` is an ordinary method, so its arguments are evaluated before it is entered: an argument that calls a function, reads an accessor, or otherwise has an effect is evaluated whatever the mask holds, and only lanes of an arm an implementation can show to be pure may go uncomputed. No syntax is added for the masked forms, because this composition already denotes them, and a per-operation mask parameter would give every operator a second spelling for what it already says.</p>
+      </emu-note>
+
       <p>`select` is an ordinary call, so **both arguments are evaluated** before it is made, whichever lanes of the receiver are set. It is not a conditional and does not have a conditional's evaluation.</p>
 
       <emu-note>
