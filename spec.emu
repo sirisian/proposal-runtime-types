@@ -2090,8 +2090,13 @@ contributors: Sirisian
         <li>The target is the `any` type. Every value is a value of it.</li>
         <li>The value's static type and the target are the same type.</li>
         <li>At a RETURN, where every `return` of the function satisfies the conditions above and the function cannot complete without one. A return annotation is shared by every `return` in its function, so the elision is a property of the function rather than of a statement, and a function that can fall off its end returns *undefined*, which the annotation must admit for the elision to hold.</li>
-        <li>The index of a read or write of a fixed-length `[N].&lt;T&gt;` is known to be below _N_, because _N_ is a compile-time constant and the index is a value generic, a `where`-constrained parameter, or the counter of a `for` over a range with that bound. The bound is proven statically and no check is performed.</li>
+        <li>The index of a read or write of a fixed-length `[N].&lt;T&gt;` is known to be below _N_, because _N_ is a compile-time constant and the index is a value generic, a `where`-constrained parameter, or the counter of a `for` over a range all of whose members are less than _N_. The bound is proven statically and no check is performed.</li>
       </ul>
+
+      <emu-note>
+        <p>A range's bounds are part of what its MEMBERS are, so the four shapes of one span do not prove the same thing: `0..&lt;3` proves an index into a `[3]` and `0&lt;..=3` does not, its members being 1 through 3 and its ceiling therefore 4. An open start raises the floor and a closed end raises the ceiling, independently of each other, which is why the rule above is stated over members rather than over endpoints &mdash; the members are already what <emu-xref href="#sec-ranges"></emu-xref> fixes, and restating it here would be a second place for the two to disagree.</p>
+        <p>Stating it over members also makes the proof independent of SPELLING. `0..&lt;8` and `0..=7` have the same members, so a rule keyed on the written end would prove one and refuse the other, which is a distinction about notation rather than about values.</p>
+      </emu-note>
 
       <p>A check at a PARAMETER is not elided on the evidence of the calls a checker can see. A parameter's annotation is shared by every call site, and an implementation compiles a source text rather than a program: a function is reachable through `Function.prototype.apply`, as an argument to a built-in that calls it, through a direct `eval`, and from another module or another source text entirely. An implementation may elide a parameter check where it establishes that every call is proven, which is a whole-program property and is outside what this clause requires. The same holds of a store to a property, which is reached through `Reflect.set` and through every other route to <emu-xref href="#sec-ordinaryset"></emu-xref> as well as through an assignment.</p>
 
