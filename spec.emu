@@ -4629,12 +4629,39 @@ contributors: Sirisian
 
       <emu-clause id="sec-reflection-shape-function">
         <h1>The Function Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Function`, `FunctionParameter`, and `FunctionReturn` reflections.</p>
+        <emu-table id="table-reflection-shape-function" caption="Function Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`Function`</td><td>`type`; `name`, a String, a Symbol, or *undefined* where the function is anonymous; `signatures`, a List of signature reflections (<emu-xref href="#sec-reflection-shape-class"></emu-xref>) in declaration order, of length 1 where the function is not overloaded; `metadata`.</td></tr>
+              <tr><td>`FunctionParameter`</td><td>`type`; `name`, a String; `index`, a non-negative integer; `initial`; `initializer`; `metadata`.</td></tr>
+              <tr><td>`FunctionReturn`</td><td>`type`; `metadata`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <emu-note>
+          <p>`FunctionParameter` and `FunctionReturn` report one signature's parameter and return, which is what a decorator on a parameter of an overloaded function needs: the decoration is written on one signature and reflects that one. `signatures` on the `Function` reflection is the whole set, so a reader wanting every overload takes it from there and one wanting the decorated position takes the parameter's own.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-reflection-shape-binding">
         <h1>The Binding Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Let` and `Const` reflections.</p>
+        <emu-table id="table-reflection-shape-binding" caption="Binding Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`Let`</td><td>`type`; `name`, a String; `initial`; `initializer`.</td></tr>
+              <tr><td>`Const`</td><td>`type`; `name`, a String; `initial`; `initializer`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <p>Neither has a `metadata` property, this family being one of those <emu-xref href="#sec-decorator-metadata"></emu-xref> gives none.</p>
+
+        <emu-note>
+          <p>A `const` initialized with a constant always reports an `initial`, where a `let`'s may be *undefined*; the rule is the same one (<emu-xref href="#sec-reflection-shape-rules"></emu-xref>) and it is the declarations that differ, a `const` with a non-constant initializer being as possible as a `let` with one. The two reflections have one shape rather than two because a reader of a binding wants the same four answers either way.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-reflection-shape-object">
@@ -4649,12 +4676,38 @@ contributors: Sirisian
 
       <emu-clause id="sec-reflection-shape-enum">
         <h1>The Enum Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Enum` and `EnumEnumerator` reflections.</p>
+        <emu-table id="table-reflection-shape-enum" caption="Enum Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`Enum`</td><td>`type`, the enum type; `valueType`, the Type Object of the type the enumerators take their values in; `size`, a non-negative integer count of enumerators; `metadata`.</td></tr>
+              <tr><td>`EnumEnumerator`</td><td>`name`, a String; `value`, the enumerator's value, of the enum's `valueType`; `index`, a non-negative integer giving its position in declaration order; `metadata`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <emu-note>
+          <p>An enumerator reflection reports its `value` and no `type`: the type is the enum's and is reached through the enum's reflection, where reporting it per enumerator would be the same Type Object repeated once per member. `index` is the declaration order rather than the value, which are different whenever a program assigns values explicitly.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-reflection-shape-structural">
         <h1>The Structural Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Tuple` and `Record` reflections.</p>
+        <emu-table id="table-reflection-shape-structural" caption="Structural Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`Tuple`</td><td>`type`.</td></tr>
+              <tr><td>`Record`</td><td>`type`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <p>Neither has a `metadata` property, this family being one of those <emu-xref href="#sec-decorator-metadata"></emu-xref> gives none.</p>
+
+        <emu-note>
+          <p>These two reflect a composite VALUE where `Reflect.Type` reflects a type, and which of them a decoration selects is decided by the value rather than by the syntax: a composite built over a List selects `Tuple` and one built over a set of keyed members selects `Record`, the same division a composite's own kind already makes. A reader wanting the structure walks `type` with `Reflect.Type` (<emu-xref href="#sec-reflect-getreflection"></emu-xref>), which is why one field is the whole shape.</p>
+        </emu-note>
       </emu-clause>
     </emu-clause>
 
