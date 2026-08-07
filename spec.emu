@@ -3596,6 +3596,7 @@ contributors: Sirisian
             <tr><td>primitivemetadata.md</td><td>Specified: <emu-xref href="#sec-primitive-metadata"></emu-xref>.</td></tr>
             <tr><td>memorylayout.md</td><td>Specified: <emu-xref href="#sec-memory-layout"></emu-xref>, with placement `new` in <emu-xref href="#sec-type-arguments-and-placement-new-in-expression-position"></emu-xref>.</td></tr>
             <tr><td>operatoroverloading.md</td><td>Specified: <emu-xref href="#sec-operators"></emu-xref> and <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
+            <tr><td>operators.md</td><td>Specified: the result of an operator by family (<emu-xref href="#sec-operator-results"></emu-xref>), of which that document is the informative presentation, with the instructions a target lowers each family to.</td></tr>
             <tr><td>decorators.md</td><td>Specified as reflection: <emu-xref href="#sec-decorators"></emu-xref>; decorator syntax itself rides the decorators proposal.</td></tr>
             <tr><td>complex.md</td><td>Specified: <emu-xref href="#sec-complex-types"></emu-xref>, <emu-xref href="#sec-complex-numbers"></emu-xref>, and the imaginary literal.</td></tr>
             <tr><td>rational.md</td><td>Specified: <emu-xref href="#sec-rational-types"></emu-xref>.</td></tr>
