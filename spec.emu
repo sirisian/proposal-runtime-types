@@ -1396,6 +1396,15 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-vector-lane-wise-math">
+      <h1>Lane-wise Math</h1>
+      <p>The function properties of the Math object apply lane-wise to a vector argument, returning a vector of the argument's shape. Where a function takes more than one argument, the arguments are vectors of one shape and the function applies at each lane; a scalar argument beside a vector one broadcasts (<emu-xref href="#sec-vector-lanes"></emu-xref>).</p>
+      <p>The set divides by whether the scalar function is exactly specified. `min`, `max`, `abs`, `sqrt`, `floor`, `ceil`, `round`, and `trunc` are exact, and lane _j_ of the result is the scalar result for lane _j_ of the argument. The remaining functions - the trigonometric, exponential, logarithmic, and hyperbolic families and `pow`, `cbrt`, and `hypot` - are implementation-approximated as their scalar forms are, and <b>the vector form is approximated independently of the scalar form</b>: lane _j_ of the vector result is not required to equal the scalar function applied to lane _j_.</p>
+      <emu-note>
+        <p>The independence is deliberate. A vector math library computes a transcendental to a different accuracy than the scalar library does, so requiring the two to agree would forbid an implementation from using the vector instruction at all, which is to forbid the reason the operation is offered here. A program requiring bit-identical results between the two spellings applies the scalar function lane by lane, which is what it is asking for.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-vector-masks">
       <h1>Mask Operations</h1>
       <p><emu-xref href="#sec-vector-comparisons"></emu-xref> states what a comparison between vectors produces. This clause states what consumes one. A <dfn>mask</dfn> is a vector whose lane type is `uint.&lt;1&gt;`, which is what the design names `boolean`_N_ (<emu-xref href="#sec-vector-lanes"></emu-xref>), and the operations below are declared on such a vector alone.</p>
@@ -4863,6 +4872,8 @@ contributors: Sirisian
   <emu-clause id="sec-vector-comparisons">
     <h1>Vector Comparisons</h1>
     <p>A comparison between two vectors of one shape yields one lane per input lane, and what it yields for each is decided by the expected type, since the comparison is overloaded on its return type (<emu-xref href="#sec-overloading-on-return-type"></emu-xref>). Three results are defined: the wide mask, a vector of the boolean type of the same width as the compared element, so a `float32x4` comparison yields a `boolean32x4` of lanes all-set or all-clear; the compact mask, a bit vector of one bit per lane; and the compared vector type itself, its matching lanes all-ones. Left with no expected type the expression is ambiguous among them and is a type error, so the result's type is written.</p>
+
+    <p>Which comparison each operator performs on a lane is what it performs on a scalar. A hardware comparison of floating-point values chooses among predicates that differ on two axes: an <dfn>ordered</dfn> comparison is *false* when either operand is *NaN* and an <dfn>unordered</dfn> one is *true*, and a signaling comparison raises the invalid-operation flag where a non-signaling one does not. `&lt;`, `&lt;=`, `&gt;`, `&gt;=`, and `==` are ordered and `!=` is unordered, which is the reading that makes a lane agree with the scalar operator of the same spelling: `NaN == NaN` is *false* and `NaN != NaN` is *true*. All are non-signaling, this specification having no floating-point exception surface to signal into. A comparison of integer lanes has no such choice, integers having no *NaN*. The predicates with no operator are not exposed; a program requiring the ordered test alone writes `a == a &amp;&amp; b == b`.</p>
 
     <p>The lane counts the shorthand names cover are the register widths, which is why `float32x4` has a name and a three-lane float vector does not. A vector of any other lane count is written `vector.&lt;`_T_`, `_N_`&gt;`, which is what a narrowing accessor produces, and a library wanting a name for one declares it.</p>
 
