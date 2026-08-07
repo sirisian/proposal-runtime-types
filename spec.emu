@@ -4843,6 +4843,31 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-addinitializer">
+      <h1>addInitializer</h1>
+      <p>`addInitializer(`_callback_`)` registers _callback_ to run once the declaration it was registered from is fully decorated. It is a *TypeError* if _callback_ is not callable. The registered callbacks run after every decorator of that declaration has been applied, in the order they were added (<emu-xref href="#sec-decorator-application"></emu-xref>), and their return values are discarded.</p>
+
+      <p>Only the contexts of <emu-xref href="#table-addinitializer"></emu-xref> have an `addInitializer` property. On every other context it is absent, so a decorator written for a position that cannot register one finds nothing to call rather than a call that does nothing.</p>
+
+      <emu-table id="table-addinitializer" caption="Contexts Carrying addInitializer">
+        <table>
+          <thead><tr><th>Carries it</th><th>Does not</th></tr></thead>
+          <tbody>
+            <tr><td>`Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassSetter`, `ClassMethod`, `ClassOperator`, `ObjectGetter`, `ObjectSetter`, `ObjectMethod`</td><td>Every other context of <emu-xref href="#table-reflection-contexts"></emu-xref>: the sub-target contexts naming a parameter or a return, `Function`, `ObjectField`, the Binding, Block, Enum, and Structural families, and `Type`.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>The list is closed rather than derivable, and `Function` is the case that makes it so: a function declaration admits a replacement (<emu-xref href="#sec-replacement-values"></emu-xref>) and carries no `addInitializer`, so no rule of the form "whatever can be replaced can be initialized" holds. What the ten have in common is a declaration site inside a class or an object literal that something else constructs - an initializer runs at construction, and a free function has no construction to run at.</p>
+        <p>`ObjectField` is the other case worth naming: it is a member of an object literal, and the literal is finished when the field's decorator runs, so there is no later moment for a callback to be later than.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>Callbacks running after every decorator of the declaration is what lets a decorator register work that depends on what a decorator applied closer to the declaration did, since application is innermost first (<emu-xref href="#sec-decorator-application"></emu-xref>) and registration is not application. Running them in the order added rather than in reverse is the ordinary reading of a queue, and the two orders together mean a stack of decorators applies outward and initializes forward.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-decorator-metadata">
       <h1>The Metadata Channel</h1>
       <p>A decorator may be written before a TYPE only in a position that has a reflection context of its own, which is a RETURN: a method's, a getter's, an operator's, an abstract method's, and a function's. `Reflect.Type` is a reflection target and not a decorator context - a bare type expression carries no decorator - so a decorator before the type of a binding, a field, a parameter, or an interface member is a Syntax Error rather than a decoration that names nothing.</p>
@@ -4866,7 +4891,7 @@ contributors: Sirisian
       <h1>Applying a Decorator</h1>
       <p>A decorator is an ordinary function whose last parameter is annotated with a reflection context. Which function a decoration applies is decided by the overload resolution of <emu-xref href="#sec-resolveoverload"></emu-xref> over the arguments written and the context of the position decorated, so `@f`, `@f(0)`, and `@f('a')` may name three declarations of `f` and select among them the way any call does. `@f` and `@f()` are one form: both resolve with no explicit argument, and a signature taking the context alone is preferred over one whose remaining parameters are satisfied by defaults. Where no such signature exists and more than one is satisfied by defaults alone, the decoration is ambiguous and a *TypeError* is thrown where the decorated declaration is evaluated.</p>
 
-      <p>A decorator runs when the declaration it decorates is evaluated, and what it may do there is write to the `metadata` of its context, register an initializer, and return a replacement for what it decorated. The replacement a context admits is given by <emu-xref href="#sec-replacement-values"></emu-xref>; the initializer registration is the decorators extension's. So is the ORDER, which that extension now fixes in two phases: decorator expressions are evaluated in document order, and decorators are applied INNERMOST FIRST AND IN REVERSE SOURCE ORDER - several on one declaration apply closest-first, a declaration's parameters and return apply before the declaration itself, and members apply before their container, so a class decorator sees a class whose members are already decorated. Registered initializers run after every decorator of that declaration has been applied, in the order they were added (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+      <p>A decorator runs when the declaration it decorates is evaluated, and what it may do there is write to the `metadata` of its context, register an initializer, and return a replacement for what it decorated. The replacement a context admits is given by <emu-xref href="#sec-replacement-values"></emu-xref>, and the initializer registration by <emu-xref href="#sec-addinitializer"></emu-xref>. So is the ORDER, which that extension now fixes in two phases: decorator expressions are evaluated in document order, and decorators are applied INNERMOST FIRST AND IN REVERSE SOURCE ORDER - several on one declaration apply closest-first, a declaration's parameters and return apply before the declaration itself, and members apply before their container, so a class decorator sees a class whose members are already decorated. Registered initializers run after every decorator of that declaration has been applied, in the order they were added (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
 
       <p>A block is the exception, and it is the one position in this extension whose decorator runs more than once. A block decorator runs on every <em>entry</em> to its block rather than once where the block was written, so a block inside a loop runs its decorator once per iteration and a block inside a function once per call. This follows from the rule above rather than qualifying it - a block is evaluated each time control reaches it, and a decorator runs when what it decorates is evaluated - but it is worth stating, because the cost is real and is not visible at the decoration.</p>
 
