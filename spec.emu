@@ -4591,7 +4591,40 @@ contributors: Sirisian
 
       <emu-clause id="sec-reflection-shape-class">
         <h1>The Class Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassGetterReturn`, `ClassSetter`, `ClassSetterParameter`, `ClassMethod`, `ClassMethodParameter`, `ClassMethodReturn`, `ClassOperator`, `ClassOperatorParameter`, and `ClassOperatorReturn` reflections.</p>
+        <p>Every reflection of this family has the fields <emu-xref href="#table-reflection-shape-class"></emu-xref> gives it, together with the `kind` of <emu-xref href="#sec-reflection-shape-rules"></emu-xref>. A `type` field holds a Type Object, an `initial` field is governed by the rule of that clause, and an `initializer` field holds a TokenStream (<emu-xref href="#sec-tokenstream-objects"></emu-xref>) or *undefined*.</p>
+
+        <emu-table id="table-reflection-shape-class" caption="Class Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`Class`</td><td>`name`, a String or *undefined* for an anonymous class; `type`, the class itself; `abstract`; `metadata`.</td></tr>
+              <tr><td>`ClassField`</td><td>`type`; `name`, a String or Symbol; `static`; `private`; `protected`; `readonly`; `initial`; `initializer`; `offset`, a signed integer count of bytes from the start of the instance or *undefined* where the field has no laid-out placement, a negative offset being one that overlaps a base (<emu-xref href="#sec-memory-layout"></emu-xref>); `byteLength`, a non-negative integer or *undefined*; `metadata`.</td></tr>
+              <tr><td>`ClassAccessor`</td><td>`type`; `name`; `static`; `private`; `protected`; `readonly`; `initial`; `initializer`; `access`, an object with `get` and `set` methods; `metadata`.</td></tr>
+              <tr><td>`ClassGetter`</td><td>`type`, the getter's function type; `name`; `static`; `private`; `protected`; `metadata`.</td></tr>
+              <tr><td>`ClassGetterReturn`</td><td>`type`; `metadata`.</td></tr>
+              <tr><td>`ClassSetter`</td><td>`type`, the setter's function type; `name`; `static`; `private`; `protected`; `metadata`.</td></tr>
+              <tr><td>`ClassSetterParameter`</td><td>`type`; `name`, a String; `initial`; `initializer`; `metadata`.</td></tr>
+              <tr><td>`ClassMethod`</td><td>`type`; `name`; `static`; `private`; `protected`; `abstract`, *true* for a signature with no implementation; `signatures`, a List of signature reflections in declaration order, of length 1 where the method is not overloaded; `metadata`.</td></tr>
+              <tr><td>`ClassMethodParameter`</td><td>`type`; `name`, a String; `index`, a non-negative integer; `initial`; `initializer`; `metadata`.</td></tr>
+              <tr><td>`ClassMethodReturn`</td><td>`type`; `metadata`.</td></tr>
+              <tr><td>`ClassOperator`</td><td>`type`; `operator`, the operator the declaration overloads; `static`; `signatures`, as a method's, a return-type overload appearing as a further entry; `metadata`.</td></tr>
+              <tr><td>`ClassOperatorParameter`</td><td>`type`; `name`, a String; `index`; `initial`; `initializer`; `metadata`.</td></tr>
+              <tr><td>`ClassOperatorReturn`</td><td>`type`; `metadata`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <p>A <dfn>signature reflection</dfn>, the element of a `signatures` List, has `parameters`, a List of parameter reflections of the family the declaration belongs to, and `return`, the return reflection of that family. A parameter reflection is the same shape wherever it appears: `ClassMethodParameter`, `ClassOperatorParameter`, `ClassSetterParameter`, `FunctionParameter`, and `ObjectMethodParameter` differ in which declaration they reflect and not in what they report, and `ClassSetterParameter` carries no `index` because a setter has exactly one parameter.</p>
+
+        <p>A constructor is reflected as a `ClassMethod` whose `name` is *"constructor"*, and its parameters as that method's, so a construct signature needs no context of its own (<emu-xref href="#sec-decorator-contexts"></emu-xref>).</p>
+
+        <emu-note>
+          <p>A reflection and the decorator context built from it are not the same object. A context is a reflection with the fields a decorator needs to act rather than to read: `addInitializer` where <emu-xref href="#sec-decorator-contexts"></emu-xref> gives it, and a reference to the enclosing declaration's context, so a field's decorator can reach its class and a parameter's can reach its method. Everything a context reports about the declaration itself is this clause's, which is why the two are specified in one place and not two.</p>
+        </emu-note>
+
+        <emu-note>
+          <p>`offset` and `byteLength` are *undefined* rather than absent where a field has no laid-out placement, since a field of a class that is not a value type has no offset to report and the shape does not vary with the class it came from. A reader wanting the full placement of a laid-out field, including its bit width and alignment, has <emu-xref href="#sec-memory-layout"></emu-xref>; these two are here because a decorator that reorders or packs fields needs them at the declaration and should not have to reach for a second facility to get them.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-reflection-shape-function">
