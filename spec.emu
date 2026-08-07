@@ -4738,7 +4738,35 @@ contributors: Sirisian
 
       <emu-clause id="sec-reflection-shape-block">
         <h1>The Block Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`, `DoBlock`, and `DoGeneratorBlock` reflections.</p>
+        <p>A block reflection reports the syntax around the block rather than a type: every field but `index` and `async` holds a TokenStream (<emu-xref href="#sec-tokenstream-objects"></emu-xref>) or *undefined*. A block has no type to report, and what a decorator on one wants is what the block is and what governs its running.</p>
+
+        <p>Every reflection of this family has `label`, a String naming the block's label or *undefined* where it has none, and `block`, the tokens the block delimits. A field a particular block form does not have is present and *undefined* rather than absent, as <emu-xref href="#sec-reflection-shape-rules"></emu-xref> requires of every reflection: a `for` without an update clause reports `update` as *undefined*, so a reader walks one shape rather than testing which form it was handed.</p>
+
+        <emu-table id="table-reflection-shape-block" caption="Block Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields beyond `label` and `block`</th></tr></thead>
+            <tbody>
+              <tr><td>`Block`</td><td>None.</td></tr>
+              <tr><td>`IfBlock`</td><td>`condition`.</td></tr>
+              <tr><td>`ElseIfBlock`</td><td>`condition`.</td></tr>
+              <tr><td>`ElseBlock`</td><td>None.</td></tr>
+              <tr><td>`WhileBlock`</td><td>`condition`.</td></tr>
+              <tr><td>`DoWhileBlock`</td><td>`condition`.</td></tr>
+              <tr><td>`ForBlock`</td><td>`initializer`, `condition`, `update`, each *undefined* where the header omits that clause.</td></tr>
+              <tr><td>`ForInBlock`</td><td>`binding`, the tokens of the binding the head introduces.</td></tr>
+              <tr><td>`ForOfBlock`</td><td>`binding`.</td></tr>
+              <tr><td>`DoBlock`</td><td>None.</td></tr>
+              <tr><td>`DoGeneratorBlock`</td><td>`async`, *true* for `async do *` and *false* for `do *`.</td></tr>
+              <tr><td>`MatchArmBlock`</td><td>`subject`, the tokens of the `match`'s argument; `pattern`, *undefined* for a `default` clause; `guard`, *undefined* where the clause is unguarded; `index`, a non-negative integer giving the clause's position among its siblings.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <p>No reflection of this family has a `metadata` property, the Block family being one of those <emu-xref href="#sec-decorator-metadata"></emu-xref> gives none.</p>
+
+        <emu-note>
+          <p>A block reflection is produced on every entry to its block (<emu-xref href="#sec-decorator-application"></emu-xref>), so a block in a loop produces one per iteration. That is what a reflection being fresh per call amounts to here, and it is why the family carries no metadata: metadata is written once where a declaration is, and a block has no once.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-reflection-shape-enum">
@@ -4802,6 +4830,13 @@ contributors: Sirisian
       <p>A decorator is an ordinary function whose last parameter is annotated with a reflection context. Which function a decoration applies is decided by the overload resolution of <emu-xref href="#sec-resolveoverload"></emu-xref> over the arguments written and the context of the position decorated, so `@f`, `@f(0)`, and `@f('a')` may name three declarations of `f` and select among them the way any call does. `@f` and `@f()` are one form: both resolve with no explicit argument, and a signature taking the context alone is preferred over one whose remaining parameters are satisfied by defaults. Where no such signature exists and more than one is satisfied by defaults alone, the decoration is ambiguous and a *TypeError* is thrown where the decorated declaration is evaluated.</p>
 
       <p>A decorator runs when the declaration it decorates is evaluated, and what it may do there is write to the `metadata` of its context, register an initializer, and return a replacement for what it decorated. The replacement a context admits and the initializer registration are the decorators extension's. So is the ORDER, which that extension now fixes in two phases: decorator expressions are evaluated in document order, and decorators are applied INNERMOST FIRST AND IN REVERSE SOURCE ORDER - several on one declaration apply closest-first, a declaration's parameters and return apply before the declaration itself, and members apply before their container, so a class decorator sees a class whose members are already decorated. Registered initializers run after every decorator of that declaration has been applied, in the order they were added (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+
+      <p>A block is the exception, and it is the one position in this extension whose decorator runs more than once. A block decorator runs on every <em>entry</em> to its block rather than once where the block was written, so a block inside a loop runs its decorator once per iteration and a block inside a function once per call. This follows from the rule above rather than qualifying it - a block is evaluated each time control reaches it, and a decorator runs when what it decorates is evaluated - but it is worth stating, because the cost is real and is not visible at the decoration.</p>
+
+      <emu-note>
+        <p>What it buys is the reason the family exists: instrumentation, tracing, and scoped resources are per-entry questions, and a decoration that ran once at the declaration could not answer them. What it costs is a context and a call per iteration, which a decorator in a hot loop pays and the reader of the loop cannot see. A <emu-xref href="#sec-replacement-decorators">replacement decorator</emu-xref> on a block runs once, at expansion, and can emit the same instrumentation inline - so the per-iteration work happens where the per-iteration decorator does not.</p>
+        <p>This is also why a block reflection carries no metadata and cannot be interned (<emu-xref href="#sec-reflection-shape-rules"></emu-xref>): both would need a once for the block to have, and it has none.</p>
+      </emu-note>
 
       <emu-note>
         <p>Types are what remove the `(value, context)` return from a decorator that takes arguments: an erased system cannot tell `@f` from `@f(0)` without one, since it cannot see which `f` is meant, and this proposal resolves it by the annotation on the last parameter. So a decorator looks the same whether or not it takes arguments, and giving one an argument is editing its parameter list rather than rewriting it into a factory.</p>
