@@ -4806,6 +4806,43 @@ contributors: Sirisian
       </emu-clause>
     </emu-clause>
 
+    <emu-clause id="sec-replacement-values">
+      <h1>Replacement Values</h1>
+      <p>A decorator may return a value that replaces what it decorated. Returning *undefined* replaces nothing, so a decorator that only reads or only writes metadata returns nothing and is done. Where a value is returned, it replaces the decorated target and must be of the type <emu-xref href="#table-replacement-values"></emu-xref> gives that context; a value that is not is a *TypeError*.</p>
+
+      <emu-table id="table-replacement-values" caption="What a Context Admits as a Replacement">
+        <table>
+          <thead><tr><th>Context</th><th>Replaces</th><th>Type admitted</th></tr></thead>
+          <tbody>
+            <tr><td>`Class`</td><td>The class</td><td>The class or a subclass of it</td></tr>
+            <tr><td>`ClassField`</td><td>The field's initial value</td><td>The field's type</td></tr>
+            <tr><td>`ClassAccessor`</td><td>The accessor's get and set pair</td><td>An object with `get` and `set` methods over the accessor's type</td></tr>
+            <tr><td>`ClassGetter`</td><td>The getter function</td><td>A function of no parameters returning the getter's type</td></tr>
+            <tr><td>`ClassSetter`</td><td>The setter function</td><td>A function of one parameter of the setter's type returning *undefined*</td></tr>
+            <tr><td>`ClassMethod`</td><td>The method</td><td>The method's type, signature for signature</td></tr>
+            <tr><td>`ClassOperator`</td><td>The operator function</td><td>The operator's type, signature for signature</td></tr>
+            <tr><td>`Function`</td><td>The function</td><td>The function's type, signature for signature</td></tr>
+            <tr><td>`ObjectGetter`</td><td>The getter function</td><td>As `ClassGetter`</td></tr>
+            <tr><td>`ObjectSetter`</td><td>The setter function</td><td>As `ClassSetter`</td></tr>
+            <tr><td>`ObjectMethod`</td><td>The method</td><td>As `ClassMethod`</td></tr>
+            <tr><td>`DoBlock`</td><td>The `do` expression's value</td><td>The type of that expression</td></tr>
+            <tr><td>`DoGeneratorBlock`</td><td>The `do *` expression's generator</td><td>A Generator of the expression's yield, return, and next types</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>Every other context admits no replacement, and a decorator on one that returns a value other than *undefined* is a *TypeError*. Those are the sub-target contexts, which name a part of a declaration rather than a thing that exists on its own - a parameter, a return - and the structural and binding contexts, and the blocks other than a `do`'s.</p>
+
+      <emu-note>
+        <p>The `Class` row admits a subclass because a class type is nominal - a ~nominal~ Type Record (<emu-xref href="#table-type-record-kinds"></emu-xref>) is a subtype along its declared inheritance and not by its shape: a structurally identical class of another declaration is not a value of the decorated class's type, so "the same shape" would not have been a rule an implementation could check, where "the class or something extending it" is.</p>
+        <p>The two `do` rows are the reason the block exclusion is stated over what a block produces rather than over blocks: a block produces nothing, so there is nothing to replace, and the exclusion was never about blocks being structural. A `do` expression produces a value and a `do *` produces a generator, so those two have something a replacement could be.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>This table and <emu-xref href="#sec-replacement-decorators"></emu-xref> are different axes, and a position may appear in both. A decorator of this clause runs when the declaration is evaluated and returns a VALUE; a replacement decorator runs at expansion and returns SYNTAX. The reasoning that excludes a block here does not carry there: a block produces no value, but it has syntax, and a replacement decorator on one rewrites it.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-decorator-metadata">
       <h1>The Metadata Channel</h1>
       <p>A decorator may be written before a TYPE only in a position that has a reflection context of its own, which is a RETURN: a method's, a getter's, an operator's, an abstract method's, and a function's. `Reflect.Type` is a reflection target and not a decorator context - a bare type expression carries no decorator - so a decorator before the type of a binding, a field, a parameter, or an interface member is a Syntax Error rather than a decoration that names nothing.</p>
@@ -4829,7 +4866,7 @@ contributors: Sirisian
       <h1>Applying a Decorator</h1>
       <p>A decorator is an ordinary function whose last parameter is annotated with a reflection context. Which function a decoration applies is decided by the overload resolution of <emu-xref href="#sec-resolveoverload"></emu-xref> over the arguments written and the context of the position decorated, so `@f`, `@f(0)`, and `@f('a')` may name three declarations of `f` and select among them the way any call does. `@f` and `@f()` are one form: both resolve with no explicit argument, and a signature taking the context alone is preferred over one whose remaining parameters are satisfied by defaults. Where no such signature exists and more than one is satisfied by defaults alone, the decoration is ambiguous and a *TypeError* is thrown where the decorated declaration is evaluated.</p>
 
-      <p>A decorator runs when the declaration it decorates is evaluated, and what it may do there is write to the `metadata` of its context, register an initializer, and return a replacement for what it decorated. The replacement a context admits and the initializer registration are the decorators extension's. So is the ORDER, which that extension now fixes in two phases: decorator expressions are evaluated in document order, and decorators are applied INNERMOST FIRST AND IN REVERSE SOURCE ORDER - several on one declaration apply closest-first, a declaration's parameters and return apply before the declaration itself, and members apply before their container, so a class decorator sees a class whose members are already decorated. Registered initializers run after every decorator of that declaration has been applied, in the order they were added (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+      <p>A decorator runs when the declaration it decorates is evaluated, and what it may do there is write to the `metadata` of its context, register an initializer, and return a replacement for what it decorated. The replacement a context admits is given by <emu-xref href="#sec-replacement-values"></emu-xref>; the initializer registration is the decorators extension's. So is the ORDER, which that extension now fixes in two phases: decorator expressions are evaluated in document order, and decorators are applied INNERMOST FIRST AND IN REVERSE SOURCE ORDER - several on one declaration apply closest-first, a declaration's parameters and return apply before the declaration itself, and members apply before their container, so a class decorator sees a class whose members are already decorated. Registered initializers run after every decorator of that declaration has been applied, in the order they were added (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
 
       <p>A block is the exception, and it is the one position in this extension whose decorator runs more than once. A block decorator runs on every <em>entry</em> to its block rather than once where the block was written, so a block inside a loop runs its decorator once per iteration and a block inside a function once per call. This follows from the rule above rather than qualifying it - a block is evaluated each time control reaches it, and a decorator runs when what it decorates is evaluated - but it is worth stating, because the cost is real and is not visible at the decoration.</p>
 
