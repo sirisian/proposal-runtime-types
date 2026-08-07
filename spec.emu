@@ -4707,7 +4707,32 @@ contributors: Sirisian
 
       <emu-clause id="sec-reflection-shape-object">
         <h1>The Object Family</h1>
-        <p>This clause is not yet written. It will give the fields of the `Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, and `ObjectMethodReturn` reflections, which are keyed on an instance rather than on a declaration.</p>
+        <p>These reflections are reached from an <em>instance</em> rather than from a declaration: `Reflect.getReflection.&lt;Reflect.ObjectField&gt;(`_instance_`, `_name_`)` takes the object itself, where the Class family takes the class. An object literal has no declaration a second evaluation of it would share, so its metadata lives on the instance and so does the reflection that reports it (<emu-xref href="#sec-decorator-contexts"></emu-xref>).</p>
+
+        <emu-table id="table-reflection-shape-object" caption="Object Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`Object`</td><td>`type`; `metadata`.</td></tr>
+              <tr><td>`ObjectField`</td><td>`type`; `name`, a String or Symbol; `metadata`.</td></tr>
+              <tr><td>`ObjectGetter`</td><td>`type`, the getter's function type; `name`; `metadata`.</td></tr>
+              <tr><td>`ObjectGetterReturn`</td><td>`type`; `metadata`.</td></tr>
+              <tr><td>`ObjectSetter`</td><td>`type`, the setter's function type; `name`; `metadata`.</td></tr>
+              <tr><td>`ObjectSetterParameter`</td><td>`type`; `name`, a String; `initial`; `initializer`; `metadata`.</td></tr>
+              <tr><td>`ObjectMethod`</td><td>`type`; `name`; `signatures`, as a class method's (<emu-xref href="#sec-reflection-shape-class"></emu-xref>); `metadata`.</td></tr>
+              <tr><td>`ObjectMethodParameter`</td><td>`type`; `name`, a String; `index`; `initial`; `initializer`; `metadata`.</td></tr>
+              <tr><td>`ObjectMethodReturn`</td><td>`type`; `metadata`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <emu-note>
+          <p>The family mirrors the Class family member for member and reports less of each: an object's members have no `static`, `private`, or `protected` to report, and its fields have no `offset` or `byteLength`, an object literal not being laid out. What is left is the same questions asked of a different kind of container, which is why a decorator written against one family reads almost unchanged against the other.</p>
+        </emu-note>
+
+        <emu-note>
+          <p>Two objects of one literal are two instances and reflect separately, so what a decorator wrote about one is not visible through the other. That follows from the metadata living on the instance rather than on a declaration and is the one place this family's answer differs in kind from the Class family's rather than in detail.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-reflection-shape-block">
