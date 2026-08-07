@@ -4537,13 +4537,13 @@ contributors: Sirisian
           <thead><tr><th>Family</th><th>Contexts</th><th>Reflects</th></tr></thead>
           <tbody>
             <tr><td>Type</td><td>`Type`</td><td>A type's structure (<emu-xref href="#sec-reflect-getreflection"></emu-xref>). This is the one context this specification defines; the rest are the decorators extension's.</td></tr>
-            <tr><td>Class</td><td>`Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassGetterReturn`, `ClassSetter`, `ClassSetterParameter`, `ClassMethod`, `ClassMethodParameter`, `ClassMethodReturn`, `ClassOperator`, `ClassOperatorParameter`, `ClassOperatorReturn`</td><td>A class and each part of one. A constructor is a `ClassMethod` whose name is *"constructor"*, and its parameters are that method's, so a construct signature needs no context of its own.</td></tr>
-            <tr><td>Function</td><td>`Function`, `FunctionParameter`, `FunctionReturn`</td><td>A function declaration, its parameters, and its return.</td></tr>
-            <tr><td>Binding</td><td>`Let`, `Const`</td><td>A declared binding.</td></tr>
-            <tr><td>Object</td><td>`Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, `ObjectMethodReturn`</td><td>An object literal and its members, keyed on the instance rather than on a declaration, since that is where an object's metadata lives.</td></tr>
-            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`, `DoBlock`, `DoGeneratorBlock`</td><td>A statement's block, and the block of a `match` clause's arm (<emu-xref href="#sec-match-expression"></emu-xref>). These are the one per-evaluation position of this extension: a block decorator runs on every entry to its block rather than once where the declaration is evaluated, which is what makes a block in a loop, or an arm of a `match`, countable.</td></tr>
-            <tr><td>Enum</td><td>`Enum`, `EnumEnumerator`</td><td>An enum and its enumerators, parameterized by the underlying type.</td></tr>
-            <tr><td>Structural</td><td>`Tuple`, `Record`</td><td>A tuple or record declaration.</td></tr>
+            <tr><td>Class</td><td>`Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassGetterReturn`, `ClassSetter`, `ClassSetterParameter`, `ClassMethod`, `ClassMethodParameter`, `ClassMethodReturn`, `ClassOperator`, `ClassOperatorParameter`, `ClassOperatorReturn`</td><td>A class and each part of one. A constructor is a `ClassMethod` whose name is *"constructor"*, and its parameters are that method's, so a construct signature needs no context of its own. Shape: <emu-xref href="#sec-reflection-shape-class"></emu-xref>.</td></tr>
+            <tr><td>Function</td><td>`Function`, `FunctionParameter`, `FunctionReturn`</td><td>A function declaration, its parameters, and its return. Shape: <emu-xref href="#sec-reflection-shape-function"></emu-xref>.</td></tr>
+            <tr><td>Binding</td><td>`Let`, `Const`</td><td>A declared binding. Shape: <emu-xref href="#sec-reflection-shape-binding"></emu-xref>.</td></tr>
+            <tr><td>Object</td><td>`Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, `ObjectMethodReturn`</td><td>An object literal and its members, keyed on the instance rather than on a declaration, since that is where an object's metadata lives. Shape: <emu-xref href="#sec-reflection-shape-object"></emu-xref>.</td></tr>
+            <tr><td>Block</td><td>`Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`, `DoBlock`, `DoGeneratorBlock`</td><td>A statement's block, and the block of a `match` clause's arm (<emu-xref href="#sec-match-expression"></emu-xref>). These are the one per-evaluation position of this extension: a block decorator runs on every entry to its block rather than once where the declaration is evaluated, which is what makes a block in a loop, or an arm of a `match`, countable. Shape: <emu-xref href="#sec-reflection-shape-block"></emu-xref>.</td></tr>
+            <tr><td>Enum</td><td>`Enum`, `EnumEnumerator`</td><td>An enum and its enumerators, parameterized by the underlying type. Shape: <emu-xref href="#sec-reflection-shape-enum"></emu-xref>.</td></tr>
+            <tr><td>Structural</td><td>`Tuple`, `Record`</td><td>A tuple or record declaration. Shape: <emu-xref href="#sec-reflection-shape-structural"></emu-xref>.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -4553,6 +4553,76 @@ contributors: Sirisian
       <emu-note>
         <p>The contexts are the reason the facility needs no separate function per kind of declaration: `getReflection.&lt;Reflect.ClassField, Point&gt;('x')` and `getReflection.&lt;Reflect.Type&gt;(Point)` are the same call resolved by its selector, and the selector is an ordinary type. It is also the design's own demonstration of specialized overloads, one signature per context, which is why <emu-xref href="#sec-generics"></emu-xref> records that form as the thing this extension needs from it.</p>
       </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflection-shapes">
+      <h1>Reflection Shapes</h1>
+      <p><emu-xref href="#sec-decorator-contexts"></emu-xref> says which contexts there are. This clause says what each one answers, field by field. The shape of the one context the core defines, `Reflect.Type`, is given by <emu-xref href="#table-reflection-nodes"></emu-xref> instead and is not repeated here.</p>
+
+      <p>The rules of this clause hold of every reflection; the family clauses that follow give the fields.</p>
+
+      <emu-clause id="sec-reflection-shape-rules">
+        <h1>Rules Common to Every Reflection</h1>
+
+        <p>Every reflection has a `kind` property whose value is a String naming the context that produced it, *"ClassField"* for `Reflect.ClassField` and so on for each context of <emu-xref href="#table-reflection-contexts"></emu-xref>. A reader handed a reflection dispatches on it rather than inferring the context from which fields are present, which is what a decorator whose parameter is a union of contexts would otherwise have to do.</p>
+
+        <p>The fields a family clause lists are all of a reflection's properties, and every one is present. An implementation may not omit a field, and it may not add a property beside them: anything an implementation exposes of its own goes under `host`, a single reserved property that is absent unless the implementation puts something there. So every bare property of a reflection is one this specification gives, and an implementation's own vocabulary is under one key a reader can see and ignore.</p>
+
+        <emu-note>
+          <p>A field an implementation may leave out is a field every reader tests for before using, and the tests are not written: a program is written against the implementation in front of it, and its portability is discovered later. Fixing the shape completely is what `java.lang.reflect`, `System.Reflection`, and `inspect` each do, and what makes a reflection worth reading at all.</p>
+        </emu-note>
+
+        <p>`Reflect.getReflection` returns a new ordinary object each time it is called. Two calls naming the same declaration return two objects, which are not the same value; a reflection is extensible and is not frozen. Type Objects are interned and a reflection is not (<emu-xref href="#sec-gettypeobject"></emu-xref>), the difference being that a Type Object <em>is</em> the type while a reflection is a report about a declaration.</p>
+
+        <p>A metadata object is the exception and is stable: reflecting one declaration twice reaches the same metadata object, and every decorator applied to one declaration is given that object. That identity is what makes a decorator's write visible to a later reader, and what lets a derived class's metadata inherit from its base's prototypically (<emu-xref href="#sec-decorator-metadata"></emu-xref>).</p>
+
+        <emu-note>
+          <p>Identity belongs to the thing that carries state and not to the report about it. The Block contexts show that it could not have been otherwise: a block decorator runs on every entry to its block, so its reflection is produced once per evaluation and there is nothing for an interning rule to key on. A rule that interned some contexts and not others would be worse than either.</p>
+        </emu-note>
+
+        <p>Where a family's reflection has a `metadata` property, the property is present and holds a metadata object even where nothing has written to it; it is never absent and never *null*. The contexts that carry no metadata at all, which are `Reflect.Type` and the Binding, Block, and Structural families of <emu-xref href="#table-reflection-contexts"></emu-xref> as <emu-xref href="#sec-decorator-metadata"></emu-xref> gives them, have no `metadata` property, which is a different thing from an empty one.</p>
+
+        <emu-note>
+          <p>Present-and-empty is what keeps a read of a key that nothing set a missing key rather than a *TypeError*. The undecorated declaration is the ordinary input and the decorated one is the tested input, so a shape that is absent on the ordinary input fails where it is least likely to have been tried. It costs one object per declaration rather than one per reflection, since an undecorated derived class inherits its base's metadata object rather than being given a new one.</p>
+        </emu-note>
+
+        <p>An `initial` property holds a declared default only where that default is a constant, and *undefined* otherwise. Evaluating a non-constant initializer would run the program's code where the declaration is evaluated rather than where the value is wanted, so the declaration is reported through `initializer` as a TokenStream (<emu-xref href="#sec-tokenstream-objects"></emu-xref>) instead. The two are a value and the expression that produced it rather than two spellings of one thing, and a reflection may carry one, the other, or both.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-class">
+        <h1>The Class Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassGetterReturn`, `ClassSetter`, `ClassSetterParameter`, `ClassMethod`, `ClassMethodParameter`, `ClassMethodReturn`, `ClassOperator`, `ClassOperatorParameter`, and `ClassOperatorReturn` reflections.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-function">
+        <h1>The Function Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Function`, `FunctionParameter`, and `FunctionReturn` reflections.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-binding">
+        <h1>The Binding Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Let` and `Const` reflections.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-object">
+        <h1>The Object Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Object`, `ObjectField`, `ObjectGetter`, `ObjectGetterReturn`, `ObjectSetter`, `ObjectSetterParameter`, `ObjectMethod`, `ObjectMethodParameter`, and `ObjectMethodReturn` reflections, which are keyed on an instance rather than on a declaration.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-block">
+        <h1>The Block Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Block`, `IfBlock`, `ElseIfBlock`, `ElseBlock`, `WhileBlock`, `DoWhileBlock`, `ForBlock`, `ForInBlock`, `ForOfBlock`, `MatchArmBlock`, `DoBlock`, and `DoGeneratorBlock` reflections.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-enum">
+        <h1>The Enum Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Enum` and `EnumEnumerator` reflections.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-structural">
+        <h1>The Structural Family</h1>
+        <p>This clause is not yet written. It will give the fields of the `Tuple` and `Record` reflections.</p>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-decorator-metadata">
