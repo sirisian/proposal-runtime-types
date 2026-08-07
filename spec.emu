@@ -3563,7 +3563,7 @@ contributors: Sirisian
             <tr><td>simd</td><td>Gather, scatter, and masked load and store, which vectorize an indirect access and need an addressing model this specification does not have. The design defers them too (simd.md), and every other operation of that document is stated in the clauses <emu-xref href="#sec-vector-types"></emu-xref> through <emu-xref href="#sec-vector-wrapping"></emu-xref>.</td></tr>
             <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`; and the generic parameters a decorator declares, which the design writes and this specification neither states nor defers elsewhere. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
-            <tr><td>decorators</td><td>The shape of each reflection of <emu-xref href="#table-reflection-contexts"></emu-xref>, field by field; what each context admits as a replacement value; `addInitializer`; and the order in which the decorators of one declaration run. The contexts themselves, the selector-first form of <emu-xref href="#sec-reflect-getreflection"></emu-xref>, the metadata channel, and the resolution of a decoration are delivered by <emu-xref href="#sec-decorators"></emu-xref>.</td></tr>
+            <tr><td>decorators</td><td>Delivered by <emu-xref href="#sec-decorators"></emu-xref>, which now covers the shape of every reflection (<emu-xref href="#sec-reflection-shapes"></emu-xref>), what each context admits as a replacement value (<emu-xref href="#sec-replacement-values"></emu-xref>), `addInitializer` (<emu-xref href="#sec-addinitializer"></emu-xref>), the retrieval forms (<emu-xref href="#sec-reflection-retrieval"></emu-xref>), the metadata channel, and the resolution and order of a decoration. What remains at this hook is the decorator SYNTAX itself, which rides the decorators proposal rather than this one.</td></tr>
             <tr><td>complex numbers</td><td>The operators and `Math` overloads of the complex types. The type of an imaginary literal and the conversions are delivered by <emu-xref href="#sec-complex-numbers"></emu-xref>.</td></tr>
             <tr><td>operator overloading</td><td>The math library the design works the feature through, and the four conditions it states an engine must meet to compile that library well. The declaration forms, the receiver rule, and the resolution are delivered by <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
             <tr><td>threading</td><td>Specified by <emu-xref href="#sec-threading"></emu-xref>. What remains at this hook is what that clause leaves to a host: the sizing and management of the pool (<emu-xref href="#sec-thread-pool"></emu-xref>), the disposition of host-scheduled work still pending when a thread's function has settled (<emu-xref href="#sec-threading-agent-cluster"></emu-xref>), the AbortSignal the cancellation rules refer to, and the concurrent Map and Set the design would like but does not require. Two things the clause records as possible future work rather than as gaps: an explicit opt-in to settle-side execution of a promise reaction, and an option pinning the parallel partition so that a result reproduces across implementations and not only within one.</td></tr>
@@ -3597,7 +3597,7 @@ contributors: Sirisian
             <tr><td>memorylayout.md</td><td>Specified: <emu-xref href="#sec-memory-layout"></emu-xref>, with placement `new` in <emu-xref href="#sec-type-arguments-and-placement-new-in-expression-position"></emu-xref>.</td></tr>
             <tr><td>operatoroverloading.md</td><td>Specified: <emu-xref href="#sec-operators"></emu-xref> and <emu-xref href="#sec-operator-declarations"></emu-xref>.</td></tr>
             <tr><td>operators.md</td><td>Specified: the result of an operator by family (<emu-xref href="#sec-operator-results"></emu-xref>), of which that document is the informative presentation, with the instructions a target lowers each family to.</td></tr>
-            <tr><td>decorators.md</td><td>Specified as reflection: <emu-xref href="#sec-decorators"></emu-xref>; decorator syntax itself rides the decorators proposal.</td></tr>
+            <tr><td>decorators.md</td><td>Specified: <emu-xref href="#sec-decorators"></emu-xref> - the reflection contexts and the shape of each one's reflection, the metadata channel, replacement values, `addInitializer`, the retrieval forms, and the resolution and order of a decoration. Decorator syntax itself rides the decorators proposal.</td></tr>
             <tr><td>complex.md</td><td>Specified: <emu-xref href="#sec-complex-types"></emu-xref>, <emu-xref href="#sec-complex-numbers"></emu-xref>, and the imaginary literal.</td></tr>
             <tr><td>rational.md</td><td>Specified: <emu-xref href="#sec-rational-types"></emu-xref>.</td></tr>
             <tr><td>decimal.md</td><td>Specified: <emu-xref href="#sec-decimal-floating-point-types"></emu-xref>.</td></tr>
@@ -4590,7 +4590,7 @@ contributors: Sirisian
         </table>
       </emu-table>
 
-      <p>A context that names a set of members has two signatures: one taking no name, returning an object keyed by member name, and one taking a name, returning that member alone. Where a position rather than a name is wanted, as for a parameter list, `Reflect.getReflectionByIndex` returns the same reflections as a tuple in declaration order. Reflection of a class includes inherited members; passing `{ own: *true* }` restricts it to the members the class declares itself.</p>
+      <p>A context that names a set of members has two signatures: one taking no name, returning an object keyed by member name, and one taking a name, returning that member alone. The forms and the options they take are given by <emu-xref href="#sec-reflection-retrieval"></emu-xref>.</p>
 
       <emu-note>
         <p>The contexts are the reason the facility needs no separate function per kind of declaration: `getReflection.&lt;Reflect.ClassField, Point&gt;('x')` and `getReflection.&lt;Reflect.Type&gt;(Point)` are the same call resolved by its selector, and the selector is an ordinary type. It is also the design's own demonstration of specialized overloads, one signature per context, which is why <emu-xref href="#sec-generics"></emu-xref> records that form as the thing this extension needs from it.</p>
@@ -4866,6 +4866,46 @@ contributors: Sirisian
       <emu-note>
         <p>Callbacks running after every decorator of the declaration is what lets a decorator register work that depends on what a decorator applied closer to the declaration did, since application is innermost first (<emu-xref href="#sec-decorator-application"></emu-xref>) and registration is not application. Running them in the order added rather than in reverse is the ordinary reading of a queue, and the two orders together mean a stack of decorators applies outward and initializes forward.</p>
       </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reflection-retrieval">
+      <h1>Retrieving a Reflection</h1>
+
+      <emu-clause id="sec-reflect-getreflectionbyindex">
+        <h1>Reflect.getReflectionByIndex</h1>
+        <p>`Reflect.getReflectionByIndex.&lt;`_C_`, `_T_`&gt;(&hellip;)` answers the same reflections `Reflect.getReflection` of the same context and arguments would, as a List in declaration order rather than as an object keyed by member name. It exists for the positions a name does not order: a parameter list is read by position, and an object keyed by parameter name loses the order the positions have.</p>
+        <p>It is defined for the contexts that name a set of members, and for a context naming exactly one thing it is not defined, there being no order to answer.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-own-option">
+        <h1>The own Option</h1>
+        <p>Reflecting the members of a class answers the members it inherits as well as those it declares. Passing `{ own: *true* }` in place of a member name answers only the members the class declares itself.</p>
+        <emu-note>
+          <p>Inherited by default because a decorator asking what fields a class has usually means all of them: an inherited field is a field of the instance, and a serializer or a validator that skipped it would be wrong in a way its author would not see until a subclass appeared. The option is for the reader that wants the declaration rather than the shape - a documentation generator listing what this class adds, say.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-retrieval-overloaded-targets">
+        <h1>Overloaded Targets</h1>
+        <p>A parameter of an overloaded function or method cannot be reached by name or by position, since neither says which signature it belongs to. `Reflect.getReflection` and `Reflect.getReflectionByIndex` of the `ClassMethodParameter`, `ClassOperatorParameter`, `FunctionParameter`, and `ObjectMethodParameter` contexts therefore throw a *TypeError* where the target is overloaded; the parameters are read through the `signatures` of the declaration's own reflection, each entry of which carries its own parameter and return reflections.</p>
+        <emu-note>
+          <p>This is the rule an ambiguous overloaded reference already follows at a call site, applied to reflection: answering one signature's parameter would be answering a question the caller did not ask, and answering all of them would not be a parameter reflection. Where the target is not overloaded the flat forms are defined and are the shorter way to write the common case.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-reflect-getmetadata">
+        <h1>Reflect.getMetadata</h1>
+        <p>`Reflect.getMetadata.&lt;`_C_`, `_T_`&gt;(&hellip;)` performs the following steps when called:</p>
+        <emu-alg>
+          1. Let _reflection_ be ? `Reflect.getReflection.&lt;`_C_`, `_T_`&gt;` of the same arguments.
+          1. If _reflection_ has no `metadata` property, throw a *TypeError* exception.
+          1. Return _reflection_.`metadata`.
+        </emu-alg>
+        <p>It is defined only for the contexts whose reflection carries a `metadata` property (<emu-xref href="#sec-decorator-metadata"></emu-xref>), which is the reading half of what a decorator writes. Where the reflection answers a set of members rather than one, the result is an object keyed as that reflection is, holding each member's metadata object.</p>
+        <emu-note>
+          <p>Sugar over `Reflect.getReflection`, and specified as such rather than independently, so the two cannot answer differently about the same declaration. The metadata object it returns is the stable one of <emu-xref href="#sec-reflection-shape-rules"></emu-xref>, so a write through a decorator's context is visible through this and the reverse.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-decorator-metadata">
