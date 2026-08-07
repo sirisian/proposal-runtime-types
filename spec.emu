@@ -4775,11 +4775,15 @@ contributors: Sirisian
           <table>
             <thead><tr><th>Context</th><th>Fields</th></tr></thead>
             <tbody>
-              <tr><td>`Enum`</td><td>`type`, the enum type; `valueType`, the Type Object of the type the enumerators take their values in; `size`, a non-negative integer count of enumerators; `metadata`.</td></tr>
+              <tr><td>`Enum`</td><td>`type`, the enum type; `name`, a String; `valueType`, the Type Object of the type the enumerators take their values in; `size`, a non-negative integer count of enumerators; `metadata`.</td></tr>
               <tr><td>`EnumEnumerator`</td><td>`name`, a String; `value`, the enumerator's value, of the enum's `valueType`; `index`, a non-negative integer giving its position in declaration order; `metadata`.</td></tr>
             </tbody>
           </table>
         </emu-table>
+
+        <emu-note>
+          <p>An enum reflection reports both a `name` and a `type`, as a class's does and for the same reason: the name is what a reader wants directly, and reaching it by reflecting the type and reading its display would be an indirection with nothing to recommend it. An object literal has no `name` to report, which <emu-xref href="#sec-reflection-shape-object"></emu-xref> says by omitting one.</p>
+        </emu-note>
 
         <emu-note>
           <p>An enumerator reflection reports its `value` and no `type`: the type is the enum's and is reached through the enum's reflection, where reporting it per enumerator would be the same Type Object repeated once per member. `index` is the declaration order rather than the value, which are different whenever a program assigns values explicitly.</p>
