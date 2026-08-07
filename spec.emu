@@ -3737,6 +3737,12 @@ contributors: Sirisian
 
       <p>A member marked `ref` borrows the property's location on the object being destructured, by the rule of <emu-xref href="#sec-requireborrowablereference"></emu-xref>, and binds its name to that location; reads and writes through the binding reach the property. It is a Syntax Error if such a member has an |Initializer|, for the reason a `ref` parameter may not have one (<emu-xref href="#sec-reference-syntax"></emu-xref>): a default is a value the callee builds and has no location to borrow. It is a Syntax Error for such a member to be marked `?`, and likewise for a `ref` parameter: the marker says the value may be absent, and a `ref` binds the location rather than the value, which is there whether or not the property is. A form that cannot honour what it declares is refused where it is written rather than at each use of it. An annotation on a `ref` member is checked against the referent and never converts it.</p>
 
+      <p>A member of an object <em>assignment</em> pattern may be marked `ref` in the same parentheses, and then re-borrows: the named binding, which must already be a `ref` binding, is pointed at the location of the property on the object being destructured. `(` `ref` _r_ `)` `:` _x_ borrows the property _x_, and `(` `ref` _x_ `)` without a rename borrows the property of the binding's own name. A target that is not a `ref` binding, and a value that is not an Object, are each a *TypeError*. This is the only destructuring form whose targets exist before it runs, which is what it is for: one borrow retargeted across the turns of a loop.</p>
+
+      <p>An assignment member may not carry a type annotation. An annotation states the type of a binding the pattern introduces, and an assignment pattern introduces none; its targets already carry whatever type they were declared at, so an annotation here would be a second type for one target. A program that means to check a value writes `is` or `:=`.</p>
+
+      <p></p>
+
       <emu-note>
         <p>The borrowed location belongs to the object, not to the caller's variable, so a function whose parameter is such a pattern takes an ordinary argument: `g(o)` suffices and `g(ref o)` is not required. `ref o` would state something different &mdash; that the callee may rewrite the caller's binding &mdash; and it could not reach the pattern in any case, since a parameter that is a |BindingPattern| consumes its argument as a value and a Reference Value decays there (<emu-xref href="#sec-reference-values"></emu-xref>).</p>
       </emu-note>
