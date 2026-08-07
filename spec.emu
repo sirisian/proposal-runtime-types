@@ -4579,6 +4579,7 @@ contributors: Sirisian
           <thead><tr><th>Family</th><th>Contexts</th><th>Reflects</th></tr></thead>
           <tbody>
             <tr><td>Type</td><td>`Type`</td><td>A type's structure (<emu-xref href="#sec-reflect-getreflection"></emu-xref>). This is the one context this specification defines; the rest are the decorators extension's.</td></tr>
+              <tr><td>Layout</td><td>`ClassFieldLayout`</td><td>A field's placement in its class - offset, widths, alignment, and bit position (<emu-xref href="#sec-memory-layout"></emu-xref>). Like `Type`, a reflection context that is not a decorator context: nothing decorates a placement. Shape: <emu-xref href="#sec-reflection-shape-class-field-layout"></emu-xref>.</td></tr>
             <tr><td>Class</td><td>`Class`, `ClassField`, `ClassAccessor`, `ClassGetter`, `ClassGetterReturn`, `ClassSetter`, `ClassSetterParameter`, `ClassMethod`, `ClassMethodParameter`, `ClassMethodReturn`, `ClassOperator`, `ClassOperatorParameter`, `ClassOperatorReturn`</td><td>A class and each part of one. A constructor is a `ClassMethod` whose name is *"constructor"*, and its parameters are that method's, so a construct signature needs no context of its own. Shape: <emu-xref href="#sec-reflection-shape-class"></emu-xref>.</td></tr>
             <tr><td>Function</td><td>`Function`, `FunctionParameter`, `FunctionReturn`</td><td>A function declaration, its parameters, and its return. Shape: <emu-xref href="#sec-reflection-shape-function"></emu-xref>.</td></tr>
             <tr><td>Binding</td><td>`Let`, `Const`</td><td>A declared binding. Shape: <emu-xref href="#sec-reflection-shape-binding"></emu-xref>.</td></tr>
@@ -4666,6 +4667,28 @@ contributors: Sirisian
 
         <emu-note>
           <p>`offset` and `byteLength` are *undefined* rather than absent where a field has no laid-out placement, since a field of a class that is not a value type has no offset to report and the shape does not vary with the class it came from. A reader wanting the full placement of a laid-out field, including its bit width and alignment, has <emu-xref href="#sec-memory-layout"></emu-xref>; these two are here because a decorator that reorders or packs fields needs them at the declaration and should not have to reach for a second facility to get them.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-reflection-shape-class-field-layout">
+        <h1>The Layout Family</h1>
+        <p>A `ClassFieldLayout` reflection reports where a field sits in its class, and is reached by `Reflect.getReflection.&lt;Reflect.ClassFieldLayout, `_T_`&gt;(`_name_`)`. It is a *TypeError* exception where _T_ has no layout: asking a class with none for a field's placement is the mistake, as reading `byteLength` from a `string` is (<emu-xref href="#sec-memory-layout"></emu-xref>). A program that does not know should ask `hasLayout` first.</p>
+
+        <emu-table id="table-reflection-shape-class-field-layout" caption="Layout Family Reflections">
+          <table>
+            <thead><tr><th>Context</th><th>Fields</th></tr></thead>
+            <tbody>
+              <tr><td>`ClassFieldLayout`</td><td>`name`, the name the slot was declared under, a String or Symbol; `offset`, a signed integer count of bytes from the start of the instance; `byteLength`; `bitLength`, the packed bit size; `alignment`; `offsetBit`, bits from the start of the allocation; `isBitField`.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+
+        <p>It carries no `metadata`, no `type`, and none of `static`, `private`, or `protected`: those are facts about the declaration and are reported by the `ClassField` reflection (<emu-xref href="#sec-reflection-shape-class"></emu-xref>), which this one deliberately does not duplicate.</p>
+
+        <emu-note>
+          <p>The two are separate contexts because they answer different questions and are wanted by different readers: a decorator asks what a field was declared as, and a serializer or a vertex-attribute descriptor asks where its bytes are. Every system that offers both keeps the same seam - .NET has `FieldInfo` beside `Marshal.OffsetOf`, C's `offsetof` connects to nothing else, and Rust had no stable field-offset reflection at all until `offset_of!`.</p>
+          <p>An `accessor` reports the name it was declared under rather than the private field it desugars to: the backing is unnameable, and a slot no program can name would leave a hole in a layout a program is trying to read.</p>
+          <p>The two also answer differently for a class with no layout, and both are right. `ClassField` reports `offset` and `byteLength` as *undefined*, because a reflection's shape does not vary with what it reflects (<emu-xref href="#sec-reflection-shape-rules"></emu-xref>). This one throws, because it exists only to answer a question that has no answer there.</p>
         </emu-note>
       </emu-clause>
 
@@ -5013,7 +5036,14 @@ contributors: Sirisian
       <p>A type's `alignment` is its `byteLength` rounded up to a power of two, and there is no upper bound on it: `uint.&lt;4&gt;` aligns to 1, `uint.&lt;24&gt;` to 4, `uint.&lt;128&gt;` to 16, and a `float32x4` to 16. A value type class takes the alignment <emu-xref href="#sec-natural-alignment"></emu-xref> gives it rather than this rule, since its size is a consequence of its fields rather than a width of its own.</p>
 
       <emu-note>
-        <p>This is the rule of C and of Rust, which the layout of this clause follows: each scalar is aligned to its own size, and Rust's `u128` is 16-byte aligned in order to match C. Capping the alignment at 8 was considered and is not what this specification does, because it would make two types of one width disagree for no reason a program could observe - a 16-byte integer aligned at 8 beside a 16-byte SIMD vector aligned at 16 - and would need the vector to be stated as an exception. Uncapped, the vector is not an exception: a width that is already a power of two rounds up to itself. Raising an alignment past the natural one is what `align` is for (<emu-xref href="#sec-layout-control"></emu-xref>), as `#[repr(align(N))]` is in Rust, and lowering it to 1 is what `packed` is for.</p>
+              <p>A Type Object has a `hasLayout` property, *true* where the type has a layout and *false* where it has none. Reading `byteLength`, `bitLength`, or `alignment` from a type with no layout throws a *TypeError* exception, which is right for a program that believes it has one; `hasLayout` is for the program that is asking rather than asserting, and answers without throwing.</p>
+
+      <emu-note>
+        <p>A generic serializer walking a heterogeneous structure asks this of every type it meets, and without a predicate its only route is to read one of the three and catch - control flow by exception for a question that is not a mistake, and a `catch` that swallows a misspelled type along with the answer. Testing for the property does not substitute: `'byteLength' in `_T_ is *true* for every type, the property being present and throwing when read.</p>
+        <p>`hasLayout` sits beside the three it guards rather than in a function of its own, so it is compile-time evaluable for the same reason they are - which is what a serializer wants, the branch being one it would rather have folded away than taken. Whether a FIELD has a placement needs nothing new: its `offset` is *undefined* where it has none (<emu-xref href="#sec-reflection-shape-class"></emu-xref>).</p>
+      </emu-note>
+
+<p>This is the rule of C and of Rust, which the layout of this clause follows: each scalar is aligned to its own size, and Rust's `u128` is 16-byte aligned in order to match C. Capping the alignment at 8 was considered and is not what this specification does, because it would make two types of one width disagree for no reason a program could observe - a 16-byte integer aligned at 8 beside a 16-byte SIMD vector aligned at 16 - and would need the vector to be stated as an exception. Uncapped, the vector is not an exception: a width that is already a power of two rounds up to itself. Raising an alignment past the natural one is what `align` is for (<emu-xref href="#sec-layout-control"></emu-xref>), as `#[repr(align(N))]` is in Rust, and lowering it to 1 is what `packed` is for.</p>
       </emu-note>
 
       <emu-note>
@@ -5031,7 +5061,7 @@ contributors: Sirisian
       </ul>
       <p>The class's alignment is the one its `alignAll` names, or 1 where it is packed, or the largest alignment among its fields otherwise. Its `bitLength` is the cursor's furthest extent, and its `byteLength` is the size its `size` names, or that extent rounded up to a byte and then to the class's alignment. It is a type error for a field to be placed outside the size a `size` fixes, or for an inherited field to be redeclared, since the redeclaration would have no defined offset.</p>
 
-      <p>A field's offset is read through the reflection of its declaration rather than from the type, because it belongs to the field: `Reflect.getReflection.&lt;Reflect.ClassField, T&gt;(`_name_`)` reports an `offset` and a `byteLength`, compile-time evaluable for the reason the layout is (<emu-xref href="#sec-decorators"></emu-xref>). This is the `offsetof` a serializer, a placement construction, or a vertex attribute descriptor needs.</p>
+      <p>A field's offset is read through the reflection of its declaration rather than from the type, because it belongs to the field: `Reflect.getReflection.&lt;Reflect.ClassFieldLayout, T&gt;(`_name_`)` reports its placement, compile-time evaluable for the reason the layout is (<emu-xref href="#sec-reflection-shape-class-field-layout"></emu-xref>). The `ClassField` context beside it reports what the field was DECLARED as and carries `offset` and `byteLength` because those two are what a decorator commonly wants; the bit-level placement is meaningful only for a class that has a layout at all, which is why the two are separate contexts rather than one. This is the `offsetof` a serializer, a placement construction, or a vertex attribute descriptor needs.</p>
 
       <emu-note>
         <p>Rounding a class's `byteLength` up to its alignment is what makes an array of it an array: without the trailing pad, the second element would be misaligned. `class A { a: uint8; b: uint16; }` is therefore 4 bytes and not 3, and `[10].&lt;A&gt;` is 40.</p>
