@@ -1407,9 +1407,9 @@ contributors: Sirisian
 
     <emu-clause id="sec-vector-masks">
       <h1>Mask Operations</h1>
-      <p><emu-xref href="#sec-vector-comparisons"></emu-xref> states what a comparison between vectors produces. This clause states what consumes one. A <dfn>mask</dfn> is a vector whose lane type is `uint.&lt;1&gt;`, which is what the design names `boolean`_N_ (<emu-xref href="#sec-vector-lanes"></emu-xref>), and the operations below are declared on such a vector alone.</p>
+      <p><emu-xref href="#sec-vector-comparisons"></emu-xref> states what a comparison between vectors produces. This clause states what consumes one. A <dfn>mask</dfn> is a vector whose lane type is `uint.&lt;1&gt;`, which is what the design names `boolean`_N_ (<emu-xref href="#sec-vector-lanes"></emu-xref>), and a vector whose lane type is itself such a vector is a mask too: that is the wide form a comparison yields, so a `float32x4` comparison's `boolean32x4` result is a mask as much as a `boolean4` is. The operations below are declared on a mask in either form and on no other vector. A lane of the compact form is <dfn>set</dfn> when its bit is set, and a lane of the wide form when every bit of it is, which is what a comparison writes into one: all-set or all-clear.</p>
 
-      <p>For a mask of type `vector.&lt;uint.&lt;1&gt;, N&gt;`:</p>
+      <p>For a mask of _N_ lanes:</p>
       <ul>
         <li>`all()` has the Static Type `boolean`, and is *true* when every lane is set.</li>
         <li>`any()` has the Static Type `boolean`, and is *true* when at least one lane is set.</li>
