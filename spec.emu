@@ -2092,11 +2092,12 @@ contributors: Sirisian
         <li>The target is the `any` type. Every value is a value of it.</li>
         <li>The value's static type and the target are the same type.</li>
         <li>At a RETURN, where every `return` of the function satisfies the conditions above and the function cannot complete without one. A return annotation is shared by every `return` in its function, so the elision is a property of the function rather than of a statement, and a function that can fall off its end returns *undefined*, which the annotation must admit for the elision to hold.</li>
-        <li>The index of a read or write of a fixed-length `[N].&lt;T&gt;` is known to be below _N_, because _N_ is a compile-time constant and the index is a value generic, a `where`-constrained parameter, or the counter of a `for` over a range all of whose members are less than _N_. The bound is proven statically and no check is performed.</li>
+        <li>The index of a read or write of a fixed-length `[N].&lt;T&gt;` is known to be below _N_, because _N_ is a compile-time constant and the index is a value generic that a `where` clause constrains to be less than _N_, or the counter of a `for` over a range all of whose members are less than _N_. The bound is proven statically and no check is performed.</li>
       </ul>
 
       <emu-note>
         <p>A range's bounds are part of what its MEMBERS are, so the four shapes of one span do not prove the same thing: `0..&lt;3` proves an index into a `[3]` and `0&lt;..=3` does not, its members being 1 through 3 and its ceiling therefore 4. An open start raises the floor and a closed end raises the ceiling, independently of each other, which is why the rule above is stated over members rather than over endpoints &mdash; the members are already what <emu-xref href="#sec-ranges"></emu-xref> fixes, and restating it here would be a second place for the two to disagree.</p>
+        <p>A value generic alone does not carry the proof, which is why the rule above names a `where` clause rather than the parameter. Inside a generic body the parameter's VALUE is not yet bound, so `a[I]` in a function taking `[N].&lt;T&gt;` proves nothing about the relation of _I_ to _N_ and may index 9 into a `[4]`. What supplies the relation is the `where` clause, checked at each specialization once its parameters are bound (<emu-xref href="#sec-where-clauses"></emu-xref>), so a body may assume it without being re-checked per application.</p>
         <p>Stating it over members also makes the proof independent of SPELLING. `0..&lt;8` and `0..=7` have the same members, so a rule keyed on the written end would prove one and refuse the other, which is a distinction about notation rather than about values.</p>
       </emu-note>
 
