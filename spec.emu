@@ -2464,6 +2464,47 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-operator-results">
+      <h1>The Result of an Operator</h1>
+      <p><emu-xref href="#sec-which-operations-each-family-defines"></emu-xref> states which operations a family has. This clause states what an application of one yields, which <emu-xref href="#table-static-type-base"></emu-xref> does not reach: that table gives the Static Type of a literal, a binding, and a type name, and an operator application is none of those.</p>
+
+      <p>The Static Type of an operator application is determined as follows.</p>
+      <emu-alg>
+        1. If the operator is an equality or relational operator other than one whose operands are vectors, the Static Type is the ~primitive~ type named *"boolean"*.
+        1. Else if either operand's Static Type is a ~literal~ type and the other's is not, the literal adopts the other operand's type (<emu-xref href="#sec-literal-propagation"></emu-xref>) and this rule is applied again.
+        1. Else if the operands' Static Types are not the same type, it is a type error: an operator does not combine two numeric types (<emu-xref href="#sec-arithmetic-never-promotes"></emu-xref>).
+        1. Else if the operands' Static Type is a ~vector~ type, the Static Type is that vector type, the operator having been applied at each lane; except that a relational or equality operator between vectors is overloaded on its result type (<emu-xref href="#sec-vector-comparisons"></emu-xref>).
+        1. Else if the family of the operands' Static Type does not define the operation, it is a type error.
+        1. Else, the Static Type is the operands' Static Type.
+      </emu-alg>
+
+      <p>The last step is the substance of it: an operator on operands of one type yields that type, and never a wider one. What follows from that, and is not implied by a type's name, is collected here.</p>
+
+      <emu-table id="table-operator-results" caption="Result of an Operator by Family">
+        <table>
+          <tr><th>Family</th><th>Arithmetic `+` `-` `*` `/` `%` `**`</th><th>Shifts and bitwise</th><th>Relational and equality</th><th>Unary `-`</th></tr>
+          <tr><td>integer</td><td>the operand type, wrapping (<emu-xref href="#sec-integer-operations"></emu-xref>); `/` truncates toward zero</td><td>the operand type</td><td>*Boolean*</td><td>the operand type</td></tr>
+          <tr><td>binary floating-point</td><td>the operand type</td><td>not defined</td><td>*Boolean*</td><td>the operand type</td></tr>
+          <tr><td>decimal floating-point</td><td>the operand type</td><td>not defined</td><td>*Boolean*</td><td>the operand type</td></tr>
+          <tr><td>rational</td><td>the operand type; `%` not defined, `**` for an integer exponent only</td><td>not defined</td><td>*Boolean*</td><td>the operand type</td></tr>
+          <tr><td>complex</td><td>the operand type; `%` not defined</td><td>not defined</td><td>equality only; the complex numbers are not ordered</td><td>the operand type</td></tr>
+          <tr><td>vector</td><td>the operand type, at each lane</td><td>the operand type where the lane type is an integer type</td><td>the three forms of <emu-xref href="#sec-vector-comparisons"></emu-xref></td><td>the operand type</td></tr>
+          <tr><td>`bigint`</td><td>`bigint`; does not combine with a Number</td><td>`bigint`</td><td>*Boolean*</td><td>`bigint`</td></tr>
+          <tr><td>`string`</td><td>`+` concatenates; the others are the existing Number coercion</td><td>the existing Number coercion</td><td>*Boolean*</td><td>the existing Number coercion</td></tr>
+          <tr><td>enum</td><td>the underlying type of the enum</td><td>the underlying type</td><td>*Boolean*</td><td>the underlying type</td></tr>
+          <tr><td>~nominal~</td><td>the return type of the declared operator, or the existing rules where none is declared</td><td>as declared</td><td>*Boolean* unless declared otherwise</td><td>as declared</td></tr>
+          <tr><td>~reference~</td><td>as its referent's type: an operand is read through the reference</td><td>as its referent's type</td><td>as its referent's type</td><td>as its referent's type</td></tr>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>Three results in the table are worth stating in words, being the ones a type's name does not suggest.</p>
+        <p>An integer type divides by truncating toward zero and wraps on overflow, so `7 / 2` at `uint8` is 3 and `1 - 3` at `uint8` is 254. <emu-xref href="#sec-checked-and-saturating-arithmetic"></emu-xref> gives the forms that trap or clamp instead.</p>
+        <p>A one-bit integer is an integer, so `1 + 1` at `boolean1` is 0. The name suggests a Boolean, but the family is integer and the arithmetic wraps at one bit as it wraps at eight.</p>
+        <p>A relational or equality operator yields a *Boolean* and not a value of a sized type, because it answers a question rather than computing a quantity and so has no result type to preserve. A comparison between vectors is the exception the fourth step names, and is overloaded on its result type because a lane-wise comparison has more than one useful shape.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-integer-operations">
       <h1>Integer Operations</h1>
       <p>For an integer type _T_ of width _N_, each operation computes the exact mathematical result and then reduces it to a value of _T_ as <emu-xref href="#table-numeric-conversions"></emu-xref> specifies for an integer target: the result is taken modulo 2**_N_ and interpreted as a value of _T_. Overflow therefore wraps, in two's complement for a signed type, and discards the bits that do not fit.</p>
