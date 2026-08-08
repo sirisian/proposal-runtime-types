@@ -1157,6 +1157,7 @@ contributors: Sirisian
           <ins>`new` `(` AssignmentExpression[+In, ?Yield, ?Await] `)` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
           <ins>`new` `(` AssignmentExpression[+In, ?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await] `)` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
           <ins>`new` `(` AssignmentExpression[+In, ?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await] `,` AssignmentExpression[+In, ?Yield, ?Await] `)` MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]</ins>
+          <ins>`new` `.` Arguments[?Yield, ?Await]</ins>
 
         CallExpression[Yield,Await] :
           CoverCallExpressionAndAsyncArrowHead[?Yield, ?Await] #callcover
@@ -1176,6 +1177,8 @@ contributors: Sirisian
 
         <emu-note>
           <p>`new` `(` begins both a placement form and an ordinary `new` whose constructor is parenthesized. Source that continues with a |MemberExpression| after the closing parenthesis is the placement form; under the base grammar such source has no parse as a single expression, so the added reading changes no existing program. The array form of the design, `new(buffer, byteOffset, byteElementLength) [10].&lt;Type&gt;(0)`, needs no further production: `[10].&lt;Type&gt;` is an |ArrayLiteral| specialized by |TypeArguments|, which the alternative above already admits as the target |MemberExpression|.</p>
+          <p><ins>`new` `.` |Arguments| is TARGET-TYPED CONSTRUCTION: it constructs the type its position requires, so the type is not named. It is told apart from `new.target` by the token after the dot, an |Arguments| against an |IdentifierName|, and from both forms above by the dot itself; under the base grammar `new` `.` `(` has no parse, so the added reading changes no existing program.</ins></p>
+          <p><ins>The type comes from the position rather than from the expression, so a position requiring no type gives nothing to construct: it is a Syntax Error for this form to appear where the contextual type is absent. A Syntax Error rather than an inference, because inferring the type would be the binding-type inference this proposal does not perform. It is a type error where the contextual type is not constructible, as in `let n: uint8 = new.(1)`. Among a constructible type's signatures the ordinary ranking chooses, with no rule of its own, and nesting follows without further rule, an inner form taking its type from the outer constructor's parameter.</ins></p>
         </emu-note>
       </emu-clause>
   </emu-clause>
