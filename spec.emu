@@ -5055,6 +5055,22 @@ contributors: Sirisian
 
       <p>A type's `alignment` is its `byteLength` rounded up to a power of two, and there is no upper bound on it: `uint.&lt;4&gt;` aligns to 1, `uint.&lt;24&gt;` to 4, `uint.&lt;128&gt;` to 16, and a `float32x4` to 16. A value type class takes the alignment <emu-xref href="#sec-natural-alignment"></emu-xref> gives it rather than this rule, since its size is a consequence of its fields rather than a width of its own.</p>
 
+      <p>A Type Object has a `min` and a `max`, the least and the greatest value the type admits. They are the answer to the question a range check asks and a saturating operation obeys, and they are determined in this order.</p>
+      <emu-alg>
+        1. If the type carries `bounds` metadata (<emu-xref href="#sec-primitive-metadata"></emu-xref>), let _r_ be that range. `min` is the least value of _r_ and `max` is the greatest, each being a value the range ADMITS: an exclusive endpoint reports the last value on its side rather than the endpoint itself, so a `bounds` of `0` `..` `10` over an integer type has a `max` of 9 where `0` `..=` `10` has 10.
+        1. Else if the type is an integer type, let _w_ be the type's width in bits. `min` and `max` are the least and greatest values that width admits: 0 and 2<sup>_w_</sup> - 1 unsigned, and -2<sup>_w_-1</sup> and 2<sup>_w_-1</sup> - 1 signed. They are Numbers where _w_ is 53 or fewer and BigInts above it, a wider integer having values no Number holds exactly.
+        1. Else if the type is a binary floating-point type, `min` and `max` are the finite extremes of its format: `min` is the MOST NEGATIVE finite value and not the smallest positive one, and `max` is its negation.
+        1. Else, reading either throws a *TypeError* exception, as reading `byteLength` from a `string` does.
+      </emu-alg>
+
+      <p>A binary floating-point type additionally has a `minPositive`, the least positive value its format represents, and an `epsilon`, the difference between 1 and the next value above it. An integer type has neither, rather than having them as *undefined*.</p>
+
+      <emu-note>
+        <p>The order of the first two steps is the substance: a refinement narrows what a type admits, so a narrowed type reports the narrowed answer, and a program asking what values a type holds gets one answer from one member whether the constraint came from the width or from the declaration. Without it, every reader that wants the question answered keeps a table of widths beside the code that reads the metadata, and the two say the same thing in two places.</p>
+        <p>These are `min` and `max` and not `MIN_VALUE` and `MAX_VALUE`, though the Number properties of those names are the nearest existing thing, because `Number.MIN_VALUE` is the least POSITIVE Number rather than the least: the most negative is `-Number.MAX_VALUE`. A `float32.MIN_VALUE` would have two defensible readings and no way for a reader to tell which was meant, and the integer and floating-point families would disagree about what the one name said. The lowercase names also match the members already on a Type Object, which are facts about the type rather than constants of a namespace, and `minPositive` gives the other reading a name of its own.</p>
+        <p>`min` and `max` report values and carry no exclusivity of their own. A program that needs the endpoints as they were WRITTEN, which a schema emitter does in order to distinguish an exclusive bound from an inclusive one over the value below it, reads the range from the `bounds` metadata, where it remains whole. The two are not alternatives: the members are a projection for the reader who wants the extremes, and the metadata is there for the reader who wants the range.</p>
+      </emu-note>
+
       <emu-note>
               <p>A Type Object has a `hasLayout` property, *true* where the type has a layout and *false* where it has none. Reading `byteLength`, `bitLength`, or `alignment` from a type with no layout throws a *TypeError* exception, which is right for a program that believes it has one; `hasLayout` is for the program that is asking rather than asserting, and answers without throwing.</p>
 
