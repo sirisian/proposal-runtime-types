@@ -692,11 +692,11 @@ contributors: Sirisian
           FunctionType[?Yield, ?Await]
 
         UnionType[Yield, Await] :
-          IntersectionType[?Yield, ?Await]
+          `|`? IntersectionType[?Yield, ?Await]
           UnionType[?Yield, ?Await] `|` IntersectionType[?Yield, ?Await]
 
         IntersectionType[Yield, Await] :
-          PrimaryType[?Yield, ?Await]
+          `&amp;`? PrimaryType[?Yield, ?Await]
           IntersectionType[?Yield, ?Await] `&amp;` PrimaryType[?Yield, ?Await]
 
         PrimaryType[Yield, Await] :
@@ -733,6 +733,7 @@ contributors: Sirisian
       </emu-grammar>
 
       <emu-note>
+        <p><ins>The optional `|` and `&amp;` above are a leading SEPARATOR and carry no meaning: `| _T_` is the type _T_, whether or not _T_ is itself a union, and likewise for `&amp;`. They exist so that a type written across several lines can align its members, as the design writes `type Shape =` followed by a `|` on each line. Being on the base case of each production rather than a production of their own, they may appear at most once and only before the first member, so `_A_ | | _B_` has no parse. A leading token with no type after it has none either, the token being a separator that happens to come first rather than a prefix operator.</ins></p>
         <p>|FunctionType| is an alternative of |Type| rather than of |UnionType|, because a function type's return extends as far to the right as it can: `(string) =&gt; uint32 | null` returns `uint32 | null`. A function type is therefore not by itself a member of a union or an intersection, and putting one in a union requires parenthesizing it. That is true on either side, so the order of a union's members never matters.</p>
         <p>`void` and `null` are reserved words and so cannot be reached through |TypeReference|, which is why they are given their own production. `undefined` is not a reserved word but a global binding, an ordinary identifier; it is given its own production here as well, so that `undefined` in type position always names the undefined type rather than depending on the global binding being in scope, matching the treatment of `null`. The other built-in type names, `uint8` and the rest, are ordinary identifiers and are reached through |TypeReference|; they are shadowable, so a program that declares its own binding named `uint8` is unaffected.</p>
         <p>|ReferenceType| takes a |PrimaryType| operand, so `ref uint8 | null` is a union of `ref uint8` and `null`. `ref` is a contextual keyword: it is a valid identifier today, so `ref` followed by a token that cannot begin a type is an identifier.</p>
