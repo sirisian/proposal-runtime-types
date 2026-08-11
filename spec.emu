@@ -3272,7 +3272,7 @@ contributors: Sirisian
         <table>
           <thead><tr><th>`kind`</th><th>Further properties</th></tr></thead>
           <tbody>
-            <tr><td>*"primitive"*</td><td>`type`, the Type Object itself; `generic`, either *undefined* or a record with `base` (a Type Object) and `arguments` (a List of Type Objects and values), the decomposition of a generic instantiation. This one node covers every named leaf: the built-in primitives, classes, interfaces, enums, and the `any`, `void`, and `type` types.</td></tr>
+            <tr><td>*"primitive"*</td><td>`type`, the Type Object itself; `generic`, either *undefined* or a record with `base` (a Type Object) and `arguments` (a List of Type Objects and values), the decomposition of a generic instantiation. This one node covers every named leaf: the built-in primitives, classes, interfaces, enums, and the `any`, `void`, and `type` types. It also carries `family`, the String the Type Object's own `family` reports (<emu-xref href="#table-type-families"></emu-xref>), so a walker holding a node need not return to the Type Object to ask which of those a leaf is.</td></tr>
             <tr><td>*"literal"*</td><td>`value`, a String, Number, Boolean, BigInt, or Symbol; `base`, a Type Object.</td></tr>
             <tr><td>*"parameterized"*</td><td>`base`, a Type Object; `metadata`, an object: the metadata half of a parameterization such as `float32.&lt;{ m: 1 }&gt;`.</td></tr>
             <tr><td>*"union"*</td><td>`arms`, a List of Type Objects, in the canonical order; empty for the `never` type.</td></tr>
@@ -5055,6 +5055,35 @@ contributors: Sirisian
       <p>A Type Object whose type has no layout has none of the three properties, so reading one is *undefined* and calling it a size is a *TypeError* rather than a number that hides the mistake.</p>
 
       <p>A type's `alignment` is its `byteLength` rounded up to a power of two, and there is no upper bound on it: `uint.&lt;4&gt;` aligns to 1, `uint.&lt;24&gt;` to 4, `uint.&lt;128&gt;` to 16, and a `float32x4` to 16. A value type class takes the alignment <emu-xref href="#sec-natural-alignment"></emu-xref> gives it rather than this rule, since its size is a consequence of its fields rather than a width of its own.</p>
+
+      <p>A Type Object has a `family`, a String naming the kind of value the type describes. <emu-xref href="#table-family-operations"></emu-xref> is organised by this concept already, deciding what an operator does by the family of its operands; `family` is how a program asks the same question.</p>
+
+      <emu-table id="table-type-families" caption="Type Families">
+        <table>
+          <tr><th>`family`</th><th>Types</th></tr>
+          <tr><td>*"integer"*</td><td>`uint8` through `uint128`, `int8` through `int128`, the general `uint.&lt;`_N_`&gt;` and `int.&lt;`_N_`&gt;` forms, and `boolean1`, which is a one-bit unsigned integer</td></tr>
+          <tr><td>*"float"*</td><td>`float16`, `float32`, `float64`, `float128`</td></tr>
+          <tr><td>*"decimal"*</td><td>`decimal32`, `decimal64`, `decimal128`</td></tr>
+          <tr><td>*"rational"*</td><td>`rational.&lt;`_T_`&gt;`</td></tr>
+          <tr><td>*"complex"*</td><td>`complex.&lt;`_T_`&gt;`</td></tr>
+          <tr><td>*"vector"*</td><td>every SIMD type, `vector.&lt;`_T_`, `_N_`&gt;`, and the bit-vector `boolean`_N_ forms for _N_ above one, `boolean8` being `vector.&lt;boolean1, 8&gt;`</td></tr>
+          <tr><td>*"bigint"*</td><td>`bigint`</td></tr>
+          <tr><td>*"string"*</td><td>`string`</td></tr>
+          <tr><td>*"boolean"*</td><td>`boolean`, the ordinary two-valued type</td></tr>
+          <tr><td>*"type"*</td><td>the `type` type</td></tr>
+          <tr><td>*"class"*</td><td>a class or an interface</td></tr>
+          <tr><td>*"enum"*</td><td>an enum</td></tr>
+          <tr><td>*"any"*, *"void"*, *"never"*</td><td>each of those types</td></tr>
+        </table>
+      </emu-table>
+
+      <p>A type carrying metadata reports the family of the type it parameterizes, so `float32.&lt;{ m: 1 }&gt;` is *"float"* and `uint8.&lt;{ bounds: 1..=6 }&gt;` is *"integer"*. A parameterization refines the type it parameterizes rather than replacing it (<emu-xref href="#sec-parameterized-types"></emu-xref>), and reporting otherwise would put `family` at odds with `instanceof`, with the operator table, and with `bitLength` beside it, each of which already answers about the parameterized type.</p>
+
+      <emu-note>
+        <p>`family` names the family and nothing further. For a class it is *"class"*, which is the name of the family and not of the declaration: a nominal type never exposes its declaration (<emu-xref href="#sec-type-object-opacity"></emu-xref>), and this exposes none of its fields, its name, or its shape.</p>
+        <p>A program wanting the metadata a type carries rather than the family it belongs to reflects, where the *"parameterized"* node gives the `base` and the `metadata` (<emu-xref href="#table-reflection-nodes"></emu-xref>). The two are different questions - what kind of value this is, and what is known about it besides - and are answered in the two places that already describe them.</p>
+        <p>`family` is not a substitute for `is`, for `instanceof`, or for `Reflect.isAssignable`. Whether a value may be stored at a type is those operations' question, and this proposal performs no implicit numeric widening, so two types of one family are no more assignable to each other than two of different families are.</p>
+      </emu-note>
 
       <p>A Type Object has a `min` and a `max`, the least and the greatest value the type admits. They are the answer to the question a range check asks and a saturating operation obeys, and they are determined in this order.</p>
       <emu-alg>
