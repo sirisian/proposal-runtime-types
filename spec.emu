@@ -4938,7 +4938,11 @@ contributors: Sirisian
 
       <emu-clause id="sec-reflection-own-option">
         <h1>The own Option</h1>
-        <p>Reflecting the members of a class answers the members it inherits as well as those it declares. Passing `{ own: *true* }` in place of a member name answers only the members the class declares itself.</p>
+        <p>Reflecting the members of a class answers the members it inherits as well as those it declares. Passing `{ own: *true* }` in place of a member name answers only the members the class declares itself. Passing `{ static: *true* }` answers the class's static members; an enumeration with neither option answers its instance members.</p>
+
+        <p>An enumeration answers members of ONE staticness, because its result is keyed by name and a name does not identify a member: `m` and `static m` may both be declared in one class body, and both reach the same owner, a static member's home object being the constructor and an instance member's the prototype whose `constructor` names it. A program wanting both asks twice and merges the results BY VALUE, each reflection carrying its own `name` and `static`; merging them by key would lose one member per shared name, which is the collision the option exists to resolve.</p>
+
+        <p>The enumerated methods of a class include its `constructor` (<emu-xref href="#table-reflection-contexts"></emu-xref>), a class always having one whether or not its body writes it. A program listing the methods it means to expose skips that name.</p>
         <emu-note>
           <p>Inherited by default because a decorator asking what fields a class has usually means all of them: an inherited field is a field of the instance, and a serializer or a validator that skipped it would be wrong in a way its author would not see until a subclass appeared. The option is for the reader that wants the declaration rather than the shape - a documentation generator listing what this class adds, say.</p>
         </emu-note>
