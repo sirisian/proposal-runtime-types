@@ -3562,6 +3562,27 @@ contributors: Sirisian
         <p>This reconciles the two rules <emu-xref href="#sec-default-values"></emu-xref> leaves in tension. A tuple defaults element-wise, but an element that carries a default already has a value for its position, so the initializer is used where there is one and the type's default only where there is not. `[uint8, uint32 = 10]` therefore defaults to `[0, 10]` rather than being rejected because the second position was already spoken for.</p>
         <p>The literal element store remains the open case <emu-xref href="#sec-literal-propagation"></emu-xref> records: the design specifies `array[0] = 300` on a `[].&lt;uint8&gt;` as wrapping to 44 on the grounds of matching `Uint8Array`, while the literal rule would reject it, and the compatibility argument does not reach new syntax. This clause resolves it against the design's example: a literal element store follows the literal rule and is rejected, because the compatibility argument does not reach new syntax, `[].&lt;uint8&gt;` exists nowhere today and `Uint8Array` is untouched, and a literal that does not fit its destination is the mistake every other literal rule here treats it as. A typed value stores by <emu-xref href="#table-out-of-range-treatment"></emu-xref> as before, so the runtime wrap survives where it belongs.</p>
       </emu-note>
+
+    <emu-clause id="sec-ordered-element-types">
+      <h1><ins>Ordered Element Types</ins></h1>
+      <p><ins>`Array.prototype.sort` and `Array.prototype.toSorted` order by the String representation of each element when no comparator is given. Where an array's ELEMENT TYPE is known and carries an order of its own, that order is used instead, so `[].&lt;uint8&gt;` sorts as `%Uint8Array%.prototype.sort` does rather than as text. An array with no element type - an unannotated Array - is unaffected, as is any call that supplies a comparator.</ins></p>
+      <p><ins>A type is ORDERED when it is one of the following. Anything else, including `any`, an object type without a declared comparison, and a union of unlike types, is not, and an array of it keeps the String comparison.</ins></p>
+      <emu-table>
+        <table>
+          <tr><th><ins>Type</ins></th><th><ins>Order</ins></th></tr>
+          <tr><td><ins>A numeric value type</ins></td><td><ins>By numeric value. A `float` type places *NaN* last and `-0` before `+0`, as %TypedArray%.prototype.sort does, so that an array and the corresponding TypedArray agree.</ins></td></tr>
+          <tr><td><ins>`bigint`</ins></td><td><ins>By value, compared AS a BigInt. Converting to a Number to compare would change the ORDER above 2<sup>53</sup>, not merely lose precision.</ins></td></tr>
+          <tr><td><ins>`string`</ins></td><td><ins>Lexicographically, which is what the String comparison already gives.</ins></td></tr>
+          <tr><td><ins>`boolean`</ins></td><td><ins>*false* before *true*.</ins></td></tr>
+          <tr><td><ins>An enum</ins></td><td><ins>By the rule its underlying type already carries (<emu-xref href="#sec-enums"></emu-xref>): a numeric underlying type by value, a `string` underlying type by DECLARATION POSITION rather than alphabetically.</ins></td></tr>
+          <tr><td><ins>A class declaring `operator &lt;`</ins></td><td><ins>By that operator.</ins></td></tr>
+        </table>
+      </emu-table>
+      <emu-note>
+        <p><ins>An implementation compares with a two-way predicate rather than deriving a three-way result: a comparison sort needs to know only whether one element precedes another, and deriving "less, equal, or greater" from `operator &lt;` would call it twice per comparison to no purpose.</ins></p>
+        <p><ins>The order comes from the element TYPE, so it is fixed once for a whole sort rather than decided per pair.</ins></p>
+      </emu-note>
+    </emu-clause>
     </emu-clause>
   </emu-clause>
 
