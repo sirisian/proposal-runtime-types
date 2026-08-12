@@ -760,12 +760,17 @@ contributors: Sirisian
             TypeArgumentList[?Yield, ?Await] `,` TypeArgument[?Yield, ?Await]
 
           TypeArgument[Yield, Await] :
-            Type[?Yield, ?Await]</ins>
+            Type[?Yield, ?Await]
+            <ins>BindingIdentifier[?Yield, ?Await] `:` Type[?Yield, ?Await]</ins></ins>
         </emu-grammar>
 
         <emu-note>
           <p>Because `.&lt;` is a single punctuator, a qualified name and an application are told apart lexically: in `Temporal.Unit` the `.` is followed by an identifier, while in `Map.&lt;string, uint8&gt;` the `.&lt;` opens an argument list, so a |TypeName| cannot extend across it.</p>
           <p>A type argument is written as a |Type| even when it is a value, as the width in `int.&lt;8&gt;` and the lane count in `vector.&lt;float32, 4&gt;` are. A numeric or string literal argument is a |LiteralType|, and a name that resolves to a value generic parameter is a |TypeReference|, so the syntax need not distinguish the two; the clause on generics decides which a given parameter expects. A value argument that is a computed expression, such as an arithmetic combination of value generic parameters, is written through a |ComputedType| (<emu-xref href="#sec-computed-types"></emu-xref>): the builder call is the spelling for a computed argument, evaluated once its parameters are bound, and the argument position takes no further computation syntax of its own. A `where` clause (<emu-xref href="#sec-generic-where"></emu-xref>) constrains the values a variadic or value parameter admits.</p>
+          <p><ins>A |TypeArgument| may NAME the parameter it supplies, `Box.&lt;Element: uint8&gt;`, which lets an application skip a parameter that has a default rather than repeat it: given `Grid&lt;T = float64, Rows = 4, Cols = 4&gt;`, `Grid.&lt;Cols: 8&gt;` says what differs where `Grid.&lt;float64, 4, 8&gt;` repeats what does not. The separator is `:` rather than `=` to match the named ARGUMENT form of a call, and because `=` already means "the default if none is supplied" in the declaration - the opposite sense at the same position.</ins></p>
+          <p><ins>Each parameter takes, in order: its positional argument where one was supplied, otherwise the named argument bearing its name, otherwise its |TypeParameterDefault|. A parameter left by all three is an error, as it is for a positional application.</ins></p>
+          <p><ins>It is a Syntax Error for a |TypeArgumentList| to contain a |TypeArgument| of the second form whose |BindingIdentifier| does not name a |TypeParameter| of the type or function being applied. This reaches the forms that take |TypeArguments| WITHOUT declaring parameters - an |ArrayOrTupleType| such as `[4].&lt;uint8&gt;`, whose extent and element the grammar does not name - so a named argument there names nothing and is refused. A name that matched nothing would otherwise be discarded silently and the parameter would take its default, which makes a misspelling change what a program means.</ins></p>
+          <p><ins>It is a Syntax Error for two |TypeArgument|s of the second form in one |TypeArgumentList| to have the same |BindingIdentifier|, or for one to name a |TypeParameter| already supplied positionally. It is a Syntax Error for a |TypeArgument| of the first form to follow one of the second, so the positional arguments are exactly the leading ones and a positional argument's meaning does not depend on the names used after it.</ins></p>
         </emu-note>
       </emu-clause>
 
