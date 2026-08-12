@@ -4679,7 +4679,7 @@ contributors: Sirisian
               <tr><td>`ClassGetterReturn`</td><td>`type`; `metadata`.</td></tr>
               <tr><td>`ClassSetter`</td><td>`type`, the setter's function type; `name`; `static`; `private`; `protected`; `metadata`.</td></tr>
               <tr><td>`ClassSetterParameter`</td><td>`type`; `name`, a String; `initial`; `initializer`; `metadata`.</td></tr>
-              <tr><td>`ClassMethod`</td><td>`type`; `name`; `static`; `private`; `protected`; `abstract`, *true* for a signature with no implementation; `signatures`, a List of signature reflections in declaration order, of length 1 where the method is not overloaded; `metadata`.</td></tr>
+              <tr><td>`ClassMethod`</td><td>`type`; `name`; `static`; `private`; `protected`; `abstract`, *true* for a signature with no implementation; `signatures`, a List of signature reflections in declaration order, of length 1 where the method is not overloaded, and absent where the method declares no type at all - a member that annotates nothing reports nothing rather than a signature of all-`any` parameters, an unannotated declaration remaining unannotated for the same reason an unannotated binding remains `any`; `metadata`.</td></tr>
               <tr><td>`ClassMethodParameter`</td><td>`type`; `name`, a String; `index`, a non-negative integer; `initial`; `initializer`; `metadata`.</td></tr>
               <tr><td>`ClassMethodReturn`</td><td>`type`; `metadata`.</td></tr>
               <tr><td>`ClassOperator`</td><td>`type`; `operator`, the operator the declaration overloads; `static`; `signatures`, as a method's, a return-type overload appearing as a further entry; `metadata`.</td></tr>
