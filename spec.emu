@@ -4461,6 +4461,13 @@ contributors: Sirisian
 
     <emu-clause id="sec-preprocessor-modules">
       <h1>Preprocessor Modules</h1>
+      <p>*"mode"* is a supported import attribute key. Where a preprocessor module is imported with an <emu-xref href="#importattribute-record"></emu-xref> whose [[Key]] is *"mode"*, each name the import binds declares that <emu-xref href="#sec-moded-regions"></emu-xref> scans the region its decoration takes in the named lexical mode rather than as ECMAScript. It is a Syntax Error if the value does not name a mode the implementation provides, reported at the import declaration.</p>
+
+      <emu-note>
+        <p>The key is one of an open set. A future key may carry other information about a preprocessor import - a type contract for the completions an editor offers inside a moded region is the obvious candidate - so an implementation must not treat the attribute list as closed.</p>
+        <p>A mode is named by the import and keyed by the name the import BINDS, so `import { jsx as h }` declares the mode for `@h`. Keying it by the bound name rather than by the exported one is what lets a tool recognise a moded region without resolving imports: a region announces itself at the decoration site, which a purely lexical highlighter can match and an import-resolving one need not.</p>
+      </emu-note>
+
       <p>*"preprocessor"* is a supported import attribute key: <emu-xref href="#sec-hostgetsupportedimportattributes"></emu-xref> returns a List containing it. A module imported with an <emu-xref href="#importattribute-record">ImportAttribute Record</emu-xref> whose [[Key]] is *"preprocessor"* and whose [[Value]] is *"true"* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
       <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
       <p>A preprocessor module and every export of it used as a replacement decorator must be <emu-xref href="#sec-compile-time-evaluability">compile-time evaluable</emu-xref>. It is a Syntax Error otherwise, reported at the declaration that is not evaluable.</p>
@@ -4471,6 +4478,58 @@ contributors: Sirisian
       <emu-note>
         <p>Local mutation is evaluable — a Set of seen keys, an accumulator — and shared module-level mutable state is not, which is the same line <emu-xref href="#sec-compile-time-evaluability"></emu-xref> already draws for type builders and `where` clauses. A replacement decorator and a type builder are both user code an implementation runs while compiling, and they are one discipline.</p>
       </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-moded-regions">
+      <h1>Moded Regions</h1>
+      <p>A <dfn>moded region</dfn> is the region a decoration takes where the decoration's name declared a mode (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed as ECMAScript; the mode's own scanner produces the tokens the replacement decorator receives.</p>
+
+      <p>A moded region is never evaluated. It is replaced by whatever its decorator returns, and what a decorator returns is ECMAScript however its region was scanned: <strong>a mode governs ingestion only</strong>. The grammar outside a moded region is unaffected, so `a &lt; b` and a type argument list are read as they always were.</p>
+
+      <emu-note>
+        <p>Without this a region must be lexable as ECMAScript to reach a decorator at all, which forecloses most of what a syntax replacement is for. `&lt;` cannot begin an expression, so `&lt;div/&gt;` fails at the `&lt;` before the closing tag is reached - the same failure `&lt; 2` gives, and not the ambiguity the `/` in a closing tag raises. That second ambiguity is real and downstream of it: `a &lt;/div&gt;/` parses as `a` less-than the regular expression `/div&gt;/`.</p>
+        <p><emu-xref href="#sec-replacement-decorators"></emu-xref> settles the outgoing direction of that ambiguity, by having a decorator return a token whose kind resolves it. The incoming direction is what a mode settles, and the two are not the same problem: outgoing, the engine is told; incoming, it must decide before it has anything to be told by.</p>
+      </emu-note>
+
+      <p>Because a moded region is found rather than tokenized, an implementation records its source range and the tokens the mode produced. Expansion replaces a decoration's target by source range (<emu-xref href="#sec-expansion"></emu-xref>), so a region that is scanned but not recorded cannot be replaced.</p>
+
+      <emu-clause id="sec-scanbalancedrun" type="abstract operation">
+        <h1>
+          ScanBalancedRun (
+            _source_: a String,
+            _start_: a non-negative integer,
+          ): an integer or ~unbalanced~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It finds the end of a delimited run whose contents it does not interpret. It is used to find the extent of a moded region, whose contents are not ECMAScript and so cannot be found by scanning tokens.</dd>
+        </dl>
+        <emu-alg>
+          1. Assert: The code unit at _start_ within _source_ is one of `(`, `[`, or `{`.
+          1. Let _stack_ be a new empty List.
+          1. Let _index_ be _start_.
+          1. Repeat, while _index_ &lt; the length of _source_,
+            1. Let _c_ be the code unit at _index_ within _source_.
+            1. If _c_ begins a single-line comment, a multi-line comment, a string literal, or a template literal, then
+              1. Set _index_ to the index just past that comment or literal. Within a template literal, each substitution is itself a delimited run and balances.
+              1. If no such end exists, return ~unbalanced~.
+            1. Else if _c_ is one of `(`, `[`, or `{`, then
+              1. Append the matching close delimiter to _stack_.
+              1. Set _index_ to _index_ + 1.
+            1. Else if _c_ is one of `)`, `]`, or `}`, then
+              1. If _stack_ is empty or the last element of _stack_ is not _c_, return ~unbalanced~.
+              1. Remove the last element of _stack_.
+              1. Set _index_ to _index_ + 1.
+              1. If _stack_ is empty, return _index_.
+            1. Else,
+              1. Set _index_ to _index_ + 1.
+          1. Return ~unbalanced~.
+        </emu-alg>
+        <emu-note>
+          <p>Recognising comments and string forms is not optional: a `}` within one is not a delimiter, and counting braces without them ends a region in the wrong place.</p>
+          <p>A regular expression is deliberately not recognised, and this is not an omission. Within a moded region the contents are not ECMAScript, so `/` is whatever the mode says it is - in a JSX-shaped mode it opens a closing tag - and a `{` within it is a real delimiter. Outside a region the opposite holds, which is why `a &lt;/{/` scans a regular expression and swallows the brace. No single scanner serves both readings, which is the reason a region declares its mode rather than being guessed at.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
 
     <emu-clause id="sec-replacement-decorators">
@@ -4618,10 +4677,10 @@ contributors: Sirisian
 
     <emu-clause id="sec-syntax-replacement">
       <h1>Syntax Replacement</h1>
-      <p>The tokens a replacement decorator returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
-      <p>Every decorable position may be syntax-replaced, including the positions that do not admit value replacement: a block produces no value but has syntax, and so do a parameter, a return annotation, an enum, a tuple, a record, and a lexical declaration.</p>
+      <p>The tokens a replacement decorator receives are those of the region it decorates, produced as ECMAScript unless that region is moded (<emu-xref href="#sec-moded-regions"></emu-xref>). The tokens it returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
+      <p>Every decorable position may be syntax-replaced, including the positions that do not admit value replacement: a block produces no value but has syntax, and so do a statement, a parameter, a return annotation, an enum, a tuple, a record, and a lexical declaration.</p>
       <emu-note>
-        <p>This is a grammatical constraint where value replacement's is a typed one, and the two are different axes rather than one rule with exceptions. A position may admit both: a `do` block's value may be replaced by a runtime decorator and its syntax by a replacement decorator, and which a return means is decided by which kind of decorator returned it.</p>
+        <p>This is a grammatical constraint where value replacement's is a typed one, and the two are different axes rather than one rule with exceptions. It is a Syntax Error for a decoration on a statement that declares nothing to name anything other than a replacement decorator: a statement has syntax to replace, but a runtime decorator runs when the declaration it decorates is evaluated and there is no declaration there to run at. A position may admit both: a `do` block's value may be replaced by a runtime decorator and its syntax by a replacement decorator, and which a return means is decided by which kind of decorator returned it.</p>
       </emu-note>
       <emu-note>
         <p>An empty result needs no separate permission. It parses where an empty token stream parses — as a statement, or as a class member — and does not where one does not, so removing a decorated statement is legal and removing a parameter from the middle of a list is the same error as returning a class declaration for one.</p>
