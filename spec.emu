@@ -4495,6 +4495,14 @@ contributors: Sirisian
       <h1>Moded Regions</h1>
       <p>A <dfn>moded region</dfn> is the region a decoration takes where the decoration's name declared a mode (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed as ECMAScript; the mode's own scanner produces the tokens the replacement decorator receives.</p>
 
+      <p>The `do` is optional in every position and means nothing to the decorator: the token stream begins at the region, so `@m do { ... }` and `@m { ... }` deliver the same tokens. Both spellings are available wherever the other is.</p>
+
+      <emu-note>
+        <p>`do { }` exists because a `{` beginning an expression is an ObjectLiteral and a block that produces a value needs distinguishing from one. A moded region is parsed as neither - its extent is found by matching delimiters and its contents are never read as ECMAScript - so the distinction does not arise, and requiring `do` would buy nothing.</p>
+        <p>It has a cost, which is stated rather than left to be discovered: a moded name's `{` always begins a region, so the decorated object literal form - `@name { a: 1 }` - is unavailable for that name. Declaring a mode on an import therefore changes what `@name { ... }` means throughout the module. Parentheses do not restore it - `@name (` begins an argument list, so `@name ({ a: 1 })` is a decoration taking an object as an ARGUMENT - and the only way to decorate an object literal with a moded name is to import it a second time without a mode.</p>
+        <p>A decoration's arguments are read as ECMAScript even where its region is read otherwise: a mode governs the region, not the decoration.</p>
+      </emu-note>
+
       <p>A moded region is never evaluated. It is replaced by whatever its decorator returns, and what a decorator returns is ECMAScript however its region was scanned: <strong>a mode governs ingestion only</strong>. The grammar outside a moded region is unaffected, so `a &lt; b` and a type argument list are read as they always were.</p>
 
       <emu-note>
@@ -4712,6 +4720,14 @@ contributors: Sirisian
     <emu-clause id="sec-syntax-replacement">
       <h1>Syntax Replacement</h1>
       <p>The tokens a replacement decorator receives are those of the region it decorates, produced as ECMAScript unless that region is moded (<emu-xref href="#sec-moded-regions"></emu-xref>). The tokens it returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
+
+      <p>Where the decorated position was a Statement, the replacement text is TERMINATED: a semicolon is appended unless what the decorator returned already ends in one, or in a block. A decorator may therefore return an expression in either position, which is what allows one decorator to serve both without being told which it is in.</p>
+
+      <emu-note>
+        <p>This is a rule about TEXT rather than about how the returned tokens are read, and it has to be. Expansion replaces a source range and the result is parsed again, so a decorator returning `f()` where a statement stood leaves `f()` against whatever followed it; with no LineTerminator between them, automatic semicolon insertion does not apply and the program does not parse. Reading the return as an ExpressionStatement would not help, because the adjacency is in the text.</p>
+      </emu-note>
+
+      <p></p>
       <p>Every decorable position may be syntax-replaced, including the positions that do not admit value replacement: a block produces no value but has syntax, and so do a statement, a parameter, a return annotation, an enum, a tuple, a record, and a lexical declaration.</p>
       <emu-note>
         <p>This is a grammatical constraint where value replacement's is a typed one, and the two are different axes rather than one rule with exceptions. It is a Syntax Error for a decoration on a statement that declares nothing to name anything other than a replacement decorator: a statement has syntax to replace, but a runtime decorator runs when the declaration it decorates is evaluated and there is no declaration there to run at. A position may admit both: a `do` block's value may be replaced by a runtime decorator and its syntax by a replacement decorator, and which a return means is decided by which kind of decorator returned it.</p>
