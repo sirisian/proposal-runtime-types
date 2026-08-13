@@ -107,8 +107,15 @@ contributors: Sirisian
           <dd>It determines whether _s_ and _t_ denote the same type.</dd>
         </dl>
         <emu-alg>
-          1. Return SameTypeWithAssumptions(_s_, _t_, &laquo; &raquo;).
+          1. <del>Return SameTypeWithAssumptions(_s_, _t_, &laquo; &raquo;).</del>
+          1. <ins>If IsSubtype(_s_, _t_, &laquo; &raquo;) is *false*, return *false*.</ins>
+          1. <ins>Return IsSubtype(_t_, _s_, &laquo; &raquo;).</ins>
         </emu-alg>
+        <p><ins>SameType is MUTUAL SUBTYPING. It is therefore reflexive, symmetric, and transitive wherever IsSubtype is reflexive and transitive, which is to say it is an equivalence relation - and callers that de-duplicate, intern, or otherwise treat it as equality may rely on that.</ins></p>
+        <emu-note>
+          <p><ins>It was previously defined as SameTypeWithAssumptions, whose algorithm carries three steps keyed on _s_ alone - for an enum, a literal, and a parameterized type - with no mirror for _t_. That made a relation named for equality ASYMMETRIC: SameType(`"a"`, `string`) answered *true* where SameType(`string`, `"a"`) answered *false*. Callers treating it as equality inherited an order dependence; de-duplicating a union by it discarded `string` from `"a" | string` while leaving `string | "a"` intact, so the same type written two ways admitted different values.</ins></p>
+          <p><ins>The refinement those steps provided is not lost. It is what IsSubtype computes, and a caller asking "does _s_ refine to _t_" should call IsSubtype rather than a relation named for sameness.</ins></p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-sametypewithassumptions" type="abstract operation">
@@ -176,6 +183,26 @@ contributors: Sirisian
           <p>SameTypeList holds when two Lists of Type Records have the same length and are position-wise the same under _assumptions_. SameArgumentList is SameTypeList extended to compare non-type arguments, such as an array extent, with SameValue. SameObjectType (<emu-xref href="#sec-sameobjecttype"></emu-xref>) and SameFunctionType (<emu-xref href="#sec-samefunctiontype"></emu-xref>) compare the members of an ~object~ or ~function~ type. Because a canonical ~union~ or ~intersection~ has its members in a fixed order (<emu-xref href="#sec-canonicalizetype"></emu-xref>), position-wise comparison of members is sufficient.</p>
         </emu-note>
       </emu-clause>
+
+    <emu-clause id="sec-sametypestructural" type="abstract operation">
+      <h1><ins>
+        SameTypeStructural (
+          _s_: a Type Record,
+          _t_: a Type Record,
+        ): a Boolean
+      </ins></h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd><ins>It determines whether _s_ and _t_ are the same type CONSTRUCTION, rather than whether they denote the same values.</ins></dd>
+      </dl>
+      <emu-alg>
+        1. <ins>Return SameTypeWithAssumptions(_s_, _t_, &laquo; &raquo;).</ins>
+      </emu-alg>
+      <p><ins>This is a STRICTER relation than SameType. Two Type Records may denote the same values and still differ in construction - most importantly in the metadata they claim - so an implementation that interns Type Objects must use this relation and not SameType. Interning by SameType merges records whose claims differ, and the claim of whichever record is discarded is lost with it.</ins></p>
+      <emu-note>
+        <p><ins>It is the relation SameType was defined as before that operation became mutual subtyping, kept here under a name that says what it computes. The two are separated because they answer different questions: SameType asks whether a value of one is acceptable where the other is required, and SameTypeStructural asks whether the two were built the same way.</ins></p>
+      </emu-note>
+    </emu-clause>
 
       <emu-clause id="sec-sametypelist" type="abstract operation">
         <h1>
