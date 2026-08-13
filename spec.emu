@@ -6758,6 +6758,78 @@ contributors: Sirisian
     </emu-clause>
   </emu-clause>
 
+  <emu-clause id="sec-constant-expressions">
+    <h1>constant Expressions</h1>
+    <p>A `constant` expression is a block whose value belongs to its <dfn>site</dfn>: it is evaluated at most once for a given ConstantExpression in a given realm, and every later evaluation reaching it answers with the value already produced.</p>
+
+    <emu-grammar type="definition">
+      <ins>PrimaryExpression[Yield, Await] :
+        ConstantExpression[?Yield, ?Await]
+
+      ConstantExpression[Yield, Await] :
+        `constant` [no LineTerminator here] Block[?Yield, ?Await, ~Return]</ins>
+    </emu-grammar>
+
+    <p>`constant` is a contextual keyword rather than a reserved word, so an existing program that uses it as an identifier keeps its meaning. The [no LineTerminator here] restriction is what keeps the two apart: without it, `constant` alone on a line followed by a block would be an ExpressionStatement and a Block under automatic semicolon insertion.</p>
+
+    <emu-note>
+      <p>This is the rule ECMA-262's GetTemplateObject applies to a tagged template's strings array - it looks the site up in the realm's [[TemplateMap]] and returns the array already built for it - generalized from a frozen List of Strings to the value of a Block. Both answer the same question - what belongs to a position in the source rather than to an evaluation of it - and both answer it by keying on the Parse Node.</p>
+      <p>The guarantee is IDENTITY, not speed. Two closures produced by two calls to one factory share the value, and a site inside a loop yields the same value on every iteration, because the key is the site and not any evaluation reaching it. A binding hoisted to enclosing scope cannot do that: it is re-created whenever the declaration containing it is evaluated again.</p>
+    </emu-note>
+
+    <p>A Realm Record has an additional field for this purpose.</p>
+
+    <emu-table id="table-realm-constantmap" caption="Additional Field of Realm Records">
+      <table>
+        <thead>
+          <tr><th>Field Name</th><th>Value</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>[[ConstantMap]]</td>
+            <td>a List of Records with fields [[Site]] (a Parse Node) and [[Value]] (an ECMAScript language value)</td>
+            <td>The value each ConstantExpression evaluated in this realm produced. It is the counterpart of [[TemplateMap]], which records a tagged template's strings array against its site.</td>
+          </tr>
+        </tbody>
+      </table>
+    </emu-table>
+
+    <emu-clause id="sec-constant-expression-early-errors">
+      <h1>Static Semantics: Early Errors</h1>
+      <emu-grammar>ConstantExpression : `constant` Block</emu-grammar>
+      <ul>
+        <li>It is a Syntax Error if the Block contains an IdentifierReference that does not resolve to a binding declared within the Block.</li>
+      </ul>
+
+      <emu-note>
+        <p>The Block must be CLOSED: it reads nothing from outside itself. Its value is then a property of the site and of nothing else, which is what makes "evaluated once" unobservable except through identity.</p>
+        <p>Without this rule, <emu-eqn>function f(x) { return constant { x + 1 }; }</emu-eqn> would answer every call with the first call's argument, and nothing would signal it. The rule is stated over free references rather than over non-determinism because the two differ in both directions: a parameter is not ambient state, and reading `Math.max` is ambient but cannot observe how many times it ran. Being closed subsumes the non-determinism a replacement decorator is held to (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>), since an ambient name is a free reference too.</p>
+        <p>It refuses a Block that calls a helper declared outside it. Admitting a reference to an immutable outer binding would relax the rule soundly and is deliberately not specified here.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-runtime-semantics-constant-expression-evaluation" type="sdo">
+      <h1>Runtime Semantics: Evaluation</h1>
+      <emu-grammar>ConstantExpression : `constant` Block</emu-grammar>
+      <emu-alg>
+        1. Let _realm_ be the current Realm Record.
+        1. For each Record { [[Site]], [[Value]] } _entry_ of _realm_.[[ConstantMap]], do
+          1. If _entry_.[[Site]] is the same Parse Node as this ConstantExpression, return _entry_.[[Value]].
+        1. Let _completion_ be Completion(Evaluation of |Block|).
+        1. If _completion_ is an abrupt completion, return ? _completion_.
+        1. If _completion_.[[Value]] is ~empty~, let _value_ be *undefined*; otherwise let _value_ be _completion_.[[Value]].
+        1. Append the Record { [[Site]]: this ConstantExpression, [[Value]]: _value_ } to _realm_.[[ConstantMap]].
+        1. Return _value_.
+      </emu-alg>
+
+      <emu-note>
+        <p>Evaluation is LAZY: the Block runs when an evaluation first reaches it, not when the module containing it is evaluated. A branch never taken therefore costs nothing. Because the Block is closed, the choice between lazy and eager is unobservable except in whether it runs at all.</p>
+        <p>An abrupt completion is NOT recorded. Nothing was produced, and a stored failure could not be told from a stored value, so a later evaluation reaching the same site evaluates the Block again.</p>
+        <p>The value belongs to a realm as well as to a site, so a module evaluated in two realms builds two, and neither is reachable from the other.</p>
+      </emu-note>
+    </emu-clause>
+  </emu-clause>
+
   <emu-clause id="sec-pipeline-operator">
     <h1>Pipeline Operator</h1>
     <p>`x |> f(%)` evaluates its left operand, binds it to the <dfn>topic</dfn>, and evaluates its right operand with that binding in scope. This clause specifies the design's pipeline operator extension, which integrates the <a href="https://github.com/tc39/proposal-pipeline-operator">pipeline operator proposal</a> under this type system.</p>
