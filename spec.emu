@@ -3576,6 +3576,7 @@ contributors: Sirisian
         <table>
           <tr><th><ins>Type</ins></th><th><ins>Order</ins></th></tr>
           <tr><td><ins>A numeric value type</ins></td><td><ins>By numeric value. A `float` type places *NaN* last and `-0` before `+0`, as %TypedArray%.prototype.sort does, so that an array and the corresponding TypedArray agree.</ins></td></tr>
+          <tr><td><ins>A 64-bit integral type</ins></td><td><ins>By value, at the type's OWN precision. `int64` and `uint64` hold magnitudes a Number cannot distinguish - 9007199254740993 and 9007199254740992 are one double - so an implementation that reads such a value as a Number before comparing leaves them in their original order, which is a wrong ANSWER rather than a lost digit.</ins></td></tr>
           <tr><td><ins>`bigint`</ins></td><td><ins>By value, compared AS a BigInt. Converting to a Number to compare would change the ORDER above 2<sup>53</sup>, not merely lose precision.</ins></td></tr>
           <tr><td><ins>`string`</ins></td><td><ins>Lexicographically, which is what the String comparison already gives.</ins></td></tr>
           <tr><td><ins>`boolean`</ins></td><td><ins>*false* before *true*.</ins></td></tr>
