@@ -1883,7 +1883,12 @@ contributors: Sirisian
       <p>When both a converting constructor and a declared conversion could apply to the same pair, the constructor is preferred. It is a type error if two conversions of the same form apply and neither is more specific.</p>
 
       <emu-note>
-        <p>A conversion to a tuple type is what makes a class destructurable: a class declaring `operator [number, number, string]()` may be destructured into three bindings, because the destructuring position has a tuple contextual type and the conversion supplies it. The operator overloading extension specifies the declaration syntax; this clause specifies only when a declared conversion is consulted.</p>
+        <p>A conversion to a tuple type is what makes a class destructurable: a class declaring `operator [number, number, string]()` may be destructured into three bindings. The operator overloading extension specifies the declaration syntax; this clause specifies only when a declared conversion is consulted.</p>
+      </emu-note>
+      <p><ins>Array destructuring is defined over the ITERATION protocol rather than over a contextual type - `const [_x_, _y_, _z_] = _a_` performs GetIterator(_a_) - so a declared tuple conversion is consulted where that iteration would otherwise fail. Where the value of an ArrayBindingPattern or an ArrayAssignmentPattern is not iterable and its class declares a conversion to a tuple type, the conversion is applied and its result is destructured in place of the value.</ins></p>
+      <p><ins>Iteration is attempted FIRST, so a class that both declares `[Symbol.iterator]` and a tuple conversion is destructured by its iterator. A declared conversion says how the value converts, not that the value is a sequence: it does not make `_a_` spreadable, nor usable in a `for`-`of` head, both of which continue to require an iterator.</ins></p>
+      <emu-note>
+        <p><ins>An earlier draft of the note above attributed this to the destructuring position carrying a tuple contextual type. It does not carry one - a destructuring pattern cannot be annotated at all, `const [_x_]: [number] = _a_` being a Syntax Error - and reading the rule that way leads an implementation to look for a contextual type that is never there.</ins></p>
       </emu-note>
     </emu-clause>
 
