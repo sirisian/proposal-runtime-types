@@ -4504,6 +4504,29 @@ contributors: Sirisian
 
       <p>Because a moded region is found rather than tokenized, an implementation records its source range and the tokens the mode produced. Expansion replaces a decoration's target by source range (<emu-xref href="#sec-expansion"></emu-xref>), so a region that is scanned but not recorded cannot be replaced.</p>
 
+      <p>A moded region's text reaches the replacement decorator <strong>as written</strong>. No entity is decoded and no whitespace is normalized, because both are conventions of the embedded language rather than facts about it: a whitespace run that one dialect drops another preserves, and two implementations of the same dialect ship different entity tables. A decorator applies whichever its language defines.</p>
+
+      <emu-clause id="sec-mixed-modes">
+        <h1>Mixed Modes</h1>
+        <p>A mode need not govern a whole region. A <dfn>mixed mode</dfn> is one whose text is ECMAScript except where a construct the mode names begins; there the mode's own reading takes over until that construct ends, and so on recursively.</p>
+
+        <p>Where a decoration's mode is mixed, the decoration does not take a region. It covers the |Declaration| that follows it, which is parsed as ECMAScript with the mode active throughout.</p>
+
+        <p>The `jsx` mode is mixed. A JSX element may begin wherever a |PrimaryExpression| is expected - which is to say, at exactly the positions a |RegularExpressionLiteral| may begin. Within a JSX element, `{` begins ECMAScript again.</p>
+
+        <emu-note>
+          <p><strong>This is a decision only a parse can make.</strong> Whether `&lt;` begins an element or is a relational operator is the same question as whether `/` begins a regular expression or a division, and ECMA-262 answers the second by having the parser ask for the goal symbol rather than by having the lexer guess. A mode that re-scanned text would have to guess, and would be wrong in the cases that cannot be decided without knowing what is expected at that position.</p>
+          <p>Confining the question to a declared region is what makes it answerable at all. TypeScript declines to answer it in the grammar and switches on the file extension instead; here the boundary is the decoration, so `a &lt; b` and a type argument list elsewhere in the program are untouched.</p>
+        </emu-note>
+
+        <p>A JSX element's child text is not ECMAScript and is not tokenized as such: `Hi there` is two identifiers to the lexer, and the space between them - which the element renders - is not a token at all. The element is therefore scanned, as a template literal is, and its substitutions are parsed as expressions so that their tokens are threaded from the parse like any other.</p>
+
+        <emu-note>
+          <p>A mixed mode is what a component-level decoration needs, and a captured region cannot serve: a component's body is mostly ordinary code, and a statement beside JSX in a captured region is read as TEXT. It is also what lets a JSX element nested inside a substitution be read as JSX - `{items.map((item) =&gt; &lt;Item /&gt;)}` - which is the commonest shape the language has.</p>
+          <p>What a decorator returns is ECMAScript, as for any mode. A decorator that returned its region unchanged would not produce a program that parses, because the decoration that admitted the embedded language is gone by then.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-scanbalancedrun" type="abstract operation">
         <h1>
           ScanBalancedRun (
