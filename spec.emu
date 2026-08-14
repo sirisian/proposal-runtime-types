@@ -5529,6 +5529,8 @@ contributors: Sirisian
     <h1>Complex Numbers</h1>
     <p>`complex.&lt;`_T_`&gt;` is a value type holding a real and an imaginary component of the real numeric type _T_. The width-named shorthands count total bits, following the convention of the numeric libraries the design cites, so a `complex64` holds two `float32` components; the bare name `complex` is `complex.&lt;number&gt;`.</p>
 
+    <p>ToBoolean of a complex is *false* where both components are zero and *true* otherwise, so `complex(0, 0)` is falsy as every other numeric zero is. A complex is not one of the existing language types, and ToBoolean of an object is otherwise always *true*, so this is stated rather than inherited: without it the origin would be the one numeric zero that is truthy.</p>
+
     <p>An imaginary literal (<emu-xref href="#sec-imaginary-literals"></emu-xref>) has the type `complex`, with the literal's value as its imaginary component and zero as its real one, so `4i` is `complex(0, 4)`. Literal propagation applies as it does to any numeric literal (<emu-xref href="#sec-literal-types"></emu-xref>), so an imaginary literal in a `complex64` position is a `complex64`. `complex64` and `complex128` convert to and from `complex` explicitly and not implicitly, exactly as `float32` and `float64` convert to and from `number`, and the treatment of a value outside the component type's range is <emu-xref href="#table-out-of-range-treatment"></emu-xref>'s as it is for that component.</p>
 
     <emu-note>
