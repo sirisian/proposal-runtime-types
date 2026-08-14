@@ -6174,6 +6174,14 @@ contributors: Sirisian
 
         MatchExpression[Yield, Await] :
           `match` [no LineTerminator here] `(` Expression[+In, ?Yield, ?Await] `)` `{` MatchClauses[?Yield, ?Await] `}`
+          `match` [no LineTerminator here] `all` [no LineTerminator here] `(` Expression[+In, ?Yield, ?Await] `)` `{` MatchAllClauses[?Yield, ?Await] `}`
+
+        MatchAllClauses[Yield, Await] :
+          MatchAllClause[?Yield, ?Await]
+          MatchAllClauses[?Yield, ?Await] MatchAllClause[?Yield, ?Await]
+
+        MatchAllClause[Yield, Await] :
+          `when` MatchPattern[?Yield, ?Await] MatchGuard[?Yield, ?Await]? `:` MatchArmBody[?Yield, ?Await]
 
         MatchClauses[Yield, Await] :
           MatchClause[?Yield, ?Await]
@@ -6192,6 +6200,20 @@ contributors: Sirisian
           Block[?Yield, ?Await, ~Return]</ins>
       </emu-grammar>
       <p>The |Block| of a |MatchArmBody| carries the [Return], [Yield], and [Await] permissions of the function enclosing the `match`, so `return`, `break`, `continue`, `await`, and `yield` inside a block arm mean what they mean in that function; the ~Return~ above is notational for the production and the permission is threaded in the obvious way by the enclosing contexts. The `;` of an expression arm is subject to automatic semicolon insertion as the `;` of an expression statement is.</p>
+
+      <p>The second form answers with <strong>every</strong> clause that matched rather than the first, as an Array in clause order. It differs from the first in three ways and in no others - patterns, guards, bindings, per-clause narrowing, arm bodies, and the single evaluation of the subject are all the same:</p>
+
+      <ul>
+        <li>the value is an Array of the matched clauses' values, empty when none matched;</li>
+        <li>exhaustiveness is not required (<emu-xref href="#sec-match-exhaustiveness"></emu-xref>);</li>
+        <li>subtraction narrowing between clauses does not apply, since a later clause is reached whether or not an earlier one matched.</li>
+      </ul>
+
+      <p>A |MatchAllClause| admits no `default`. `default` and the wildcard pattern are interchangeable in a |MatchClause|, and a form in which one meant "always" and the other "only where nothing else did" would give the same spelling two meanings one form apart. A clause that always contributes is written `when _`.</p>
+
+      <emu-note>
+        <p>`all` is a contextual keyword: it is the modifier only where a `(` follows it on the same line, and it remains an ordinary identifier everywhere, including as a binding, a property, and a function name. The [no LineTerminator here] restriction before it is what keeps `match` on one line followed by `all(x)` on the next meaning the two statements it means today.</p>
+      </emu-note>
       <p>It is a Syntax Error if a `default` |MatchClause| is not the last of its |MatchClauses|.</p>
       <emu-note>
         <p>`match`, `when`, `and`, `or`, and `not` are contextual keywords, treated as keywords only in the positions above and in the pattern grammar, which are Syntax Errors today. `match(x) {}` remains a call followed by a block, because |MatchClauses| requires at least one clause; in statement position the braced sequel of `match (`&hellip;`)` is parsed under a cover, as the `type` operator's parenthesized operand is (<emu-xref href="#sec-types-in-expression-position"></emu-xref>), and refined to |MatchClauses| where they parse as such, otherwise remaining the block it is today. Every program the refinement accepts was a Syntax Error: a clause's pattern is never empty, so the label `when:` never reads as a clause, `default` is reserved and cannot label a statement, and `when` followed by a pattern is not a statement sequence. In expression position there is no overlap at all, since a call followed by `{` is a Syntax Error there.</p>
@@ -6225,6 +6247,41 @@ contributors: Sirisian
             1. Set the running execution context's LexicalEnvironment to _outerEnv_.
           1. Throw a *TypeError* exception.
         </emu-alg>
+
+        <p>The second form collects rather than returning:</p>
+
+        <emu-alg>
+          1. Let _subject_ be ? GetValue(? Evaluation of |Expression|).
+          1. Let _cache_ be the Match Cache Record { [[Reads]]: a new empty List, [[Iterations]]: a new empty List }.
+          1. Let _results_ be a new empty List.
+          1. For each |MatchAllClause| _clause_ of |MatchAllClauses|, in source order, do
+            1. Let _outerEnv_ be the running execution context's LexicalEnvironment.
+            1. Let _env_ be NewDeclarativeEnvironment(_outerEnv_).
+            1. For each element _name_ of the BoundNames of _clause_, do
+              1. If the |MatchBindingPattern| binding _name_ has `const`, perform ! _env_.CreateImmutableBinding(_name_, *true*).
+              1. Else, perform ! _env_.CreateMutableBinding(_name_, *false*).
+            1. Set the running execution context's LexicalEnvironment to _env_.
+            1. Let _matched_ be Completion(MatchPatternMatches of the clause's |MatchPattern| with arguments _subject_ and _cache_).
+            1. If _matched_ is an abrupt completion, set the running execution context's LexicalEnvironment to _outerEnv_ and return ? _matched_.
+            1. Set _matched_ to ! _matched_.
+            1. If _matched_ is *true* and _clause_ has a |MatchGuard|, then
+              1. Let _guard_ be Completion(GetValue(Completion(Evaluation of the |MatchGuard|'s |Expression|))).
+              1. If _guard_ is an abrupt completion, set the running execution context's LexicalEnvironment to _outerEnv_ and return ? _guard_.
+              1. Set _matched_ to ToBoolean(! _guard_).
+            1. If _matched_ is *true*, then
+              1. Let _result_ be Completion(MatchArmEvaluation of the clause's |MatchArmBody|).
+              1. Set the running execution context's LexicalEnvironment to _outerEnv_.
+              1. Append ? _result_ to _results_.
+            1. Else,
+              1. Set the running execution context's LexicalEnvironment to _outerEnv_.
+          1. Return CreateArrayFromList(_results_).
+        </emu-alg>
+
+        <emu-note>
+          <p>The subject is evaluated once and the cache is shared across clauses, exactly as in the first form, so a property is read at most once however many patterns look at it.</p>
+          <p>An abrupt completion from any clause propagates, which is what makes an arm that `throw`s abort the collection: the clauses before it have already evaluated their arm bodies, and those values are lost with the expression. An arm that RETURNS a failure rather than throwing one is what collecting failures looks like, and needs nothing further - the value is the failure and the result is already the collection.</p>
+          <p>Reaching the end without a match returns an empty Array rather than throwing, which is the whole of why exhaustiveness is not required of this form.</p>
+        </emu-note>
         <p>MatchArmEvaluation of `AssignmentExpression ;` returns ? GetValue(? Evaluation of |AssignmentExpression|). Of `throw AssignmentExpression ;`, it evaluates as the `throw` statement does. Of a |Block|, it is the evaluation of a `do` expression's |Block| (<emu-xref href="#sec-do-expressions"></emu-xref>): the block is evaluated and the result is its completion value.</p>
         <emu-note>
           <p>An arm's block was given a narrower rule than this while do expressions were outstanding - its value was its final statement's only where that statement was an |ExpressionStatement|, and ~void~ otherwise - and that rule was a strict subset of this one, so no program changes meaning by its replacement. What it could not do was let an arm end in an `if` with an `else` or a `try`, and what it did badly was make an arm ending in a declaration a silent ~void~ rather than the Syntax Error <emu-xref href="#sec-do-expression-early-errors"></emu-xref> now gives. The bindings of a clause are created immutable and are initialized by the pattern as it matches; a clause that does not match discards its environment, so a binding never leaks between arms, and the guard and body of the arm that runs see exactly what its own pattern bound.</p>
@@ -6648,7 +6705,7 @@ contributors: Sirisian
         <p>A `match` whose subject is a Type Object has no atoms, the types being an open universe, so <emu-xref href="#sec-match-exhaustiveness"></emu-xref> requires such a `match` to carry a catch-all. The <dfn>atoms</dfn> of a Type Record _t_ are: for an enum, its enumerators; for a sealed class, its direct subclasses and, where instantiable, itself; for `boolean`, *true* and *false*; for `null` and `undefined`, themselves; for a ~union~ of two or more members each of which is one of the preceding, an ~object~ type, a ~tuple~ type, or a composite type, the atoms of each member, an object, tuple, or composite member being its own atom; for a dependent record type whose predicate is a discriminating `where` chain, the atoms of the union that chain denotes (<emu-xref href="#sec-discriminated-where-chains"></emu-xref>); for an ~intersection~ one or more of whose members is a ~union~, the atoms of the union formed by distributing it, one member per choice of one arm from each such union intersected with the remaining members; and ~none~ otherwise. A union with a member of ~literal~ kind has atoms ~none~: a closed set of literals that wants the check is an enum over its base, the standing decision of <emu-xref href="#sec-enums"></emu-xref>, restated rather than reopened.</p>
         <p>An unguarded clause <dfn>covers</dfn> an atom _a_ when: its pattern's PatternType _pt_ satisfies IsSubtype(the type of _a_, _pt_, &laquo; &raquo;), reading an enumerator atom's type as its enumerator, covered by the constant pattern naming it or a type pattern naming its enum, and reading *true*, *false*, `null`, and `undefined` atoms as their literal patterns and types; an object, tuple, or composite atom is additionally covered by a structural pattern each of whose named members is declared required by the atom and whose sub-patterns each cover the member's declared type, the subsumption the impossible-test rule computes run in the other direction. A `default` covers every atom, and a guarded clause covers none.</p>
         <p>A pattern is <dfn>irrefutable</dfn> when it matches every value: the wildcard; a |MatchBindingPattern| with no |TypeAnnotation|, or one whose annotation denotes ~any~; a parenthesized irrefutable pattern; an `and` both of whose operands are irrefutable; and an `or` either of whose alternatives is. A clause is a <dfn>catch-all</dfn> when it is a `default`, or is unguarded with an irrefutable pattern.</p>
-        <p>A `match` is <dfn>exhaustive</dfn> when it has a catch-all clause, or when the atoms of its subject's Static Type are not ~none~ and every atom is covered by some clause. It is a type error for a `match` not to be exhaustive. It is a type error if a clause can match nothing the preceding unguarded clauses have left: where NarrowTo of the subject's remaining type, the Static Type folded by NarrowFrom over the preceding unguarded clauses' pattern types, and the clause's PatternType is ~empty~, or where every atom the clause covers is covered before it; a `default` whose preceding clauses cover every atom of a subject with atoms is that error's instance, so a covered `match` and a defaulted one cannot silently coexist.</p>
+        <p>A `match` is <dfn>exhaustive</dfn> when it has a catch-all clause, or when the atoms of its subject's Static Type are not ~none~ and every atom is covered by some clause. It is a type error for a `match` not to be exhaustive. <strong>Neither this rule nor the one that follows applies to the `match all` form</strong> (<emu-xref href="#sec-match-expression"></emu-xref>): no clause of a `match all` need match, since its value is the List of those that did and an empty List is an answer rather than a missing case; and a later clause there is reached whether or not an earlier one matched, so it is narrowed by nothing the earlier clause failed to establish. It is a type error if a clause can match nothing the preceding unguarded clauses have left: where NarrowTo of the subject's remaining type, the Static Type folded by NarrowFrom over the preceding unguarded clauses' pattern types, and the clause's PatternType is ~empty~, or where every atom the clause covers is covered before it; a `default` whose preceding clauses cover every atom of a subject with atoms is that error's instance, so a covered `match` and a defaulted one cannot silently coexist.</p>
         <emu-note>
           <p>The last two rows are derived forms, and they are derived for this check alone. A discriminating `where` chain denotes a union and an intersection over a union distributes into one, but neither changes what the type <em>is</em>: `Reflect.typeOf` reports the dependent record type and the intersection, `CanonicalizeType` flattens an intersection without distributing it (<emu-xref href="#sec-canonicalizetype"></emu-xref>) so identity and interning are untouched, and assignability compares against the type as written. What they change is only that the checker sees the cases the reader sees, which is what the check is for. Distribution is bounded by the type expression, since it multiplies the arm counts of the unions an intersection names, and it needs no new subtyping: IsSubtype already decides an ~intersection~ on the left by finding one member within the target, so an arm naming `A` covers an atom `A &amp; C`.</p>
           <p>Requiring exhaustiveness of every `match` is what makes the *TypeError* of <emu-xref href="#sec-match-evaluation"></emu-xref> unreachable from typed code: a `match` whose subject holds a value of its Static Type has a clause for it, so the throw is left for an untyped subject and for a value that has drifted out of its type, where the boundary check is the backstop as everywhere else (<emu-xref href="#table-check-sites"></emu-xref>). The rule pairs with unreachability into one statement a program can be told: exactly one of "this `match` needs a catch-all" and "this `match` must not have one" holds of it, since a closed subject covered atom by atom rejects the `default` it does not need and everything else requires one. Naming the atoms is also what lets an implementation report which pattern is missing rather than only that one is.</p>
