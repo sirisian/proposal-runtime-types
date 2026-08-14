@@ -1751,6 +1751,11 @@ contributors: Sirisian
             1. Let _ct_ be the integer type of the components of _t_.
             1. If _n_ is a value of _ct_ and _d_ is a value of _ct_, return the value of _t_ with numerator _n_ and denominator _d_.
             1. Return ~unrepresentable~.
+          1. If _t_ is a complex type, then
+            1. Let _ct_ be the type of the components of _t_.
+            1. Let _r_ be LiteralValueInType(_literal_, _ct_).
+            1. If _r_ is ~unrepresentable~, return ~unrepresentable~.
+            1. Return the value of _t_ whose real component is _r_ and whose imaginary component is the zero of _ct_.
           1. Return ~unrepresentable~.
         </emu-alg>
 
@@ -5528,6 +5533,8 @@ contributors: Sirisian
   <emu-clause id="sec-complex-numbers">
     <h1>Complex Numbers</h1>
     <p>`complex.&lt;`_T_`&gt;` is a value type holding a real and an imaginary component of the real numeric type _T_. The width-named shorthands count total bits, following the convention of the numeric libraries the design cites, so a `complex64` holds two `float32` components; the bare name `complex` is `complex.&lt;number&gt;`.</p>
+
+    <p>A numeric literal in a complex position takes the complex type, with the literal as its real component and zero as its imaginary one, so `let` _r_`: complex = 5` is `complex(5, 0)` and an imaginary literal beside a real one reads as the mathematics does. A real VALUE does not convert on its own: `_z_ + _x_` for a complex _z_ and a `number` _x_ is a type error, written `_z_ + complex(_x_)`, which is the rule that holds between any two numeric types here. The literal's representability is the component type's, so a literal no `float32` can hold is no `complex64` either.</p>
 
     <p>ToBoolean of a complex is *false* where both components are zero and *true* otherwise, so `complex(0, 0)` is falsy as every other numeric zero is. A complex is not one of the existing language types, and ToBoolean of an object is otherwise always *true*, so this is stated rather than inherited: without it the origin would be the one numeric zero that is truthy.</p>
 
