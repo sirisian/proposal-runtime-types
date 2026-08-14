@@ -1009,7 +1009,10 @@ contributors: Sirisian
           TypeParameterList[?Yield, ?Await] `,` TypeParameter[?Yield, ?Await]
 
         TypeParameter[Yield, Await] :
-          BindingIdentifier[?Yield, ?Await] TypeParameterConstraint[?Yield, ?Await]? TypeParameterDefault[?Yield, ?Await]?
+          VarianceModifier? BindingIdentifier[?Yield, ?Await] TypeParameterConstraint[?Yield, ?Await]? TypeParameterDefault[?Yield, ?Await]?
+
+        VarianceModifier : one of
+          `in` `out`
 
         TypeParameterConstraint[Yield, Await] :
           `:` Type[?Yield, ?Await]
@@ -1018,6 +1021,11 @@ contributors: Sirisian
         TypeParameterDefault[Yield, Await] :
           `=` Type[?Yield, ?Await]</ins>
       </emu-grammar>
+
+      <emu-note>
+        <p>A |VarianceModifier| declares the parameter's variance, whose meaning is given by <emu-xref href="#sec-generic-variance"></emu-xref>: `out` declares it covariant and `in` contravariant, and a parameter carrying neither is invariant. The words name the positions the parameter may occupy, `out` for the output positions a covariant parameter is restricted to and `in` for the input positions of a contravariant one, which is the spelling of C# and Kotlin whose variance this is.</p>
+        <p>`in` is a reserved word, so it can only be a modifier here. `out` is not: it remains an ordinary identifier everywhere, INCLUDING as a type parameter's own name, and is a |VarianceModifier| only where a |BindingIdentifier| follows it immediately. So `&lt;out&gt;`, `&lt;out: T&gt;` and `&lt;out = T&gt;` each declare a parameter NAMED `out`, while `&lt;out T&gt;` declares a covariant `T`, and `&lt;out out&gt;` declares a covariant parameter named `out`. One token of lookahead separates the two readings, and no program that does not write a modifier changes meaning.</p>
+      </emu-note>
 
       <emu-note>
         <p>A parameter written with `:` is a value generic parameter, whose argument is a value of the named type, as `W` and `H` are in `class GridArray&lt;W: uint32, H: uint32&gt;`. A parameter written with `extends` is a type parameter bounded by a type, as `T` is in `T extends []`. A parameter with neither is an unbounded type parameter. The `where` clause that further constrains a parameter is defined by the generics extension.</p>
@@ -4045,7 +4053,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-generic-variance">
       <h1>Declaration-Site Variance</h1>
-      <p>This clause states what a variance declaration means; a parameter carrying none is invariant, which is the rule <emu-xref href="#sec-issubtype"></emu-xref> gives and the conservative default. A type parameter may be declared covariant or contravariant. Where a parameter is covariant, one instantiation is a subtype of another along that position when the argument in the first is a subtype of the argument in the second; where contravariant, when the reverse holds; where neither is declared, the position is invariant, the default of <emu-xref href="#sec-issubtype"></emu-xref>. A covariant parameter is well-formed only where it appears in output positions of the declaration, a method return or a `readonly` field, and a contravariant parameter only in input positions, a method or constructor parameter; a parameter appearing in a position of the wrong polarity is an early error, since the variance would be unsound there for the reason the invariance note gives of a mutable container.</p>
+      <p>This clause states what a variance declaration means; a parameter carrying none is invariant, which is the rule <emu-xref href="#sec-issubtype"></emu-xref> gives and the conservative default. A type parameter is declared covariant by the |VarianceModifier| `out` and contravariant by `in` (<emu-xref href="#sec-type-parameters"></emu-xref>). Where a parameter is covariant, one instantiation is a subtype of another along that position when the argument in the first is a subtype of the argument in the second; where contravariant, when the reverse holds; where neither is declared, the position is invariant, the default of <emu-xref href="#sec-issubtype"></emu-xref>. A covariant parameter is well-formed only where it appears in output positions of the declaration, a method return or a `readonly` field, and a contravariant parameter only in input positions, a method or constructor parameter; a parameter appearing in a position of the wrong polarity is an early error, since the variance would be unsound there for the reason the invariance note gives of a mutable container.</p>
       <emu-table id="table-variance-positions" caption="Positions by Polarity">
         <table>
           <thead><tr><th>Position</th><th>Polarity</th></tr></thead>
@@ -4062,6 +4070,19 @@ contributors: Sirisian
       <emu-note>
         <p>This is the variance of C# and Kotlin, sound because the well-formedness rule confines a covariant parameter to positions a value is read from and a contravariant one to positions a value is written to. A `Producer.&lt;Dog&gt;` is usable as a `Producer.&lt;Animal&gt;` where `Producer` is declared covariant and only produces, which the container invariance of <emu-xref href="#sec-issubtype"></emu-xref> forbids for a `Map` precisely because a `Map` also consumes. The relation composes with the others: an instantiation is a subtype along a covariant position by the ordinary subtyping of the arguments, so a covariant position holding another generic type carries the polarity inward, which the last two table rows state.</p>
       </emu-note>
+
+      <emu-clause id="sec-variance-static-semantics-early-errors" type="static semantics">
+        <h1>Static Semantics: Early Errors</h1>
+        <emu-grammar>TypeParameter : VarianceModifier BindingIdentifier TypeParameterConstraint? TypeParameterDefault?</emu-grammar>
+        <ul>
+          <li>
+            It is a Syntax Error if any occurrence of the type named by |BindingIdentifier| within the declaration that introduces this |TypeParameter| is at a position whose polarity, as given by <emu-xref href="#table-variance-positions"></emu-xref>, is not ~both~ and does not match |VarianceModifier|: ~output~ for `out`, ~input~ for `in`.
+          </li>
+        </ul>
+        <emu-note>
+          <p>A declaration is a claim rather than a derivation, so it can be wrong, and this is the rule that catches it: `out` on a parameter appearing in a non-`readonly` field is refused, since <emu-xref href="#table-variance-positions"></emu-xref> gives that position ~both~ and only an invariant parameter may stand there. A parameter carrying no |VarianceModifier| is unconstrained by this rule, which is why invariance needs no check.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
     <emu-clause id="sec-higher-kinded-parameters">
       <h1>Higher-Kinded Parameters</h1>
