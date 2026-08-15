@@ -4505,6 +4505,30 @@ contributors: Sirisian
 
       <p>%TokenStream% is the intrinsic object holding the operation below; %TokenStream.prototype% is the prototype of every TokenStream.</p>
 
+      <emu-clause id="sec-tokenstream.prototype.parse">
+        <h1>TokenStream.prototype.parse ( _start_, _end_, _goal_ )</h1>
+        <p>Parses a range of this stream's source text and answers its tokens.</p>
+        <emu-alg>
+          1. Let _stream_ be the *this* value.
+          1. If _stream_ is not a TokenStream, throw a *TypeError* exception.
+          1. Let _source_ be the [[Source]] of the [[Span]] of the first element of _stream_'s [[TokenRecords]]; if there is none, throw a *TypeError* exception.
+          1. Let _text_ be _source_.[[Text]].
+          1. Let _from_ be ? ToIntegerOrInfinity(_start_).
+          1. Let _to_ be ? ToIntegerOrInfinity(_end_).
+          1. If _from_ &lt; 0, _to_ &gt; the length of _text_, or _from_ &gt; _to_, throw a *RangeError* exception.
+          1. If _goal_ is neither *"expression"* nor *"statements"*, throw a *TypeError* exception.
+          1. Let _parsed_ be ParseText(the substring of _text_ from _from_ to _to_, |AssignmentExpression| if _goal_ is *"expression"* and |StatementList| otherwise), with the [Yield], [Await], and [Return] parameters and the strictness of the region this stream came from.
+          1. If _parsed_ is a List of errors, throw a *SyntaxError* exception whose position is _from_ within _source_.
+          1. Return a TokenStream over TokensOf(_parsed_).
+        </emu-alg>
+        <emu-note>
+          <p>This is what lets a replacement decorator define a syntax the implementation does not know. A macro captures its region, reads whatever it likes, and delegates the ranges that are ECMAScript - and what it gets back is threaded from THAT parse, so a |RegularExpressionLiteral| is one token and a |TemplateLiteral| is one token.</p>
+          <p>It is the one thing a macro cannot do for itself. Whether `/` begins a regular expression or a division is not decidable lexically: after `}` it depends on whether the brace closed a block or an ObjectLiteral, which needs a parse. A macro re-lexing a range gets four tokens where there is one regular expression, and no way to tell it from a division.</p>
+          <p>The context parameters come from where the REGION sits rather than from the caller. `await`, `yield` and `return` are legal only under a context the enclosing parse established, and a macro has nothing sensible to pass - passing anything would let it parse `await` into a synchronous function.</p>
+          <p>*"module"* is not a goal: a range of a region is never one, and admitting it would put an ImportDeclaration inside a macro's region.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-tokenstream.gensym" type="abstract operation">
         <h1>
           TokenStream.gensym (
@@ -4526,15 +4550,22 @@ contributors: Sirisian
 
     <emu-clause id="sec-preprocessor-modules">
       <h1>Preprocessor Modules</h1>
-      <p>*"mode"* is a supported import attribute key. Where a preprocessor module is imported with an <emu-xref href="#importattribute-record"></emu-xref> whose [[Key]] is *"mode"*, each name the import binds declares that <emu-xref href="#sec-moded-regions"></emu-xref> scans the region its decoration takes in the named lexical mode rather than as ECMAScript. It is a Syntax Error if the value does not name a mode the implementation provides, reported at the import declaration.</p>
+      <p>*"preprocessor"* is a supported import attribute key: <emu-xref href="#sec-hostgetsupportedimportattributes"></emu-xref> returns a List containing it. A module imported with an <emu-xref href="#importattribute-record">ImportAttribute Record</emu-xref> whose [[Key]] is *"preprocessor"* and whose [[Value]] is *"true"* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
+
+      <p>A decoration whose |IdentifierReference| is a name a preprocessor import bound, and which is followed by `{`, takes that brace and its match as a <dfn>region</dfn> rather than decorating an ObjectLiteral. No attribute declares this: being a preprocessor decoration is what makes the braces a region, and `preprocessor` is as lexically visible as any other key - so a tool that does not resolve imports recognises a region exactly as it would have from a dedicated one.</p>
 
       <emu-note>
-        <p>The key is one of an open set. A future key may carry other information about a preprocessor import - a type contract for the completions an editor offers inside a moded region is the obvious candidate - so an implementation must not treat the attribute list as closed.</p>
-        <p>A mode is named by the import and keyed by the name the import BINDS, so `import { jsx as h }` declares the mode for `@h`. Keying it by the bound name rather than by the exported one is what lets a tool recognise a moded region without resolving imports: a region announces itself at the decoration site, which a purely lexical highlighter can match and an import-resolving one need not.</p>
+        <p>The cost is stated rather than left to be found: a preprocessor name cannot decorate an object LITERAL, so `@m { a: 1 }` is a region for every preprocessor `m`. Parentheses do not restore it, `@name (` beginning an argument list, and the only way out is a second import of the same name without the attribute.</p>
+        <p>A decoration on a declaration is unaffected. `@m class C {}` decorates the class, and `@m function f() {}` the function; only a `{` following the decoration directly is displaced.</p>
       </emu-note>
 
-      <p>*"preprocessor"* is a supported import attribute key: <emu-xref href="#sec-hostgetsupportedimportattributes"></emu-xref> returns a List containing it. A module imported with an <emu-xref href="#importattribute-record">ImportAttribute Record</emu-xref> whose [[Key]] is *"preprocessor"* and whose [[Value]] is *"true"* is a <dfn id="preprocessor-module">preprocessor module</dfn>. Its exports may be used as <emu-xref href="#sec-replacement-decorators">replacement decorators</emu-xref> in the importing module.</p>
-      <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
+      <p>Whether the region's text is ECMAScript is the macro's to declare. Where the value the import binds has a `capture` own property whose value is *true*, the region is <dfn>captured</dfn>: its extent is found by matching delimiters, and its text reaches the decorator as tokens of the ordinary lexical grammar. Otherwise the region is a |Block|, parsed, and its tokens are those of that parse.</p>
+
+      <emu-note>
+        <p>The engine provides no grammars, so a decorator is not choosing among them. A macro whose region is not ECMAScript - a query language, a markup dialect - captures it, reads its text, and hands back the ranges that ARE ECMAScript through <emu-xref href="#sec-tokenstream.prototype.parse"></emu-xref>. That is what lets a variant of such a language be written without the implementation changing, which naming a grammar could never do.</p>
+      </emu-note>
+
+            <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
       <p>A preprocessor module and every export of it used as a replacement decorator must be <emu-xref href="#sec-compile-time-evaluability">compile-time evaluable</emu-xref>. It is a Syntax Error otherwise, reported at the declaration that is not evaluable.</p>
       <emu-note>
         <p>Evaluability is the whole of the sandbox. An evaluable function reads only its parameters, constants, and other evaluable functions, so it cannot NAME the clock, randomness, I/O, or ambient state — `Date.now`, `Math.random`, `WeakRef`, and locale-sensitive operations are all unreachable by construction rather than withheld by a realm. Expansion is therefore a pure function of its input, which is what lets an implementation cache an expansion beside the code it compiled to, and what lets a build tool perform an expansion ahead of time and get the answer an implementation would.</p>
@@ -4545,49 +4576,28 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
-    <emu-clause id="sec-moded-regions">
-      <h1>Moded Regions</h1>
-      <p>A <dfn>moded region</dfn> is the region a decoration takes where the decoration's name declared a mode (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed as ECMAScript; the mode's own scanner produces the tokens the replacement decorator receives.</p>
+    <emu-clause id="sec-captured-regions">
+      <h1>Captured Regions</h1>
+      <p>A <dfn>captured region</dfn> is the region a decoration takes where the decorator declared `capture` (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed; its text reaches the replacement decorator as tokens of the ordinary lexical grammar, and the decorator reads it however its own syntax requires.</p>
 
       <p>The `do` is optional in every position and means nothing to the decorator: the token stream begins at the region, so `@m do { ... }` and `@m { ... }` deliver the same tokens. Both spellings are available wherever the other is.</p>
 
       <emu-note>
-        <p>`do { }` exists because a `{` beginning an expression is an ObjectLiteral and a block that produces a value needs distinguishing from one. A moded region is parsed as neither - its extent is found by matching delimiters and its contents are never read as ECMAScript - so the distinction does not arise, and requiring `do` would buy nothing.</p>
-        <p>It has a cost, which is stated rather than left to be discovered: a moded name's `{` always begins a region, so the decorated object literal form - `@name { a: 1 }` - is unavailable for that name. Declaring a mode on an import therefore changes what `@name { ... }` means throughout the module. Parentheses do not restore it - `@name (` begins an argument list, so `@name ({ a: 1 })` is a decoration taking an object as an ARGUMENT - and the only way to decorate an object literal with a moded name is to import it a second time without a mode.</p>
-        <p>A decoration's arguments are read as ECMAScript even where its region is read otherwise: a mode governs the region, not the decoration.</p>
+        <p>`do { }` exists because a `{` beginning an expression is an ObjectLiteral and a block that produces a value needs distinguishing from one. A captured region is parsed as neither - its extent is found by matching delimiters and its contents are never read as ECMAScript - so the distinction does not arise, and requiring `do` would buy nothing.</p>
+        <p>It has a cost, which is stated rather than left to be discovered: a preprocessor name's `{` always begins a region, so the decorated object literal form - `@name { a: 1 }` - is unavailable for that name. Importing a name as a preprocessor therefore changes what `@name { ... }` means throughout the module. Parentheses do not restore it - `@name (` begins an argument list, so `@name ({ a: 1 })` is a decoration taking an object as an ARGUMENT - and the only way to decorate an object literal with a preprocessor name is to import it a second time without the attribute.</p>
+        <p>A decoration's arguments are read as ECMAScript even where its region is read otherwise: a capture governs the region, not the decoration.</p>
       </emu-note>
 
-      <p>A moded region is never evaluated. It is replaced by whatever its decorator returns, and what a decorator returns is ECMAScript however its region was scanned: <strong>a mode governs ingestion only</strong>. The grammar outside a moded region is unaffected, so `a &lt; b` and a type argument list are read as they always were.</p>
+      <p>A captured region is never evaluated. It is replaced by whatever its decorator returns, and what a decorator returns is ECMAScript however its region was scanned: <strong>a capture governs ingestion only</strong>. The grammar outside a captured region is unaffected, so `a &lt; b` and a type argument list are read as they always were.</p>
 
       <emu-note>
         <p>Without this a region must be lexable as ECMAScript to reach a decorator at all, which forecloses most of what a syntax replacement is for. `&lt;` cannot begin an expression, so `&lt;div/&gt;` fails at the `&lt;` before the closing tag is reached - the same failure `&lt; 2` gives, and not the ambiguity the `/` in a closing tag raises. That second ambiguity is real and downstream of it: `a &lt;/div&gt;/` parses as `a` less-than the regular expression `/div&gt;/`.</p>
-        <p><emu-xref href="#sec-replacement-decorators"></emu-xref> settles the outgoing direction of that ambiguity, by having a decorator return a token whose kind resolves it. The incoming direction is what a mode settles, and the two are not the same problem: outgoing, the engine is told; incoming, it must decide before it has anything to be told by.</p>
+        <p><emu-xref href="#sec-replacement-decorators"></emu-xref> settles the outgoing direction of that ambiguity, by having a decorator return a token whose kind resolves it. The incoming direction is what a capture settles, and the two are not the same problem: outgoing, the engine is told; incoming, it must decide before it has anything to be told by.</p>
       </emu-note>
 
-      <p>Because a moded region is found rather than tokenized, an implementation records its source range and the tokens the mode produced. Expansion replaces a decoration's target by source range (<emu-xref href="#sec-expansion"></emu-xref>), so a region that is scanned but not recorded cannot be replaced.</p>
+      <p>Because a captured region is found rather than tokenized, an implementation records its source range and the tokens the region produced. Expansion replaces a decoration's target by source range (<emu-xref href="#sec-expansion"></emu-xref>), so a region that is scanned but not recorded cannot be replaced.</p>
 
-      <p>A moded region's text reaches the replacement decorator <strong>as written</strong>. No entity is decoded and no whitespace is normalized, because both are conventions of the embedded language rather than facts about it: a whitespace run that one dialect drops another preserves, and two implementations of the same dialect ship different entity tables. A decorator applies whichever its language defines.</p>
-
-      <emu-clause id="sec-mixed-modes">
-        <h1>Mixed Modes</h1>
-        <p>A mode need not govern a whole region. A <dfn>mixed mode</dfn> is one whose text is ECMAScript except where a construct the mode names begins; there the mode's own reading takes over until that construct ends, and so on recursively.</p>
-
-        <p>Where a decoration's mode is mixed, the decoration does not take a region. It covers the |Declaration| that follows it, which is parsed as ECMAScript with the mode active throughout.</p>
-
-        <p>The `jsx` mode is mixed. A JSX element may begin wherever a |PrimaryExpression| is expected - which is to say, at exactly the positions a |RegularExpressionLiteral| may begin. Within a JSX element, `{` begins ECMAScript again.</p>
-
-        <emu-note>
-          <p><strong>This is a decision only a parse can make.</strong> Whether `&lt;` begins an element or is a relational operator is the same question as whether `/` begins a regular expression or a division, and ECMA-262 answers the second by having the parser ask for the goal symbol rather than by having the lexer guess. A mode that re-scanned text would have to guess, and would be wrong in the cases that cannot be decided without knowing what is expected at that position.</p>
-          <p>Confining the question to a declared region is what makes it answerable at all. TypeScript declines to answer it in the grammar and switches on the file extension instead; here the boundary is the decoration, so `a &lt; b` and a type argument list elsewhere in the program are untouched.</p>
-        </emu-note>
-
-        <p>A JSX element's child text is not ECMAScript and is not tokenized as such: `Hi there` is two identifiers to the lexer, and the space between them - which the element renders - is not a token at all. The element is therefore scanned, as a template literal is, and its substitutions are parsed as expressions so that their tokens are threaded from the parse like any other.</p>
-
-        <emu-note>
-          <p>A mixed mode is what a component-level decoration needs, and a captured region cannot serve: a component's body is mostly ordinary code, and a statement beside JSX in a captured region is read as TEXT. It is also what lets a JSX element nested inside a substitution be read as JSX - `{items.map((item) =&gt; &lt;Item /&gt;)}` - which is the commonest shape the language has.</p>
-          <p>What a decorator returns is ECMAScript, as for any mode. A decorator that returned its region unchanged would not produce a program that parses, because the decoration that admitted the embedded language is gone by then.</p>
-        </emu-note>
-      </emu-clause>
+      <p>A captured region's text reaches the replacement decorator <strong>as written</strong>. No entity is decoded and no whitespace is normalized, because both are conventions of the embedded language rather than facts about it: a whitespace run that one dialect drops another preserves, and two implementations of the same dialect ship different entity tables. A decorator applies whichever its language defines.</p>
 
       <emu-clause id="sec-scanbalancedrun" type="abstract operation">
         <h1>
@@ -4598,7 +4608,7 @@ contributors: Sirisian
         </h1>
         <dl class="header">
           <dt>description</dt>
-          <dd>It finds the end of a delimited run whose contents it does not interpret. It is used to find the extent of a moded region, whose contents are not ECMAScript and so cannot be found by scanning tokens.</dd>
+          <dd>It finds the end of a delimited run whose contents it does not interpret. It is used to find the extent of a captured region, whose contents are not ECMAScript and so cannot be found by scanning tokens.</dd>
         </dl>
         <emu-alg>
           1. Assert: The code unit at _start_ within _source_ is one of `(`, `[`, or `{`.
@@ -4623,7 +4633,7 @@ contributors: Sirisian
         </emu-alg>
         <emu-note>
           <p>Recognising comments and string forms is not optional: a `}` within one is not a delimiter, and counting braces without them ends a region in the wrong place.</p>
-          <p>A regular expression is deliberately not recognised, and this is not an omission. Within a moded region the contents are not ECMAScript, so `/` is whatever the mode says it is - in a JSX-shaped mode it opens a closing tag - and a `{` within it is a real delimiter. Outside a region the opposite holds, which is why `a &lt;/{/` scans a regular expression and swallows the brace. No single scanner serves both readings, which is the reason a region declares its mode rather than being guessed at.</p>
+          <p>A regular expression is deliberately not recognised, and this is not an omission. Within a captured region the contents are not ECMAScript, so `/` is whatever the decorator says it is - in a JSX-shaped syntax it opens a closing tag - and a `{` within it is a real delimiter. Outside a region the opposite holds, which is why `a &lt;/{/` scans a regular expression and swallows the brace. No single scanner serves both readings, which is the reason a region declares its mode rather than being guessed at.</p>
         </emu-note>
       </emu-clause>
     </emu-clause>
@@ -4773,7 +4783,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-syntax-replacement">
       <h1>Syntax Replacement</h1>
-      <p>The tokens a replacement decorator receives are those of the region it decorates, produced as ECMAScript unless that region is moded (<emu-xref href="#sec-moded-regions"></emu-xref>). The tokens it returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
+      <p>The tokens a replacement decorator receives are those of the region it decorates, produced as ECMAScript unless that region is captured (<emu-xref href="#sec-captured-regions"></emu-xref>). The tokens it returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
 
       <p>Where the decorated position was a Statement, the replacement text is TERMINATED: a semicolon is appended unless what the decorator returned already ends in one, or in a block. A decorator may therefore return an expression in either position, which is what allows one decorator to serve both without being told which it is in.</p>
 
