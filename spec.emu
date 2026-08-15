@@ -4566,6 +4566,26 @@ contributors: Sirisian
       </emu-note>
 
             <p>A preprocessor module is fetched and evaluated before the importing module is parsed. The loader blocks on it as it blocks for a module with top-level await; the preprocessor module itself cannot await, because <emu-xref href="#sec-compile-time-evaluability"></emu-xref> gives it nothing asynchronous to name.</p>
+      <p>How the macro reaches the parse: the importing module's source is scanned for preprocessor imports before it is parsed, which is possible because an import declaration is at the top of a module and lexes as ordinary ECMAScript. Each module so named is loaded, linked and evaluated, and the value a decoration is spelled with is the export its import BINDS. `import { jsx as h }` declares `@h` and asks the module for `jsx`; a default import, a namespace import and a bare |ModuleSpecifier| introduce no name a decoration can use, so a preprocessor module imported any of those ways provides no replacement decorators.</p>
+
+      <p>The load is <dfn>synchronous</dfn>: an implementation completes it before the parse that is waiting on it, and a host that cannot answer in time is reported at the import rather than waited for. The specification says the loader blocks; what a host unable to block is owed is this.</p>
+
+      <emu-note>
+        <p>Blocking here does not require asynchrony. The loading operations call the host and the host calls back, re-entering the graph - a callback arrangement rather than an asynchronous one - so a host that answers before returning resolves the whole graph in time.</p>
+      </emu-note>
+
+      <p>A preprocessor module may itself import preprocessor modules, and they are loaded and evaluated before it is parsed, recursively. A <dfn>preprocessor cycle</dfn> - a preprocessor module that imports, directly or transitively, the module importing it - is a Syntax Error, reported at the import that closes the cycle.</p>
+
+      <emu-note>
+        <p>This is a stronger rule than ECMAScript modules have, which permit cycles, and the difference is worth stating rather than leaving a reader to assume the module graph's behaviour carries over. An ordinary cycle works because evaluation can observe a partially-initialised binding. Here the PARSE depends on the evaluation, and a partial parse is not a thing: to parse _A_ you evaluate its preprocessor _B_, to parse _B_ you evaluate its preprocessor _A_, and to evaluate _A_ you parse _A_. Template Haskell's stage restriction refuses the same shape for the same reason.</p>
+      </emu-note>
+
+      <p>A preprocessor module is evaluated in the realm of the module importing it.</p>
+
+      <emu-note>
+        <p>Expansion is per-realm, a `constant` expression's cache is keyed per-realm (<emu-xref href="#sec-constant-expressions"></emu-xref>), and Type Objects are interned per-realm. Evaluating a preprocessor elsewhere would put half of that somewhere else, and two realms importing one preprocessor would share a macro object across them.</p>
+      </emu-note>
+
       <p>A preprocessor module and every export of it used as a replacement decorator must be <emu-xref href="#sec-compile-time-evaluability">compile-time evaluable</emu-xref>. It is a Syntax Error otherwise, reported at the declaration that is not evaluable.</p>
       <emu-note>
         <p>Evaluability is the whole of the sandbox. An evaluable function reads only its parameters, constants, and other evaluable functions, so it cannot NAME the clock, randomness, I/O, or ambient state — `Date.now`, `Math.random`, `WeakRef`, and locale-sensitive operations are all unreachable by construction rather than withheld by a realm. Expansion is therefore a pure function of its input, which is what lets an implementation cache an expansion beside the code it compiled to, and what lets a build tool perform an expansion ahead of time and get the answer an implementation would.</p>
