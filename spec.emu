@@ -4814,7 +4814,14 @@ contributors: Sirisian
         <p>Typing the context parameter declares WHERE a decorator applies, and a decoration in another position is then refused where it is written rather than inside the macro. It is optional: a decorator declaring no context is usable wherever its return parses, which is what lets one serve several positions without being told which it is in.</p>
       </emu-note>
 
-      <p>A decorator answers a TokenStream, or *undefined* to make no replacement - the decorated syntax then stands as written, which is what a decorator that inspects without rewriting returns. An empty stream is a replacement, and is legal exactly where an empty token sequence parses: it removes a statement or a class member, and does not remove a formal parameter from the middle of a list.</p>
+      <p>A decorator answers a <dfn>token sequence</dfn>: an array-like of Token Records. Anything else is a Syntax Error, *undefined* included - a decorator ALWAYS replaces, and one that has nothing to change returns the stream it was given, which is a token sequence by this rule.</p>
+
+      <p>An empty sequence is a replacement like any other, and is legal exactly where an empty token sequence parses: it removes a statement or a class member, and does not remove a formal parameter from the middle of a list or a region whose value is wanted.</p>
+
+      <emu-note>
+        <p>What a decorator RECEIVES is a TokenStream and what it RETURNS is a token sequence, and the asymmetry is deliberate. A TokenStream carries spans this specification assigns, and <emu-xref href="#sec-tokenstream-objects"></emu-xref> refuses construction for that reason: a stream a caller built would carry spans locating nothing. So a decorator that rewrites assembles ordinary records, and one that does not returns what it was handed.</p>
+        <p>There is no way to decline. A decorator that wants to inspect without rewriting returns its input, and that is the whole of the no-op - which is why *undefined* is refused rather than being read as one: a decorator that fell off the end of a branch would silently erase what it decorated.</p>
+      </emu-note>
 
       <p>The tokens a replacement decorator receives are those of the region it decorates, produced as ECMAScript unless that region is captured (<emu-xref href="#sec-captured-regions"></emu-xref>). The tokens it returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
 
