@@ -893,7 +893,7 @@ contributors: Sirisian
         </emu-grammar>
 
         <emu-note>
-          <p>`[]` alone is the array of `any`, which is the bound of the array and tuple family, so a type parameter constrained by it is satisfied by any array or tuple. `[].&lt;T&gt;` is a dynamic array, `[N].&lt;T&gt;` a fixed one, and `[T1, T2]` a tuple. A tuple's trailing position may carry a default through |Initializer|, and a tuple may spread another tuple or an array type at either end.</p>
+          <p>`[]` alone is the array of `any`, which is the bound of the array and tuple family, so a type parameter constrained by it is satisfied by any array or tuple. `[].&lt;T&gt;` is a dynamic array, `[N].&lt;T&gt;` a fixed one, and `[T1, T2]` a tuple. What the brackets carry is the EXTENT &mdash; whether it is stated, and what it is. Whether the value owns its storage is a different question and is not asked here: `Span.&lt;T&gt;` (<emu-xref href="#sec-span-type"></emu-xref>) is the type of a value that does not, and every form above is assignable to it. A tuple's trailing position may carry a default through |Initializer|, and a tuple may spread another tuple or an array type at either end.</p>
           <p>The first three alternatives and the fourth are distinguished only after the closing `]`, by whether a |TypeArguments| follows, and their bracketed contents belong to different grammars: an extent is an expression and a tuple element list is a list of types. A single-element case such as `[uint8]` therefore cannot be resolved by bounded lookahead. This specification resolves it with a cover grammar, as it does for parenthesized expressions and arrow parameters: the bracketed text is parsed under a cover production and refined to an extent expression or a tuple element list once the token after the closing `]` is known, an extent when a |TypeArguments| follows and a tuple otherwise. The committee may still prefer to distinguish the two forms by their opening bracket, which would remove the cover grammar rather than change the meaning of any program it already accepts; this is a decision worth taking before the syntax is final.</p>
         </emu-note>
         <p>It is a type error if a |TupleElement| with no |Initializer| follows one that has an |Initializer|, and it is a type error if a |TupleElement| with an |Initializer| follows a `...` element. A tuple is positional, so the only way to leave a position unsupplied is to stop short of it, which can omit a suffix and nothing else: a default anywhere but the tail could never be taken, since supplying the position after it supplies it too. The minimum length of <emu-xref href="#sec-array-membership"></emu-xref> therefore counts a prefix, and every length a tuple admits leaves unsupplied only positions that carry a default. A shape wanting to omit a member in the middle names its members, which is an object type.</p>
@@ -5523,9 +5523,42 @@ contributors: Sirisian
     </emu-clause>
   </emu-clause>
 
+            <emu-clause id="sec-span-type">
+        <h1>The Span Type</h1>
+        <p>`Span.&lt;`_T_`&gt;` is a FIXED-LENGTH WINDOW over a run of elements of _T_ that it does not own. Its elements may be read and written; its length cannot change. An array view (<emu-xref href="#sec-array-views"></emu-xref>) is a `Span.&lt;`_T_`&gt;` over the bytes of a buffer, and a projection of an `SoA` column (<emu-xref href="#sec-structure-of-arrays"></emu-xref>) is a `Span.&lt;`_T_`&gt;` over that column; both were this type before it had a name.</p>
+
+        <p>The array types say what is known about an EXTENT: `[`_N_`].&lt;`_T_`&gt;` states one and `[].&lt;`_T_`&gt;` states that it varies. Ownership is a separate question, and `Span.&lt;`_T_`&gt;` answers it: the value does not own its storage, which is why it has no `capacity`, no `reserve`, and no `shrinkToFit` (<emu-xref href="#sec-capacity-operations"></emu-xref>) &mdash; those describe an allocation, and a window has none. It is also why `new Span.&lt;`_T_`&gt;()` is a *TypeError* exception and a class may not derive from it: there is nothing for such a construction to allocate. `Span.&lt;`_T_`&gt;(`_buffer_`)` reinterprets bytes that already exist, which is why it is a call and not a construction.</p>
+
+        <p>A `Span.&lt;`_T_`&gt;` is INVARIANT in _T_, for the reason the array types are (<emu-xref href="#sec-array-and-tuple-types"></emu-xref>): a `Span.&lt;`uint8`&gt;` used as a `Span.&lt;`number`&gt;` would admit a Number into storage typed `uint8`. `Span.&lt;`any`&gt;` is admissible on the same ground the array types admit `[].&lt;`any`&gt;`, that a store through it is checked against the storage's own element type at run time (<emu-xref href="#table-check-sites"></emu-xref>).</p>
+
+        <emu-note>
+          <p>The window is writable, and calling it a read-only view would give the wrong answer here: a read-only type could be covariant in _T_ and this one cannot, because a write through it reaches storage whose element type it does not get to choose.</p>
+        </emu-note>
+
+        <emu-clause id="sec-span-coercion">
+          <h1>Coercion to a Span</h1>
+          <p>`[].&lt;`_T_`&gt;` and `[`_N_`].&lt;`_T_`&gt;` are both assignable to `Span.&lt;`_T_`&gt;`, and a tuple is assignable to it when every position's type is _T_. The reverse never holds: a window is not assignable to either array type, since neither the storage nor the right to grow it is the window's to give. `Span.&lt;`_T_`&gt;` is a member of the array and tuple family, so a type parameter bounded by `[]` admits one.</p>
+
+          <p>A coercion MATERIALIZES: it produces a window value distinct from the array coerced, and two coercions of one array need not be the same value. An implementation may elide the construction where the window does not escape. Views and `SoA` projections already answer this way, and a coercion that instead passed the array through would make one static type stand for two different kinds of value, which is the confusion this type exists to end.</p>
+
+          <p>A window does not confer ownership, so obtaining an owned array from one is explicit: a spread or a `slice` copies the elements into a new array, and no implicit conversion performs that allocation.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-span-liveness">
+          <h1>Liveness of a Span</h1>
+          <p>A window names a run of elements in storage it does not own, so it is a reference in the sense of <emu-xref href="#sec-reference-liveness"></emu-xref> and takes that clause's rules. A `Span.&lt;`_T_`&gt;` over a growable array is INVALIDATED when that array's allocation relocates &mdash; by a `push` that outgrows it, by a `reserve` that reallocates, or by a `shrinkToFit` that releases &mdash; and a read or a write through an invalidated window throws a *TypeError* exception. An operation that does not relocate does not invalidate: a `reserve` for room the array already has, and a `shrinkToFit` on an array already at fit, leave every window over it valid.</p>
+
+          <p>A window over a `[`_N_`].&lt;`_T_`&gt;` is never invalidated, a fixed extent having nothing that relocates. A window over a buffer follows that buffer's rules instead: it tracks a resizable buffer's length, or detaches where a fixed view's bytes cease to exist (<emu-xref href="#sec-array-views"></emu-xref>).</p>
+
+          <emu-note>
+            <p>This is the same rule an `SoA` projection already states and the same one a `ref` into an array already obeys, which is what makes it one rule rather than three: a window is a reference to many elements where a `ref` is a reference to one, and relocation is what invalidates either.</p>
+          </emu-note>
+        </emu-clause>
+      </emu-clause>
+
             <emu-clause id="sec-array-views">
         <h1>Array Views</h1>
-        <p>`[].&lt;`_T_`&gt;(`_buffer_`, `_byteOffset_`, `_byteElementLength_`)` and its fixed form `[`_N_`].&lt;`_T_`&gt;(&hellip;)` are VIEWS over bytes that already exist, as distinct from the allocations of <emu-xref href="#sec-default-values"></emu-xref>. Each is a call on the type rather than a `new`, because nothing is constructed: a view aliases storage a program already has.</p>
+        <p>`Span.&lt;`_T_`&gt;(`_buffer_`, `_byteOffset_`, `_byteElementLength_`)` and its fixed form are VIEWS over bytes that already exist, as distinct from the allocations of <emu-xref href="#sec-default-values"></emu-xref>. A view IS a `Span.&lt;`_T_`&gt;` (<emu-xref href="#sec-span-type"></emu-xref>) and this clause states the buffer-specific half of that type: how its length is derived, and what becomes of it when the bytes beneath it change. It was spelled `[].&lt;`_T_`&gt;(`_buffer_`)`, which named the growable array type to produce a value that owns nothing and cannot grow; the spelling now says which type it makes. Each is a call on the type rather than a `new`, because nothing is constructed: a view aliases storage a program already has.</p>
 
         <p>_buffer_ may be an ArrayBuffer, a SharedArrayBuffer, or any typed array including another view, so that two views over one buffer alias the same memory - which is the point of reinterpreting a buffer, and why an implementation may not use the element types to rule aliasing out. _byteOffset_ defaults to 0. _byteElementLength_ defaults to _T_'s `byteLength` and may be smaller or larger than it, so a view may read one field out of a larger element by giving the element's stride; an element is addressed at _byteOffset_ plus its index times that stride.</p>
 
@@ -5556,7 +5589,7 @@ contributors: Sirisian
 
         <p>An `SoA` and a `[`_N_`].&lt;`_T_`&gt;` are distinct types with distinct layouts and neither is assignable to the other, whatever their elements. Conversion is explicit and copies.</p>
 
-        <p>`fields` projects each of _T_'s immediate fields as an array view (<emu-xref href="#sec-array-views"></emu-xref>) over that field's column, and the views alias: a write through one is visible through the element operations and the reverse. A projection of a growable `SoA` is INVALIDATED by a growth that reallocates, and an access through it afterwards throws a *TypeError* exception, exactly as a reference into the same `SoA` does — a projection that kept reading the abandoned allocation would disagree with its container and say nothing. A projection of a fixed `SoA.&lt;`_T_`, `_N_`&gt;` can never be invalidated, since a fixed extent does not grow.</p>
+        <p>`fields` projects each of _T_'s immediate fields as a `Span.&lt;`_F_`&gt;` (<emu-xref href="#sec-span-type"></emu-xref>) over that field's column, and the views alias: a write through one is visible through the element operations and the reverse. A projection of a growable `SoA` is INVALIDATED by a growth that reallocates, and an access through it afterwards throws a *TypeError* exception, exactly as a reference into the same `SoA` does — a projection that kept reading the abandoned allocation would disagree with its container and say nothing. A projection of a fixed `SoA.&lt;`_T_`, `_N_`&gt;` can never be invalidated, since a fixed extent does not grow.</p>
 
         <emu-note>
           <p>Invalidating rather than preventing is what a garbage-collected language can express. A borrow checker refuses to compile a program that grows a container while a projection of it is alive, and pays nothing at run time for the guarantee; here nothing marks the end of a projection's life, so a container that could not grow while one had ever been taken could never grow again. The check is loop-invariant — the generation cannot change without a call — so it is hoisted rather than paid per element, and the fixed form has no check at all.</p>
