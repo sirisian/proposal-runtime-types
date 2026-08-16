@@ -3991,7 +3991,7 @@ contributors: Sirisian
 
     <emu-clause id="sec-capacity-operations">
       <h1>Capacity Operations</h1>
-      <p>A growable `[` `]` `.` `&lt;` _T_ `&gt;` has a backing allocation whose capacity is distinct from its length (<emu-xref href="#sec-reference-liveness"></emu-xref>). Three operations concern it, and each is defined here on an array with an element type; on an array without one they are absent.</p>
+      <p>A growable `[` `]` `.` `&lt;` _T_ `&gt;` has a backing allocation whose capacity is distinct from its length (<emu-xref href="#sec-reference-liveness"></emu-xref>). Four operations concern it, and each is defined here on an array with an element type; on an array without one they are absent.</p>
 
       <emu-clause id="sec-get-array.prototype.capacity">
         <h1>get Array.prototype.capacity</h1>
@@ -4030,6 +4030,26 @@ contributors: Sirisian
         <emu-note>
           <p>A request for room the array already has is a no-op and not an error, so a caller need not know the array's capacity to ask about it &mdash; which is why the comparison starts at the length rather than at zero. Growth increments [[TypedGeneration]], and that is what invalidates a reference into the array; a reserve that does not grow must not increment it, or a borrow into storage that has not moved would be refused.</p>
           <p>The *RangeError* is the Array length ceiling, not a statement about the element type: a `[` `]` `.` `&lt;` _T_ `&gt;` is an Array, so a capacity past 2**32 - 1 is room the array could never use. It is checked only on the growth path, so a reserve within an existing capacity is unaffected.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-array.prototype.shrinktofit">
+        <h1>Array.prototype.shrinkToFit ( )</h1>
+        <p>This method releases the backing allocation down to the length. It performs the following steps:</p>
+        <emu-alg>
+          1. Let _O_ be ? ToObject(*this* value).
+          1. If _O_ does not have a [[TypedElement]] internal slot, throw a *TypeError* exception.
+          1. Let _len_ be ? LengthOfArrayLike(_O_).
+          1. Let _capacity_ be max(_O_.[[TypedCapacity]], _len_), where a [[TypedCapacity]] that is absent is 0.
+          1. If _capacity_ &le; _len_, return *undefined*.
+          1. Set _O_.[[TypedCapacity]] to _len_.
+          1. Set _O_.[[TypedGeneration]] to _O_.[[TypedGeneration]] + 1.
+          1. Return *undefined*.
+        </emu-alg>
+        <emu-note>
+          <p>It is the mirror of `reserve` and takes its shape from it: asking to release room the array does not have is a no-op rather than an error, so a caller need not know the capacity in order to ask. A fixed `[`_N_`]` `.` `&lt;` _T_ `&gt;` needs no case of its own &mdash; its capacity is its extent and its length is its extent, so it is always already at fit and the step above returns.</p>
+          <p>Where it does release, the allocation RELOCATES, so it invalidates every live reference into the array including references to elements that remain (<emu-xref href="#sec-reference-liveness"></emu-xref>). That is what distinguishes it from shortening the length: removing an element invalidates the reference to the element removed and leaves the rest readable, because that storage has not moved, while releasing capacity moves all of it. The distinction is worth stating because the two read as the same operation from outside &mdash; both make an array smaller &mdash; and they differ in exactly the way the liveness rules are about.</p>
+          <p>This is a BINDING release and not a request an implementation may decline, unlike the similarly named operation in some languages. An optional relocation would make an optional invalidation, and a program correct on one implementation would raise on another; the liveness rules can only describe an operation whose effect on references is fixed.</p>
         </emu-note>
       </emu-clause>
 
