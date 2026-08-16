@@ -904,6 +904,8 @@ contributors: Sirisian
 
         <p>A fixed extent is part of the type and does not change. An operation that would give an array of such a type a length other than its extent is a *TypeError* exception, whether it is a store to an index at or past the extent, an assignment to `length`, or a method that appends or removes. A request for <em>capacity</em> past the extent is refused for the same reason although it changes no length: the storage of a fixed extent holds exactly that many elements for the life of the array, so `reserve` past the extent is a *TypeError* exception, `reserve` within it is a no-op, and the capacity of such an array is its extent rather than any allocation's. Stating the rule in terms of length alone would miss this, `reserve` being exactly the operation a length comparison cannot see (<emu-xref href="#sec-reference-liveness"></emu-xref>). The extent is a compile-time constant: the layout computes a `byteLength` from it and an array view's `byteElementLength` defaults from it, so an extent that an ordinary store could change would not be constant for either. A growable `[` `]` `.` `&lt;` _T_ `&gt;` has no extent to hold and grows as an Array does.</p>
 
+        <p>One type describes every count an array reports or accepts: its `length`, its `capacity` (<emu-xref href="#sec-reference-liveness"></emu-xref>), an index used to read or write an element, and the length of a view over a buffer. That type is the <dfn id="index-type">index type</dfn>, and it is `uint32`. It is a property of the language and not of an array: an array type takes ONE type argument, its element, and there is no per-array spelling that varies the counts' type. Naming it once rather than repeating `uint32` at each site is what lets the width be stated in one place, and what keeps `capacity` comparable with `length` without a conversion &mdash; the invariant that a capacity is at least a length is unstateable if the two are not one type.</p>
+
         <p>An array type may be written where an expression is expected, and there denotes the type's constructor: `new [100].`&lt;`uint8`&gt;`()` constructs an array of that type, and `class G extends [16].`&lt;`uint8`&gt;` { }` derives a class from it. A construction of a fixed extent has that many elements, each the default value of the element type (<emu-xref href="#sec-default-values"></emu-xref>); a construction of a dynamic one has none and grows. An instance is an Array carrying the element type, so a store to an element is checked against it and the methods of `Array.prototype` apply, and a class deriving from an array type has instances that are Arrays in the same way. Two mentions of one array type denote the same constructor, since the types are interned and the constructor is the type's.</p>
 
         <emu-note>
@@ -3466,7 +3468,7 @@ contributors: Sirisian
 
       <p>The complex numbers extension declares the rows of its family beside its arithmetic: `Math.abs` of a `complex.&lt;T&gt;` is the real magnitude, a value of _T_; the transcendental functions the extension names return values of its types; and `Math.conj` and `Math.arg` are its additions. `Math.random` takes no numeric argument, and its typed form `Math.random.&lt;T&gt;()` belongs to the random extension. The value properties of the Math object, `Math.PI` among them, remain values of the Number type.</p>
 
-      <p>The Static Type of a member access reading the `length` property of an array is `uint32` (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>). The value read is unchanged, a Number, and no conversion is applied at run time.</p>
+      <p>The Static Type of a member access reading the `length` property of an array is the <emu-xref href="#index-type">index type</emu-xref> (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>), as is the Static Type of a member access reading `capacity`. The value read is unchanged, a Number, and no conversion is applied at run time.</p>
 
       <emu-note>
         <p>The bound on which functions are overloaded is a compatibility rule, and it is the same one that leaves `parseInt` and `parseFloat` alone (<emu-xref href="#sec-parsing"></emu-xref>) and that decides the `bigint` predicate rows (<emu-xref href="#sec-numeric-predicates"></emu-xref>). An overload is selected by an argument's type, so a call written without one is unchanged; but a function with no numeric parameter has nothing to select on, and giving its result a value type would change what every existing call returns. `'A'.charCodeAt(0) === 65` is *true* today, and a `uint16` result would make it *false*, since the values of distinct value types are distinct (<emu-xref href="#sec-value-types"></emu-xref>). The same reasoning covers `indexOf` and `lastIndexOf`, whose `=== -1` is the universal idiom, the Date getters, and the byte lengths. Where a typed result is wanted from such a function, the program writes a conversion.</p>
@@ -3603,7 +3605,7 @@ contributors: Sirisian
       <h1>Defaults and Stores</h1>
       <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]] whose [[Rest]] is *false*, its [[Initial]] where that is not ~none~ and the default value of its [[Type]] otherwise; a [[Rest]] element contributes no elements. It is ~none~ where an element has an [[Initial]] of ~none~ and a [[Type]] with no default.</p>
 
-      <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is a `uint32`. Deleting an element of a typed array throws a *TypeError* exception.</p>
+      <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is of the <emu-xref href="#index-type">index type</emu-xref>. Deleting an element of a typed array throws a *TypeError* exception.</p>
 
       <p>A method of the array that takes or returns an ELEMENT takes or returns it at the element type. `includes`, `indexOf`, and `lastIndexOf` take their search element at _t_; `fill`, `push`, and `unshift` take the values they store at _t_; `at` returns _t_. A literal argument in one of those positions takes _t_ by <emu-xref href="#sec-literal-propagation"></emu-xref>, so `a.includes(65)` finds the element `65` of a `[].&lt;uint16&gt;` rather than comparing a `uint16` against a Number and failing. The same holds of a typed collection: the key and value positions of a `Map.&lt;K, V&gt;` and the element positions of a `Set.&lt;T&gt;` take their declared types, and so do those of a `WeakMap.&lt;K, V&gt;` and a `WeakSet.&lt;T&gt;`, whose key and element positions are constrained to the types a weak reference may hold and are checked against the declared type on top of that constraint. A method that STORES takes its value at the declared type however it is spelled, `getOrInsert` and `getOrInsertComputed` included, the latter checking the value its callback returns. A LOOKUP answers the value type or *undefined*, since a lookup that finds nothing answers *undefined*: the Static Type of `get` on a `Map.&lt;K, V&gt;` is _V_ | *undefined* rather than _V_, so a binding of type _V_ does not admit it without a test. An operation that RETURNS a collection carries an element type determined by where its elements can come from: `intersection` and `difference` on a `Set.&lt;T&gt;` draw only from the receiver and return a `Set.&lt;T&gt;` whatever the other operand holds, while `union` and `symmetricDifference` draw from both and return a `Set.&lt;T | U&gt;` for an other operand of `Set.&lt;U&gt;`. Where the other operand's element type is not known, the result's is not either, and the result carries none: a union with an unconstrained set is unconstrained, and answering `Set.&lt;T&gt;` would state more than the values support. `isSubsetOf`, `isSupersetOf`, and `isDisjointFrom` answer a Boolean.</p>
 
@@ -3979,6 +3981,68 @@ contributors: Sirisian
       </emu-note>
 
       <p>The `SoA` of <emu-xref href="#sec-structure-of-arrays"></emu-xref> is the storage for which these rules are presently normative in full, since it is the container in this specification that relocates: a reference into an `SoA` is a column set and an index (<emu-xref href="#sec-memory-layout"></emu-xref>), growth beyond the current capacity moves every column, and a reference taken before such a growth is invalidated by it. A growable `[` `]` `.` `&lt;` _T_ `&gt;` is governed by the same rule. It has a backing allocation whose capacity is distinct from its length, reported by `capacity` and grown by `reserve`; growth beyond the current capacity, whether by `reserve` or by adding elements, relocates the allocation and invalidates every reference into the array, so a use through one is a *TypeError* exception. Reserving the needed capacity before taking a reference is how a program keeps its references valid across growth.</p>
+    </emu-clause>
+
+    <emu-clause id="sec-capacity-operations">
+      <h1>Capacity Operations</h1>
+      <p>A growable `[` `]` `.` `&lt;` _T_ `&gt;` has a backing allocation whose capacity is distinct from its length (<emu-xref href="#sec-reference-liveness"></emu-xref>). Three operations concern it, and each is defined here on an array with an element type; on an array without one they are absent.</p>
+
+      <emu-clause id="sec-get-array.prototype.capacity">
+        <h1>get Array.prototype.capacity</h1>
+        <p>`Array.prototype.capacity` is an accessor property whose set accessor function is *undefined*. Its get accessor function performs the following steps:</p>
+        <emu-alg>
+          1. Let _O_ be ? ToObject(*this* value).
+          1. If _O_ does not have a [[TypedElement]] internal slot, throw a *TypeError* exception.
+          1. If _O_ has a [[TypedExtent]] internal slot, return 𝔽(_O_.[[TypedExtent]]).
+          1. Let _len_ be ? LengthOfArrayLike(_O_).
+          1. If _O_ has a [[TypedCapacity]] internal slot, return 𝔽(max(_O_.[[TypedCapacity]], _len_)).
+          1. Return 𝔽(_len_).
+        </emu-alg>
+        <emu-note>
+          <p>An accessor and not a method: as a method, `a.capacity` answered the function object rather than the count, so `if (a.capacity > 1000)` was silently true and never reported the mistake. A fixed extent returns the extent itself and not the length, since such an array's storage holds exactly that many elements whether or not they have been written.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-array.prototype.reserve">
+        <h1>Array.prototype.reserve ( _n_ )</h1>
+        <p>This method grows the backing allocation to hold at least _n_ elements without changing the length. It performs the following steps:</p>
+        <emu-alg>
+          1. Let _O_ be ? ToObject(*this* value).
+          1. If _O_ does not have a [[TypedElement]] internal slot, throw a *TypeError* exception.
+          1. Let _wanted_ be ? ToLength(_n_).
+          1. If _O_ has a [[TypedExtent]] internal slot, then
+            1. If _wanted_ &gt; _O_.[[TypedExtent]], throw a *TypeError* exception.
+            1. Return *undefined*.
+          1. Let _len_ be ? LengthOfArrayLike(_O_).
+          1. Let _capacity_ be max(_O_.[[TypedCapacity]], _len_), where a [[TypedCapacity]] that is absent is 0.
+          1. If _wanted_ &le; _capacity_, return *undefined*.
+          1. If _wanted_ &gt; 2**32 - 1, throw a *RangeError* exception.
+          1. Set _O_.[[TypedCapacity]] to _wanted_.
+          1. Set _O_.[[TypedGeneration]] to _O_.[[TypedGeneration]] + 1.
+          1. Return *undefined*.
+        </emu-alg>
+        <emu-note>
+          <p>A request for room the array already has is a no-op and not an error, so a caller need not know the array's capacity to ask about it &mdash; which is why the comparison starts at the length rather than at zero. Growth increments [[TypedGeneration]], and that is what invalidates a reference into the array; a reserve that does not grow must not increment it, or a borrow into storage that has not moved would be refused.</p>
+          <p>The *RangeError* is the Array length ceiling, not a statement about the element type: a `[` `]` `.` `&lt;` _T_ `&gt;` is an Array, so a capacity past 2**32 - 1 is room the array could never use. It is checked only on the growth path, so a reserve within an existing capacity is unaffected.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-array-type-withcapacity">
+        <h1>withCapacity ( _n_ )</h1>
+        <p>The array type constructor of a growable `[` `]` `.` `&lt;` _T_ `&gt;` has a `withCapacity` method that constructs an empty array of that type with room for _n_ elements. It performs the following steps:</p>
+        <emu-alg>
+          1. Let _T_ be the element type of the array type whose constructor is *this* value.
+          1. Let _wanted_ be ? ToLength(_n_).
+          1. If _wanted_ &gt; 2**32 - 1, throw a *RangeError* exception.
+          1. Let _A_ be ! ArrayCreate(0).
+          1. Set _A_.[[TypedElement]] to _T_.
+          1. Set _A_.[[TypedCapacity]] to _wanted_.
+          1. Return _A_.
+        </emu-alg>
+        <emu-note>
+          <p>It reserves rather than fills: the result has length 0, so a zero-filled array of a known length is a fixed `[`_N_`]` `.` `&lt;` _T_ `&gt;` and not this. The array it returns is growable, the capacity being a property of the allocation and not of the type.</p>
+        </emu-note>
+      </emu-clause>
     </emu-clause>
   </emu-clause>
 
