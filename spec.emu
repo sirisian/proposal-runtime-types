@@ -4807,7 +4807,12 @@ contributors: Sirisian
 
     <emu-clause id="sec-syntax-replacement">
       <h1>Syntax Replacement</h1>
-      <p>A replacement decorator is called with the tokens it decorates, a CONTEXT, and its own arguments where it has any - `(tokens, context, args)`. The context is an ordinary object with one own property, `kind`, whose value is the position's name as <emu-xref href="#sec-syntax-replacement"></emu-xref>'s table gives it; it is frozen, and it carries nothing else.</p>
+      <p>A replacement decorator is called with the tokens it decorates, a CONTEXT, and its own arguments where it has any - `(tokens, context, args)`. The context is an ordinary object with one own property, `kind`, whose value names the position - the same name its reflection context has, `"Class"`, `"ClassMethod"`, `"IfBlock"` and the rest, with `"Region"` for a captured region. It is frozen, and it carries one other property only where the decorated statement is LABELLED, `label`, which is absent otherwise.</p>
+
+      <emu-note>
+        <p>`label` is carried because it is the one syntactic fact the tokens cannot hold. A label PRECEDES the decoration - `lbl:` then `@m` then the statement - so a span reaching back to include it would contain the decoration being expanded.</p>
+        <p>Two positions are unreachable for a replacement decorator, though a runtime decorator reaches them: a preprocessor name's `{` always begins a region, so a decoration on a block reports `"Region"` rather than `"Block"`, and one on a `do` block reports `"Region"` rather than `"DoBlock"`. That is the same rule that makes `@m { a: 1 }` a region rather than an ObjectLiteral.</p>
+      </emu-note>
 
       <emu-note>
         <p>Nothing else, because a replacement decorator receives the TOKENS OF WHAT IT DECORATES. A name, `static`, a `for`'s binding, a match arm's pattern are all in those tokens already, and a field beside a token stream is two ways to say one thing. A runtime decorator needs them in its context because it is handed no tokens.</p>
