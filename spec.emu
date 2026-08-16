@@ -4600,6 +4600,10 @@ contributors: Sirisian
       <h1>Captured Regions</h1>
       <p>A <dfn>captured region</dfn> is the region a decoration takes where the decorator declared `capture` (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed; its text reaches the replacement decorator as tokens of the ordinary lexical grammar, and the decorator reads it however its own syntax requires.</p>
 
+      <emu-note>
+        <p><emu-xref href="#sec-scanbalancedrun"></emu-xref> counts brackets it does not interpret, so a captured region's text must BALANCE its brackets outside comments and literals. `@m { &lt;p&gt;a } b&lt;/p&gt; }` ends at the brace in the text and not at the one the author meant, which is a property of capturing rather than of any grammar a decorator implements.</p>
+      </emu-note>
+
       <p>The `do` is optional in every position and means nothing to the decorator: the token stream begins at the region, so `@m do { ... }` and `@m { ... }` deliver the same tokens. Both spellings are available wherever the other is.</p>
 
       <emu-note>
@@ -4803,6 +4807,15 @@ contributors: Sirisian
 
     <emu-clause id="sec-syntax-replacement">
       <h1>Syntax Replacement</h1>
+      <p>A replacement decorator is called with the tokens it decorates, a CONTEXT, and its own arguments where it has any - `(tokens, context, args)`. The context is an ordinary object with one own property, `kind`, whose value is the position's name as <emu-xref href="#sec-syntax-replacement"></emu-xref>'s table gives it; it is frozen, and it carries nothing else.</p>
+
+      <emu-note>
+        <p>Nothing else, because a replacement decorator receives the TOKENS OF WHAT IT DECORATES. A name, `static`, a `for`'s binding, a match arm's pattern are all in those tokens already, and a field beside a token stream is two ways to say one thing. A runtime decorator needs them in its context because it is handed no tokens.</p>
+        <p>Typing the context parameter declares WHERE a decorator applies, and a decoration in another position is then refused where it is written rather than inside the macro. It is optional: a decorator declaring no context is usable wherever its return parses, which is what lets one serve several positions without being told which it is in.</p>
+      </emu-note>
+
+      <p>A decorator answers a TokenStream, or *undefined* to make no replacement - the decorated syntax then stands as written, which is what a decorator that inspects without rewriting returns. An empty stream is a replacement, and is legal exactly where an empty token sequence parses: it removes a statement or a class member, and does not remove a formal parameter from the middle of a list.</p>
+
       <p>The tokens a replacement decorator receives are those of the region it decorates, produced as ECMAScript unless that region is captured (<emu-xref href="#sec-captured-regions"></emu-xref>). The tokens it returns must parse as the grammatical form the position it decorated requires. It is a Syntax Error otherwise, reported at the returned token whose [[Span]] locates the failure.</p>
 
       <p>Where the decorated position was a Statement, the replacement text is TERMINATED: a semicolon is appended unless what the decorator returned already ends in one, or in a block. A decorator may therefore return an expression in either position, which is what allows one decorator to serve both without being told which it is in.</p>
