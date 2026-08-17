@@ -2207,7 +2207,7 @@ contributors: Sirisian
       <p>A Type Object has a %Symbol.hasInstance% method. When called with argument _v_, it returns ? IsOfType(_v_, the Type Object's [[TypeRecord]]).</p>
 
       <emu-note>
-        <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is an instance of the corresponding dynamic-length array type, and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which <emu-xref href="#sec-narrowing"></emu-xref> specifies.</p>
+        <p>`instanceof` therefore extends to every type of this proposal through the protocol the language already has, and needs no new operator. `a instanceof uint8` is *true* for a `uint8` binding and `a instanceof uint16` is *false*, a fixed-length array is NOT an instance of the corresponding dynamic-length array type &mdash; the extents must agree (<emu-xref href="#sec-array-and-tuple-types"></emu-xref>), and `Span.&lt;`_T_`&gt;` is the type that accepts either &mdash; and a class is unaffected, since a class's type object is its constructor and the prototype chain semantics apply as they do today. A successful check narrows the static type in the branch it guards, which <emu-xref href="#sec-narrowing"></emu-xref> specifies.</p>
       </emu-note>
     </emu-clause>
     <emu-clause id="sec-typed-catch">
