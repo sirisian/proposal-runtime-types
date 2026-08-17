@@ -3468,7 +3468,7 @@ contributors: Sirisian
 
       <p>The complex numbers extension declares the rows of its family beside its arithmetic: `Math.abs` of a `complex.&lt;T&gt;` is the real magnitude, a value of _T_; the transcendental functions the extension names return values of its types; and `Math.conj` and `Math.arg` are its additions. `Math.random` takes no numeric argument, and its typed form `Math.random.&lt;T&gt;()` belongs to the random extension. The value properties of the Math object, `Math.PI` among them, remain values of the Number type.</p>
 
-      <p>The Static Type of a member access reading the `length` property of an array is the <emu-xref href="#index-type">index type</emu-xref> (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>), as is the Static Type of a member access reading `capacity`. The value read is unchanged, a Number, and no conversion is applied at run time.</p>
+      <p>The Static Type of a member access reading the `length` property of an array is the <emu-xref href="#index-type">index type</emu-xref> (<emu-xref href="#sec-static-type-of-an-expression"></emu-xref>), as is the Static Type of a member access reading `capacity`. The value READ is a value of that type and not a Number, so `a.length is `<emu-xref href="#index-type">index type</emu-xref> is *true* where the array has an element type, and a count therefore carries its width into whatever it is used in. An array with NO element type is untouched: its `length` is a Number as it has always been.</p>
 
       <p>The Static Type of a COMPUTED member access on an array &mdash; `a[`_i_`]` &mdash; is the array's element type. It had been the `any` type, which left indexing untyped in both directions of the check: a store to an element was checked against the element type and a read from one was not, so `let b: boolean = a[0]` was accepted on an array of `uint32`. Indexing is the operation an array exists for, and it is checked in the same way whichever side of an assignment it appears on.</p>
 
@@ -4023,13 +4023,33 @@ contributors: Sirisian
         </emu-note>
       </emu-clause>
 
+      <emu-clause id="sec-toindextype" type="abstract operation">
+        <h1>
+          ToIndexType (
+            _value_: an ECMAScript language value,
+          ): either a normal completion containing a mathematical value, or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It checks that _value_ is a count and answers its mathematical value.</dd>
+        </dl>
+        <emu-alg>
+          1. If _value_ is not a value of the <emu-xref href="#index-type">index type</emu-xref>, throw a *TypeError* exception.
+          1. Return the mathematical value of _value_.
+        </emu-alg>
+        <emu-note>
+          <p>A COUNT passed to one of these operations is checked as a count rather than coerced like an ordinary argument. `length` and `capacity` READ at the index type, so a count that could be written as a String and silently converted would make the operations that accept a count disagree with the ones that report one &mdash; `a.reserve("4")` would be accepted while `a.length` could never be a String.</p>
+          <p>This is stricter than `ToLength`, which these clauses previously specified: it refuses rather than converts.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-array.prototype.reserve">
         <h1>Array.prototype.reserve ( _n_ )</h1>
         <p>This method grows the backing allocation to hold at least _n_ elements without changing the length. It performs the following steps:</p>
         <emu-alg>
           1. Let _O_ be ? ToObject(*this* value).
           1. If _O_ does not have a [[TypedElement]] internal slot, throw a *TypeError* exception.
-          1. Let _wanted_ be ? ToLength(_n_).
+          1. Let _wanted_ be ? ToIndexType(_n_).
           1. If _O_ has a [[TypedExtent]] internal slot, then
             1. If _wanted_ &gt; _O_.[[TypedExtent]], throw a *TypeError* exception.
             1. Return *undefined*.
@@ -4072,7 +4092,7 @@ contributors: Sirisian
         <p>The array type constructor of a growable `[` `]` `.` `&lt;` _T_ `&gt;` has a `withCapacity` method that constructs an empty array of that type with room for _n_ elements. It performs the following steps:</p>
         <emu-alg>
           1. Let _T_ be the element type of the array type whose constructor is *this* value.
-          1. Let _wanted_ be ? ToLength(_n_).
+          1. Let _wanted_ be ? ToIndexType(_n_).
           1. If _wanted_ &gt; 2**32 - 1, throw a *RangeError* exception.
           1. Let _A_ be ! ArrayCreate(0).
           1. Set _A_.[[TypedElement]] to _T_.
