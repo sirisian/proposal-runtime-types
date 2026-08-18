@@ -4829,6 +4829,10 @@ contributors: Sirisian
         <p>The rule is syntactic rather than scoped because a scope query would be circular: a replacement decorator may introduce declarations, so the scope to resolve against is not complete until expansion has finished, which is the thing the query would decide. Fixing the names by inspection breaks the cycle, and the cost is that a replacement decorator cannot be aliased or locally rebound.</p>
       </emu-note>
 
+      <emu-note>
+        <p>A consequence for the decorator's own output: a replacement decorator cannot emit a call to the name it is spelled with. A preprocessor import is an ordinary import declaration carrying an attribute, so the name it introduces is a live binding whose value is the macro, and the first rule above forbids the module binding it to anything else. Emitted code naming it therefore calls the MACRO at run time, and no runtime helper can take the name back - a global of that name is shadowed by the import as it would be by any other. A macro pairing itself with a runtime dispatch gives the two different names, which is what React's automatic runtime does from the other direction when it imports its dispatch as `_jsx`.</p>
+      </emu-note>
+
       <h2>Placement</h2>
       <emu-note>
         <p>Replacement decorators are written outermost because they run first, so source order agrees with execution order between the two kinds. It also gives them the capability the arrangement exists for: a replacement encloses the runtime decorations, so it can rewrite them, or remove them together with what it replaces.</p>
