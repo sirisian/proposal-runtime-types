@@ -5564,7 +5564,7 @@ contributors: Sirisian
 
             <emu-clause id="sec-span-type">
         <h1>The Span Type</h1>
-        <p>`Span.&lt;`_T_`&gt;` is a FIXED-LENGTH WINDOW over a run of elements of _T_ that it does not own. Its elements may be read and written; its length cannot change. An array view (<emu-xref href="#sec-array-views"></emu-xref>) is a `Span.&lt;`_T_`&gt;` over the bytes of a buffer, and a projection of an `SoA` column (<emu-xref href="#sec-structure-of-arrays"></emu-xref>) is a `Span.&lt;`_T_`&gt;` over that column; both were this type before it had a name.</p>
+        <p>`Span.&lt;`_T_`&gt;` is a FIXED-LENGTH WINDOW over a run of elements of _T_ that it does not own. A second argument is optional and states the length: `Span.&lt;`_T_`, `_N_`&gt;` is a window of exactly _N_ elements, and `Span.&lt;`_T_`&gt;` one whose length is not stated. Its elements may be read and written; its length cannot change. An array view (<emu-xref href="#sec-array-views"></emu-xref>) is a `Span.&lt;`_T_`&gt;` over the bytes of a buffer, and a projection of an `SoA` column (<emu-xref href="#sec-structure-of-arrays"></emu-xref>) is a `Span.&lt;`_T_`&gt;` over that column; both were this type before it had a name.</p>
 
         <p>The array types say what is known about an EXTENT: `[`_N_`].&lt;`_T_`&gt;` states one and `[].&lt;`_T_`&gt;` states that it varies. Ownership is a separate question, and `Span.&lt;`_T_`&gt;` answers it: the value does not own its storage, which is why it has no `capacity`, no `reserve`, and no `shrinkToFit` (<emu-xref href="#sec-capacity-operations"></emu-xref>) &mdash; those describe an allocation, and a window has none. It is also why `new Span.&lt;`_T_`&gt;()` is a *TypeError* exception and a class may not derive from it: there is nothing for such a construction to allocate. `Span.&lt;`_T_`&gt;(`_buffer_`)` reinterprets bytes that already exist, which is why it is a call and not a construction.</p>
 
@@ -5581,6 +5581,13 @@ contributors: Sirisian
         <emu-clause id="sec-span-coercion">
           <h1>Coercion to a Span</h1>
           <p>`[].&lt;`_T_`&gt;` and `[`_N_`].&lt;`_T_`&gt;` are both assignable to `Span.&lt;`_T_`&gt;`, and a tuple is assignable to it when every position's type is _T_. The reverse never holds: a window is not assignable to either array type, since neither the storage nor the right to grow it is the window's to give. `Span.&lt;`_T_`&gt;` is a member of the array and tuple family, so a type parameter bounded by `[]` admits one.</p>
+
+          <p>A source reaches `Span.&lt;`_T_`, `_N_`&gt;` only where its length is known to be _N_: a `[`_N_`].&lt;`_T_`&gt;` does, and a `[].&lt;`_T_`&gt;` does not, its length being a run-time fact. `Span.&lt;`_T_`, `_N_`&gt;` is assignable to `Span.&lt;`_T_`&gt;` and not the reverse, since forgetting a length is always safe and inventing one is not.</p>
+
+          <emu-note>
+            <p>The length is optional rather than always present because the two cases are genuinely different. A view over a resizable buffer cannot carry its length in its type &mdash; that is why <emu-xref href="#sec-array-views"></emu-xref> takes a count as an ARGUMENT &mdash; while a window taken over a known run of elements can, and something has to carry it for a bounds check to be elided.</p>
+            <p>`std::span&lt;T, Extent&gt;` and `&amp;[T; N]` are the same shape reached from the same pressure.</p>
+          </emu-note>
 
           <p>A coercion MATERIALIZES: it produces a window value distinct from the array coerced, and two coercions of one array need not be the same value. An implementation may elide the construction where the window does not escape. Views and `SoA` projections already answer this way, and a coercion that instead passed the array through would make one static type stand for two different kinds of value, which is the confusion this type exists to end.</p>
 
