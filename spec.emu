@@ -2209,12 +2209,30 @@ contributors: Sirisian
       <p>A check is required only where the static types do not already establish the result. It is not inserted, and an implementation need not perform one, in the following circumstances.</p>
 
       <ul>
-        <li>The static type of the value is not `any`, is not a literal type, and is assignable to the target. The result is established statically, and any violation was an Early Error. The literal exclusion is not a detail: a numeric literal is assignable to `uint8` by <emu-xref href="#sec-literal-propagation"></emu-xref> and the boundary is still what CONSTRUCTS the value of that type, so `let _x_: `uint8` = 5` must perform its conversion and produce a `uint8` rather than the Number 5. What licenses eliding a check is that the value is ALREADY of the target type, so the boundary would have returned it unchanged; assignability alone is a weaker statement than that.</li>
+        <li>The static type of the value is not `any`, is not a literal type, is assignable to the target, and is STABLE (<emu-xref href="#sec-elision-stability"></emu-xref>). The result is established statically, and any violation was an Early Error. The literal exclusion is not a detail: a numeric literal is assignable to `uint8` by <emu-xref href="#sec-literal-propagation"></emu-xref> and the boundary is still what CONSTRUCTS the value of that type, so `let _x_: `uint8` = 5` must perform its conversion and produce a `uint8` rather than the Number 5. What licenses eliding a check is that the value is ALREADY of the target type, so the boundary would have returned it unchanged; assignability alone is a weaker statement than that.</li>
         <li>The target is the `any` type. Every value is a value of it.</li>
         <li>The value's static type and the target are the same type.</li>
         <li>At a RETURN, where every `return` of the function satisfies the conditions above and the function cannot complete without one. A return annotation is shared by every `return` in its function, so the elision is a property of the function rather than of a statement, and a function that can fall off its end returns *undefined*, which the annotation must admit for the elision to hold.</li>
         <li>The index of a read or write of a fixed-length `[N].&lt;T&gt;` is known to be below _N_, because _N_ is a compile-time constant and the index is a value generic that a `where` clause constrains to be less than _N_, or the counter of a `for` over a range all of whose members are less than _N_. The bound is proven statically and no check is performed.</li>
       </ul>
+
+      <emu-clause id="sec-elision-stability">
+        <h1>Stability of a Static Type</h1>
+        <p>The static type of an expression is <dfn id="stable-static-type">stable</dfn> when the value the expression produces at run time is of that type for the reason the type checker gave. It is stable unless its derivation reads a signature from a binding that the source text may replace: a call whose callee is a name that is not immutably bound, that the source text assigns to, or that a direct `eval` in the source text could assign to, has an unstable static type, and so does any expression containing one.</p>
+
+        <emu-note>
+          <p>Without this condition the first elision above is unsound in fully annotated code, and no inference is needed to reach it:</p>
+          <pre><code class="javascript">
+function f(): uint32 { return 5; }
+function g(): uint32 { return f(); }
+f = function () { return 'now-a-string'; };
+const n: uint32 = g();
+          </code></pre>
+          <p>Both checks are licensed by the first bullet &mdash; `g`'s return because `f()` is a `uint32`, and the binding because `g()` is &mdash; and with both elided the string reaches `n` and nothing reports it. A function declaration creates a mutable binding, so the assignment on the third line is admitted by the shallow ~function~ check of <emu-xref href="#sec-isoftype"></emu-xref>, which is the one place this specification knowingly permits a violation to go unreported. That admission is bounded: it lets a wrong function be stored. What the elision would add is that every later boundary trusts the signature anyway, which turns a bounded admission into an unbounded one.</p>
+          <p>The condition is on the source text rather than on the form of the declaration, because a name that nothing assigns cannot be replaced, whatever declared it. An ordinary program therefore keeps every elision it had; only one that writes to the name pays for the possibility, and it pays at the boundaries that read a signature from it. An engine reaches the same conclusion dynamically, by guarding an assumed callee and discarding the assumption when the binding is written; stating it statically is what lets the check be absent rather than merely predicted.</p>
+          <p>A call whose callee is a property rather than a name is not covered here. The same reasoning applies to it &mdash; a property may also be replaced &mdash; but a property is a wider question, since a frozen intrinsic, a `readonly` field, and an ordinary property are not alike, and the case this clause is written for is the replaced function binding above.</p>
+        </emu-note>
+      </emu-clause>
 
       <emu-note>
         <p>A range's bounds are part of what its MEMBERS are, so the four shapes of one span do not prove the same thing: `0..&lt;3` proves an index into a `[3]` and `0&lt;..=3` does not, its members being 1 through 3 and its ceiling therefore 4. An open start raises the floor and a closed end raises the ceiling, independently of each other, which is why the rule above is stated over members rather than over endpoints &mdash; the members are already what <emu-xref href="#sec-ranges"></emu-xref> fixes, and restating it here would be a second place for the two to disagree.</p>
