@@ -2102,6 +2102,7 @@ contributors: Sirisian
         </dl>
         <emu-alg>
           1. If ? IsOfType(_value_, _t_) is *true*, return _value_.
+          1. If _t_ is a ~union~ type, return ? SelectUnionMember(_value_, _t_).
           1. If _t_ is a numeric type and RuntimeTypeOf(_value_) is a numeric type, then
             1. Let _r_ be the result of converting _value_ to _t_ by <emu-xref href="#table-numeric-conversions"></emu-xref>, except that a conversion that would wrap, truncate toward zero, or round a finite value to an infinity instead yields ~unrepresentable~.
             1. If _r_ is ~unrepresentable~, throw a *RangeError* exception.
@@ -2112,6 +2113,43 @@ contributors: Sirisian
         <emu-note>
           <p>The two failures are different and are reported differently. A numeric value at a numeric type has a conversion available and the only question is whether this value survives it, which is a question of range: hence the *RangeError*. A value of any other type has no numeric conversion to attempt, which is a question of type: hence the *TypeError*, and it is raised before any coercion is tried. Coercing first and then range-checking the result would make an annotation a coercion rather than a check: it would accept a string, a Boolean, *null*, and any object with a `valueOf`, and at a float type, where every value is in range, it could not fail at all, so a missing field would become a NaN that surfaces far from the annotation that admitted it.</p>
           <p>This is why a string is not a source here even when it reads as a number. `'5'` at a `uint8` is refused and the program writes `uint8.parse('5')` or `uint8.tryParse('5')`, which is the same position <emu-xref href="#sec-parsing"></emu-xref> states, and which distinguishes a string that is not a literal of the type from one that is a literal out of range.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-union-boundary-selection">
+        <h1>Selecting a Union Member at a Boundary</h1>
+        <p>Where the target of a boundary is a union and the value is not already of it, some member receives the value, and which one is decided by what the VALUE is rather than by where a member was written. A union is canonical (<emu-xref href="#sec-canonicalizetype"></emu-xref>): its members are held in a fixed order and Type Objects are interned on that record, so `uint8 | uint32` and `uint32 | uint8` are one type, and a boundary may meet it as a Type Object that no source text spelled. A rule that read the order of the members would therefore give one type two behaviours.</p>
+
+        <emu-clause id="sec-selectunionmember" type="abstract operation">
+          <h1>
+            SelectUnionMember (
+              _value_: an ECMAScript language value,
+              _t_: a Type Record whose [[Kind]] is ~union~,
+            ): either a normal completion containing an ECMAScript language value or a throw completion
+          </h1>
+          <dl class="header">
+            <dt>description</dt>
+            <dd>It returns the value of some member of _t_ that _value_ crosses into, or throws where no member admits it.</dd>
+          </dl>
+          <emu-alg>
+            1. For each member _m_ of _t_.[[Members]], do
+              1. If ? IsOfType(_value_, _m_) is *true*, return _value_.
+            1. If _value_ is a Number, a BigInt, or a value of a numeric type, then
+              1. Let _exact_ be a List of the members of _t_.[[Members]] that are numeric types whose values include the mathematical value of _value_ exactly.
+              1. Order _exact_ by width, narrowest first; where two members have the same width, an unsigned integer type precedes a signed one; and where _value_ is an integer, every integer type precedes every floating-point and decimal type.
+              1. For each member _m_ of _exact_, do
+                1. Let _r_ be Completion(RequireType(_value_, _m_)).
+                1. If _r_ is a normal completion, return _r_.
+            1. For each member _m_ of _t_.[[Members]], do
+              1. Let _r_ be Completion(RequireType(_value_, _m_)).
+              1. If _r_ is a normal completion, return _r_.
+            1. Throw a *TypeError* exception.
+          </emu-alg>
+        </emu-clause>
+
+        <emu-note>
+          <p>The rungs answer, in order: is the value already of a member, does a member represent it exactly as a number, and does any member admit it at all. The last is where the canonical-text rung of the `string` rule lands, and putting it last is the substance of this clause: at `string | uint32` a Number would otherwise have crossed into `string` and the boundary would have stored `"42"`, silently textifying a number that a member of the same union represents exactly. That is the failure <emu-xref href="#sec-primitiveconvert"></emu-xref> refuses `undefined` and an object to prevent, and it should not be reachable through the order two members were written in.</p>
+          <p>The narrowest representing member is preferred because a union of numeric types is written to say which representations a value may have, and the tightest one that holds the value loses nothing; an integer source prefers an integer member for the same reason. A member's choice is observable, since it decides what `Reflect.typeOf` reports and which arithmetic the value then participates in, so a program that means one member in particular writes the conversion rather than relying on this operation.</p>
         </emu-note>
       </emu-clause>
 
