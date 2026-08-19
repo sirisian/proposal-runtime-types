@@ -2549,13 +2549,18 @@ contributors: Sirisian
 
       <p>The Static Type of an operator application is determined as follows.</p>
       <emu-alg>
-        1. If the operator is an equality or relational operator other than one whose operands are vectors, the Static Type is the ~primitive~ type named *"boolean"*.
+        1. If the operator is `&&`, `||`, or `??`, the Static Type is the union of the short-circuiting part of the left operand's Static Type and the right operand's Static Type, where the short-circuiting part is the falsy part (<emu-xref href="#sec-falsy-and-truthy-parts"></emu-xref>) for `&&`, the truthy part for `||`, and, for `??`, the result of NarrowFrom (<emu-xref href="#sec-narrowing"></emu-xref>) applied to that Static Type and `null | undefined`; where that part has no members, the Static Type is the right operand's Static Type alone, and where the complementary part has no members, so that the left operand always short-circuits and the right is never evaluated, the Static Type is the short-circuiting part alone.
+        1. Else if the operator is an equality or relational operator other than one whose operands are vectors, the Static Type is the ~primitive~ type named *"boolean"*.
         1. Else if either operand's Static Type is a ~literal~ type and the other's is not, the literal adopts the other operand's type (<emu-xref href="#sec-literal-propagation"></emu-xref>) and this rule is applied again.
         1. Else if the operands' Static Types are not the same type, it is a type error: an operator does not combine two numeric types (<emu-xref href="#sec-arithmetic-never-promotes"></emu-xref>).
         1. Else if the operands' Static Type is a ~vector~ type, the Static Type is that vector type, the operator having been applied at each lane; except that a relational or equality operator between vectors is overloaded on its result type (<emu-xref href="#sec-vector-comparisons"></emu-xref>).
         1. Else if the family of the operands' Static Type does not define the operation, it is a type error.
         1. Else, the Static Type is the operands' Static Type.
       </emu-alg>
+
+      <p>The two exceptions in that step are duals, and between them they keep the Static Type to the values the expression can produce: `obj &amp;&amp; f()` is the type of `f()`, since no object value is falsy and the left cannot be produced, while `undefined &amp;&amp; f()` is `undefined`, since the right is never evaluated at all.</p>
+
+      <p>The first step is where the short-circuit operators part company with the rest: they produce one of their OPERANDS rather than a value of a common type, so the step that refuses two unlike types does not reach them and `a && a &lt; 10` is a `uint32` or a *boolean* rather than an error. A contextual type applies to the operands rather than to the application, since it is an operand that is produced: `let c: uint32 = x || 10` puts the `10` at `uint32` by literal propagation exactly as `let c: uint32 = 10` does. A literal that is a member of a union reaches its target only this way, since assignability compares the union as a whole.</p>
 
       <p>The last step is the substance of it: an operator on operands of one type yields that type, and never a wider one. What follows from that, and is not implied by a type's name, is collected here.</p>
 
@@ -2581,6 +2586,30 @@ contributors: Sirisian
         <p>An integer type divides by truncating toward zero and wraps on overflow, so `7 / 2` at `uint8` is 3 and `1 - 3` at `uint8` is 254. <emu-xref href="#sec-checked-and-saturating-arithmetic"></emu-xref> gives the forms that trap or clamp instead.</p>
         <p>A one-bit integer is an integer, so `1 + 1` at `boolean1` is 0. The name suggests a Boolean, but the family is integer and the arithmetic wraps at one bit as it wraps at eight.</p>
         <p>A relational or equality operator yields a *Boolean* and not a value of a sized type, because it answers a question rather than computing a quantity and so has no result type to preserve. A comparison between vectors is the exception the fourth step names, and is overloaded on its result type because a lane-wise comparison has more than one useful shape.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-falsy-and-truthy-parts">
+      <h1>The Falsy and Truthy Parts of a Type</h1>
+      <p>The <dfn id="falsy-part">falsy part</dfn> of a type is the union of the members of that type that have a falsy value, and the <dfn id="truthy-part">truthy part</dfn> is the union of the members that have a truthy value. A member contributes to a part as follows, and where a member contributes to neither the part is a union of no members, the `never` type.</p>
+
+      <emu-table id="table-falsy-and-truthy-parts" caption="Contribution of a Member to Each Part">
+        <table>
+          <thead><tr><th>Member</th><th>Falsy part</th><th>Truthy part</th></tr></thead>
+          <tbody>
+            <tr><td>A ~literal~ type</td><td>The member, where its value is falsy.</td><td>The member, where its value is truthy.</td></tr>
+            <tr><td>`undefined`, `null`</td><td>The member.</td><td>Nothing.</td></tr>
+            <tr><td>`boolean`</td><td>The literal type of *false*.</td><td>The literal type of *true*.</td></tr>
+            <tr><td>A numeric type, `string`, or `bigint`</td><td>The member.</td><td>The member.</td></tr>
+            <tr><td>`symbol`, `type`, an ~object~, ~array~, ~tuple~, ~function~, or ~nominal~ type</td><td>Nothing.</td><td>The member.</td></tr>
+            <tr><td>`void`</td><td>Nothing.</td><td>Nothing.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <emu-note>
+        <p>A numeric type, `string`, and `bigint` contribute the whole member to both parts, because each has both falsy and truthy values and the falsy one has no type of its own to name: a `uint32` zero is a value of `uint32`, and there is no narrower type this specification can write for it. Naming the member is the widening direction, and a wider Static Type is sound where a narrower one would be a claim the type system cannot support. An implementation that can name the value more precisely, as it can for `boolean`, may do so.</p>
+        <p>These parts are what make the common idioms type as written. `s || "anon"` at a `string` is a `string`, since the truthy part of `string` is `string` and both operands are then of one type. `x ?? 10` where `x` is `uint32 | undefined` is a `uint32`, since NarrowFrom removes the absent member. `obj &amp;&amp; f()` is the type of `f()`, since no object value is falsy and the left contributes nothing. And `a &amp;&amp; a &lt; 10` where `a` is a `uint32` is `uint32 | boolean` rather than `boolean`, which is the honest statement: the expression evaluates to `a` where `a` is zero. A program that wants the Boolean writes `!!(a &amp;&amp; a &lt; 10)`.</p>
       </emu-note>
     </emu-clause>
 
