@@ -7096,6 +7096,10 @@ const n: uint32 = g();
 
     <p>The <dfn>iteration result type</dfn> `IteratorResult.&lt;`_T_`, `_R_`&gt;` is the ~union~ of two ~object~ Type Records, one with members `value` of _T_ and `done` of the literal type *false*, the other with `value` of _R_ and `done` of the literal type *true*. It is discriminated by `done`, so a `match` over an iteration result binds `value` at _T_ in one arm and at _R_ in the other (<emu-xref href="#sec-match-exhaustiveness"></emu-xref>), and reading one requires no narrowing rule of its own.</p>
 
+    <emu-note>
+      <p>Structurally, and therefore not by identity: a generator object, an Array, and a hand-written object with the right members all satisfy `Iterable.&lt;`_T_`&gt;`, and none of them was constructed as anything named `Iterable`. An implementation that also keeps a nominal type of that name &mdash; for the carrier a helper chain returns, say &mdash; must not let the two share a name, or one annotation means a shape in one place and an identity in another, and which one a program gets depends on the order its resolution happens to consult. That divergence is invisible where a boundary check is elided (<emu-xref href="#sec-check-elision"></emu-xref>), because nothing then asks the question at run time.</p>
+    </emu-note>
+
     <p>The protocols are interface types, satisfied structurally through their structural form (<emu-xref href="#sec-object-types"></emu-xref>):</p>
     <ul>
       <li>`Iterator.&lt;`_T_`, `_R_`, `_N_`&gt;` declares `next`, taking an optional argument of _N_ and returning `IteratorResult.&lt;`_T_`, `_R_`&gt;`, and optionally `return` and `throw`.</li>
