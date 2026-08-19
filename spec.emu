@@ -1852,7 +1852,7 @@ contributors: Sirisian
         <h1>
           PrimitiveConvert (
             _value_: an ECMAScript language value,
-            _to_: a Type Record for `string` or `boolean`,
+            _to_: a Type Record for `string`,
           ): either a normal completion containing a value of the type _to_ or a throw completion
         </h1>
         <dl class="header">
@@ -1860,7 +1860,6 @@ contributors: Sirisian
           <dd>It converts _value_ to one of the ordinary primitive types, where a conversion for its source is defined.</dd>
         </dl>
         <emu-alg>
-          1. If _to_ is `boolean`, return ToBoolean(_value_).
           1. Assert: _to_ is `string`.
           1. If <emu-xref href="#table-string-conversion-sources"></emu-xref> gives no conversion for _value_, throw a *TypeError* exception.
           1. Return ? ToString(_value_).
@@ -1882,7 +1881,9 @@ contributors: Sirisian
       <emu-note>
         <p>The rule for the `string` type divides its sources by whether the source has a canonical text or only a diagnostic one, and not by whether it is a primitive. A number, a BigInt, and a Boolean each have exactly one text that denotes them, ToString of them is total, and nothing is lost: `5` is `'5'` and reads back as `5`. That is worth having without ceremony, and it is why this rule is not the mirror image of the numeric one. The asymmetry is principled rather than convenient: ToString of a number is total and lossless, while ToNumber of a string is partial and lossy, so the direction that cannot fail is admitted and the direction that can is written as a parse (<emu-xref href="#sec-parsing"></emu-xref>).</p>
         <p>*undefined*, *null*, an object, and a Symbol are refused because their text is a diagnostic rather than a denotation. The values they would produce are the language's best-known silent failures: a `'undefined'` reaching an interface that was meant to show a name, a `'[object Object]'` where a field was meant, and an array quietly becoming its comma-joined elements. A program that wants those writes `String(_v_)` and has then said so. A Symbol is refused for the reason it always was, which is that ToString of one throws.</p>
-        <p>The `boolean` type takes every value, and that is deliberate rather than an omission. ToBoolean is total, every value has a defined truthiness, and `if (_v_)` is the language's own idiom for asking. There is no lost value to warn about and no second answer a program might have meant.</p>
+        <p>The `boolean` type is not among the targets above: at a `boolean` boundary a value that is not a Boolean is refused, and a program that means the truthiness writes `Boolean(_v_)`. An earlier form of this specification converted here, on the ground that ToBoolean is total, every value has a defined truthiness, and `if (_v_)` is the language's own idiom for asking. What that ground overlooks is that a boundary is a STORE and not a question: `if (_v_)` interrogates a value in place and moves on, while a boundary mints a durable answer that no longer carries what it was made from.</p>
+        <p>The rule against it is this specification's own, stated for the numeric targets in <emu-xref href="#sec-requiretype"></emu-xref>: coercing first and then checking "would make an annotation a coercion rather than a check", and a total conversion "could not fail at all, so a missing field would become a NaN that surfaces far from the annotation that admitted it". ToBoolean cannot fail at all, and a missing field does become *false* &mdash; absence laundered into a legitimate-looking answer at the very position that was annotated to catch it. `'false'` becoming *true* is the same failure with a different source. Totality is what makes a conversion unsuitable here, not what recommends it.</p>
+        <p>What is lost is not the value's bit but everything else about it: the difference between a `string` that said `'false'` and one that said `'yes'`, and the difference between a field that was *false* and one that was never there. Those are the distinctions the rest of this clause is built to preserve, and the `boolean` type is not an exception to them.</p>
       </emu-note>
 
       <emu-table id="table-numeric-conversions" caption="Numeric Conversions">
@@ -2107,7 +2108,7 @@ contributors: Sirisian
             1. Let _r_ be the result of converting _value_ to _t_ by <emu-xref href="#table-numeric-conversions"></emu-xref>, except that a conversion that would wrap, truncate toward zero, or round a finite value to an infinity instead yields ~unrepresentable~.
             1. If _r_ is ~unrepresentable~, throw a *RangeError* exception.
             1. Return _r_.
-          1. If _t_ is `string` or `boolean`, return ? PrimitiveConvert(_value_, _t_).
+          1. If _t_ is `string`, return ? PrimitiveConvert(_value_, _t_).
           1. Throw a *TypeError* exception.
         </emu-alg>
         <emu-note>
