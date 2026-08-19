@@ -3775,6 +3775,27 @@ const n: uint32 = g();
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-array-literal-static-type">
+      <h1>The Static Type of an Array Literal</h1>
+      <p>Where a contextual type (<emu-xref href="#sec-contextual-types"></emu-xref>) requires an ~array~ or ~tuple~ type, an array literal is checked against it element-wise and the boundary converts, so the literal reports no Static Type of its own and the conversion that builds an Array carrying the element type is not elided.</p>
+
+      <p>Where no such contextual type reaches it, the Static Type of an array literal is the ~array~ type whose [[Element]] is the join of its elements' Static Types, each widened as a contribution is (<emu-xref href="#sec-inferred-result-type"></emu-xref>), and whose [[Extent]] is ~dynamic~. An elision contributes `undefined` and a spread element contributes the [[Element]] of its operand's type. Where any element's Static Type is unknown the literal's is unknown, since an array holding something unspeakable is not an array of the join of the rest. An EMPTY literal likewise has no Static Type: it says nothing about its elements, and reporting an element type of `never` would say something false, since element types are invariant and a `never`-elemented array is assignable to no other array type.</p>
+
+      <emu-note>
+        <p>A literal every element of which is a literal does not ANCHOR an inference (<emu-xref href="#sec-anchored-contributions"></emu-xref>). `[1]` has a known type and states nothing a program annotated, exactly as `1` does, so `function g() { return [1]; }` publishes nothing and stays untyped.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>This rule changes the meaning of one shape of program that carries no annotation, and the change is intended rather than overlooked.</p>
+        <emu-alg>
+          1. `[1n].includes(1)` evaluates to *true*, where in the absence of this proposal it evaluates to *false*.
+        </emu-alg>
+        <p>The literal is a `[` `]` `.` `&lt;` `bigint` `&gt;`, so `includes` is read at that element type and its argument is a `bigint` position; literal propagation then builds the argument as a BigInt, and the search compares it against a BigInt element that holds the same mathematical value. Every step is a rule of this proposal applied where it says it applies.</p>
+        <p>It is accepted because no program relies on it. A search of a BigInt array for a Number is a mistake in every case it can arise, and the value it evaluates to today is the one that hides the mistake. The alternative &mdash; leaving every array literal without a Static Type &mdash; costs an element read its type, costs a function returning a literal its inferred return, and leaves the non-convergence rule of <emu-xref href="#sec-inference-fixpoint"></emu-xref> unreachable, since the shape that grows at every step is a literal containing a recursive call.</p>
+        <p>The neighbouring cases report rather than change: `[1, 2, 3].includes("2")`, `["a"].includes(1)`, and `[1, 2, 3].indexOf("2")` are type errors, where they previously evaluated to *false* and to the not-found index. Each searches for a value the array's element type cannot hold, which is the mistake this proposal exists to report, and the answer they gave was the answer that concealed it. One diagnostic is weakened: an element whose value the callback's parameter type cannot hold, as in `[300].map(f)` where `f` takes a `uint8`, is now reported as a type error naming `number` and `uint8` rather than a range error naming 300. The stricter report arrives earlier; the weaker one described the value better.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-array-defaults-and-stores">
       <h1>Defaults and Stores</h1>
       <p>The default value of a ~tuple~ type is the array whose elements are, for each element of [[Elements]] whose [[Rest]] is *false*, its [[Initial]] where that is not ~none~ and the default value of its [[Type]] otherwise; a [[Rest]] element contributes no elements. It is ~none~ where an element has an [[Initial]] of ~none~ and a [[Type]] with no default.</p>
