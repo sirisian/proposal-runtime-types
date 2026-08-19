@@ -1706,6 +1706,11 @@ contributors: Sirisian
         <p>Repetition does not always converge: an in-progress type that recurs INSIDE a type constructor grows at every step, as `function _w_(_a_: uint32) { return [_w_(_a_)]; }` does. It is a type error where the repetition does not reach a fixpoint, and the program says what it meant with an annotation. Inference produces no equirecursive types.</p>
 
         <p>The domain of the fixpoint is the participating functions of the linked module graph, computed before any module in the graph evaluates. A function therefore has one inferred type wherever it is called from, and whether a callee is defined in the same source text, in another module of the graph, or in an earlier script of the same realm makes no difference to what a program means. A dynamically imported module has no such relationship to its importer: a call through it has the ~any~ Static Type, and the enforcement and reflection of the imported function carry its type instead.</p>
+
+        <emu-note>
+          <p>"Before any module in the graph evaluates" is a phase that need not exist in an implementation before this clause requires it: a checker may run entirely at parse, where the graph is not yet resolved and an imported name is not yet anything. Such an implementation can satisfy this clause by checking a module twice &mdash; once at parse, which sees everything a module says about itself, and once when its imports resolve, with the types of the imported names supplied. Nothing is reported twice, because a module whose first check failed never reaches the second.</p>
+          <p>What a module records for its importers is the type of each of its own top-level declarations, keyed by the LOCAL name. Import resolution already answers with a module and a binding name, and that binding name is the local one, so a renamed import, a default export, and a re-export chain all resolve through the same lookup and none needs a rule of its own. A namespace import binds one name to every export, so its type is the object type of what the module declares; without that, the spelling of an import would decide whether a program is checked.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-published-return-types">
