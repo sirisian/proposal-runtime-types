@@ -1679,6 +1679,66 @@ contributors: Sirisian
       </emu-table>
     </emu-clause>
 
+    <emu-clause id="sec-inferred-return-types">
+      <h1>Inferred Return Types</h1>
+      <p>A function whose signature declares no return type may still have one, inferred from what its body returns. The inferred type is then the function's return type for every purpose a declared one serves: it is the Static Type of a call, it is enforced when the function returns, and reflection reports it. What it is not is a second way to declare, and the whole of this clause is the answer to one question &mdash; which functions have one &mdash; because a rule that answered "all of them" would compute a type for every function in every program ever written, and one that answered "only annotated ones" would lose the type one call away from the annotation that established it.</p>
+
+      <emu-clause id="sec-anchored-contributions">
+        <h1>Anchored Contributions and Participation</h1>
+        <p>A <dfn id="contribution">contribution</dfn> of a function is what <emu-xref href="#sec-inferred-result-type"></emu-xref> defines: the Static Type of the operand of each `return`, or *undefined* where a `return` carries no value or the body can complete without one, with a `return` in a nested function literal belonging to that literal.</p>
+
+        <p>A contribution is <dfn id="anchored">anchored</dfn> when its Static Type derives from a DECLARED type: a parameter's annotation, a binding's annotation, a field's annotation, a declared return type, or the inferred return type of a function that is itself participating. Anchoring follows the derivation of the value, not control dependence, so in `return _flag_ ? 1 : 2` an annotation on _flag_ anchors nothing: the contribution is the join of the arms, and the arms are literals.</p>
+
+        <p>A function <dfn id="participating">participates</dfn> in inference when its signature declares a parameter type or a return type, or when at least one of its contributions is anchored. A participating function whose declared return type is absent has an inferred return type, which is the join of its contributions, and that type is <dfn id="published">published</dfn>: it is recorded in the signature's [[InferredReturn]] field and is visible to every other clause. A join of the ~any~ type publishes nothing, since a function whose result is unknown is indistinguishable from one that never participated.</p>
+
+        <p>A function that does not participate has no inferred return type and no [[InferredReturn]]; a call of it has the ~any~ Static Type, exactly as before. Its contributions are still computed where a participating function's inference asks for them, and the answer is used to type the ASKER without being published for the answerer: `function g() { return 'foo'; }` remains untyped at its own call sites even where a participating function returns `g()` and infers `string` from it.</p>
+
+        <emu-note>
+          <p>Annotations are therefore the only seed. A source text containing none computes no inference, publishes nothing, and is unchanged in every respect, which is the compatibility statement of this proposal made mechanical rather than argued. What annotations buy is reach: the type an annotation establishes travels as far through returns as the returns carry it, and stops where a body stops deriving from it.</p>
+          <p>This is a position no shipped language occupies, and the neighbours are worth naming. Inferring for every function is what an erased checker does, and it is affordable there because nothing is enforced and no engine must do the work; here it would compute types for the whole existing web to no purpose. Inferring only where a signature is annotated is simpler still and loses the case that matters most in practice, the wrapper that returns what it called, so an annotation would stop being useful one call from where it was written.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-inference-fixpoint">
+        <h1>The Inference Fixpoint</h1>
+        <p>A contribution may be the return type of a function whose own inference is in progress, directly or through a cycle of calls. Such a contribution is `never`, and the inference is then repeated until the published types do not change. Because `never` is the identity of union (<emu-xref href="#sec-never-type"></emu-xref>), a cycle's contribution vanishes from a join that has any other member, so a function whose base case returns a `uint32` publishes `uint32` and one that only calls itself publishes `never`, which is what a function that never returns a value has.</p>
+
+        <p>Repetition does not always converge: an in-progress type that recurs INSIDE a type constructor grows at every step, as `function _w_(_a_: uint32) { return [_w_(_a_)]; }` does. It is a type error where the repetition does not reach a fixpoint, and the program says what it meant with an annotation. Inference produces no equirecursive types.</p>
+
+        <p>The domain of the fixpoint is the participating functions of the linked module graph, computed before any module in the graph evaluates. A function therefore has one inferred type wherever it is called from, and whether a callee is defined in the same source text, in another module of the graph, or in an earlier script of the same realm makes no difference to what a program means. A dynamically imported module has no such relationship to its importer: a call through it has the ~any~ Static Type, and the enforcement and reflection of the imported function carry its type instead.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-published-return-types">
+        <h1>What a Published Type Is Used For</h1>
+        <p>A published inferred return type is read in three places and not in others, and the division is what keeps inference from becoming a second declaration.</p>
+        <ul>
+          <li>The Static Type of a call of the function is its declared return type where one is declared, and its published inferred type otherwise. This is what makes an inference an early error at a use: `function _k_(_a_: uint32) { return 's'; }` publishes `string`, so `const _n_: number = _k_(5)` is refused before the program runs rather than at the boundary while it runs.</li>
+          <li>Subtyping and assignability read the declared type where one is declared and the published one otherwise, so a participating function satisfies an interface, an override, or a function-typed position by what it actually returns.</li>
+          <li>A return check is inserted as for a declared type (<emu-xref href="#table-check-sites"></emu-xref>), so the value leaving the function is of the published type or the function throws.</li>
+        </ul>
+        <p>It is NOT read by the identity of a signature, by the formation of an overload set, by the ranking of <emu-xref href="#table-argument-match-ranks"></emu-xref>, or by the viability filtering of <emu-xref href="#sec-overloading-on-return-type"></emu-xref>, all of which read [[Return]] and [[Untyped]] alone. And it never licenses eliding a check (<emu-xref href="#sec-elision-stability"></emu-xref>).</p>
+
+        <emu-note>
+          <p>Identity must be declared-only or a body edit becomes a declaration edit: two same-named functions with the same parameter types are one signature declared twice, an error, and inferring different return types for them would silently turn them into return-type overloads. [[Untyped]] is likewise a syntactic property &mdash; a signature that declares nothing is a catch-all however much is inferred for it &mdash; because a distant annotation must not change which overload a call selects.</p>
+          <p>Viability is declared-only for a plainer reason: filtering on an inferred return would replace the diagnostic a program wants with a worse one. With a contextual type of `number` and a published `string`, the only signature becomes non-viable and the report is that no signature applies, where the program's actual mistake is that a `string` is not a `number`.</p>
+        </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-inference-and-function-forms">
+        <h1>Function Forms</h1>
+        <p>The rules above apply to a function declaration, a function expression, an arrow function, a method of a class or an object literal, and a getter, whose published type joins the shape its member belongs to. A setter declares no return type, and a constructor has none to infer.</p>
+        <p>An async function infers the type its result RESOLVES with and publishes `Promise.&lt;`_T_`, any&gt;`. A contribution whose Static Type is a promise contributes the type it resolves with rather than the promise, as `await` would. The reject type is never inferred: anything may throw, and the convention that `undefined` there means a promise that never rejects is a claim no body supports.</p>
+        <p>A generator publishes `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` where _Y_ is the join of the types its `yield` operands contribute, with `yield*` contributing the yield type of its operand, and _R_ is the join of its return contributions. _N_ is not inferred, being the type of what a caller sends IN: this proposal infers no parameter types, and _N_ is one.</p>
+        <p>A generic function's inference runs over its uninstantiated body, so a contribution may mention its type parameters and the published type is an expression over them, substituted at each specialization. A primitive operator block is exempt, its annotation naming what the result carries rather than a boundary its body satisfies (<emu-xref href="#sec-primitive-operator-blocks"></emu-xref>).</p>
+        <p>A reference return participates: where every contribution is a reference to the same target type, the published type is that reference type and a call of the function is a location (<emu-xref href="#sec-location-consuming-contexts"></emu-xref>), so an accessor written without an annotation is still a writable target. Where contributions mix a reference with a value, or references to different targets, the references decay to their referents' types and the join proceeds over values, since a location has one layout and a union of a location with a value denotes none.</p>
+      </emu-clause>
+
+      <emu-note>
+        <p>What an inferred return type costs, stated once. A function's callers depend on what its body returns, so a body edit can change a type that other code was checked against &mdash; the objection that leads languages with a compiled API surface to require the annotation. Two things answer it here. The change is not silent: the published type is enforced at the function's own return, so a body that stops producing what its callers rely on fails at a boundary with a location rather than propagating a wrong value. And the escape is one token: a function that means to promise nothing writes `: any` and is back to what it was.</p>
+        <p>The other cost is a real one and is not answered: reading a body to type its returns is work an engine would rather defer, and a function whose return type is inferred cannot have its body skipped at first parse the way an unannotated one can. Participation bounds it &mdash; an untyped source text pays nothing at all, and a typed one pays over the region its annotations reach &mdash; but the bound is on the region, not on the per-function cost.</p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-inferred-result-type">
       <h1>The Inferred Result Type of a Function Literal</h1>
       <p>Where a function literal has no declared return type, its result type is INFERRED from its body, and the inference is the same whichever way the body is written. For a concise arrow body the result type is the Static Type of the body expression. For a block body it is the join of the contributions below, and a literal with a declared return type contributes that type instead of any of this.</p>
@@ -1689,9 +1749,12 @@ contributors: Sirisian
         <li>A `return` within a NESTED function literal contributes nothing, belonging to that literal.</li>
       </ul>
 
-      <p>The join of a set of contributions is the single type where they are all that type, and the union of the distinct ones otherwise. Where any contribution is the ~any~ type the result type is ~any~: a union with an unknown member is unknown, and answering the remaining members would state more than the body supports. An implementation is permitted to be less precise about whether a body can complete - to treat a body as able to complete where it cannot - because contributing *undefined* to the join can only widen the result.</p>
+      <p>The join of a set of contributions is the single type where they are all that type, and the union of the distinct ones otherwise. Where any contribution is the ~any~ type the result type is ~any~: a union with an unknown member is unknown, and answering the remaining members would state more than the body supports. Where the set of contributions is EMPTY, because no path returns and none can complete, the join is `never`. Where every contribution is *undefined*, because no `return` carries a value and none needs to, the join is `void`. An implementation is permitted to be less precise about whether a body can complete - to treat a body as able to complete where it cannot - because contributing *undefined* to the join can only widen the result.</p>
+
+      <p>The two spellings of a function that answers nothing therefore agree with the annotation its author would have written: `void` is what one writes for a function whose result must not be depended on, and it is what this operation infers where every contribution is valueless. `undefined` remains the contribution, and so remains a member where a body MIXES a valueless path with a value-carrying one: `uint32 | undefined` is a type an annotation can write, while a bare *undefined* result would be an inference of something no annotation says. Inference never produces a type an annotation could not.</p>
 
       <emu-note>
+        <p>This clause governs a function LITERAL. A function whose name a program can call, and whose inferred type therefore becomes a fact other code is checked against, is governed by <emu-xref href="#sec-inferred-return-types"></emu-xref>, which shares this join and adds what publication requires.</p>
         <p>The rule exists so that the two spellings of one function agree. Without it `a.map(_x_ =&gt; _x_)` carries its element type through and `a.map(_x_ =&gt; { return _x_; })` does not, and a program is punished for the braces. Inference of a result type is not inference of a PARAMETER type: a parameter takes its type from the position the literal is written in (<emu-xref href="#table-contextual-types"></emu-xref>) or from its own annotation, and those types are what the body is checked under while this operation reads it.</p>
       </emu-note>
     </emu-clause>
@@ -1720,6 +1783,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>An argument of an overloaded call has no single contextual type until an overload is chosen, and the choice depends on the argument. The literal ranking of <emu-xref href="#sec-literal-overload-ranking"></emu-xref> is what resolves that circularity for a literal argument. <emu-xref href="#sec-overload-resolution"></emu-xref> specifies the rest of overload resolution.</p>
+        <p>A contextual type does not reach INTO a call. Where a function neither declares nor publishes a return type, a caller's contextual type says nothing about the values that function's body constructs, so a numeric literal deep in such a body is a Number and the value crosses the caller's boundary by conversion, losing what a wider type would have held exactly. Carrying a contextual numeric type through the returns of a non-participating function &mdash; so that the literal is built at the type its result is going to, as a literal written at that position would be &mdash; is a refinement of <emu-xref href="#sec-literal-propagation"></emu-xref> that this specification does not yet make. It is recorded here because the case it serves is real: a `uint64` beyond the range a Number represents exactly arrives inexact today when it passes through an unannotated helper, and exactly when it does not.</p>
       </emu-note>
     </emu-clause>
 
@@ -2006,7 +2070,7 @@ contributors: Sirisian
           1. Return the ~object~ Type Record whose [[Properties]] describes the own properties of _value_ and their declared types, where a property with no declared type has the `any` type.
         </emu-alg>
         <emu-note>
-          <p>A callable value that declares NO signature reaches the last step and reports an ~object~ Type Record, as it did before this step existed. That is the same rule an unannotated member follows: an unannotated declaration stays unannotated, and reporting a signature of all-`any` parameters for a function that declared none would be inference the program did not ask for.</p>
+          <p>A callable value that declares NO signature reaches the last step and reports an ~object~ Type Record, as it did before this step existed. That is the same rule an unannotated member follows: an unannotated declaration stays unannotated, and reporting a signature of all-`any` parameters for a function that declared none would be inference the program did not ask for. A function that PUBLISHES an inferred return type (<emu-xref href="#sec-inferred-return-types"></emu-xref>) is a different case: the program did ask, by annotating what the inference derives from, and the published type is enforced when the function returns, so reflection reports a signature carrying it. An enforced type that reflection denied would be the one fact about a value that a program could not read.</p>
 
         <p>The step is placed where it is for the reason the Array step above it exists: an operation that RANKS types rather than walking values sees only what this returns, so a callable reporting an ~object~ Type Record could not be ranked against a ~function~ type. `f` `is` `F` and passing `f` where an `F` is declared already answer from the signatures; without this step `RuntimeTypeOf` answered differently about the same value.</p>
 
@@ -2183,7 +2247,7 @@ contributors: Sirisian
           <tbody>
             <tr><td>The initializer or assigned value of a binding with a declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>An argument passed to a parameter of declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
-            <tr><td>The operand of a `return` in a function with a declared return type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>The operand of a `return` in a function with a declared return type _t_, or with a published inferred return type _t_ (<emu-xref href="#sec-inferred-return-types"></emu-xref>)</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>A value stored to a property or field of declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>A value stored to an element of an array of element type _t_</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>A value read from a position of the `any` type into an operator whose operands are typed</td><td>RequireType(_value_, _t_) for the operand type _t_ the operator requires</td></tr>
@@ -2210,7 +2274,7 @@ contributors: Sirisian
       <p>A check is required only where the static types do not already establish the result. It is not inserted, and an implementation need not perform one, in the following circumstances.</p>
 
       <ul>
-        <li>The static type of the value is not `any`, is not a literal type, is assignable to the target, and is STABLE (<emu-xref href="#sec-elision-stability"></emu-xref>). The result is established statically, and any violation was an Early Error. The literal exclusion is not a detail: a numeric literal is assignable to `uint8` by <emu-xref href="#sec-literal-propagation"></emu-xref> and the boundary is still what CONSTRUCTS the value of that type, so `let _x_: `uint8` = 5` must perform its conversion and produce a `uint8` rather than the Number 5. What licenses eliding a check is that the value is ALREADY of the target type, so the boundary would have returned it unchanged; assignability alone is a weaker statement than that.</li>
+        <li>The static type of the value is not `any`, is not a literal type, is assignable to the target, is not a published inferred return type (<emu-xref href="#sec-inferred-return-types"></emu-xref>), and is STABLE (<emu-xref href="#sec-elision-stability"></emu-xref>). The result is established statically, and any violation was an Early Error. The literal exclusion is not a detail: a numeric literal is assignable to `uint8` by <emu-xref href="#sec-literal-propagation"></emu-xref> and the boundary is still what CONSTRUCTS the value of that type, so `let _x_: `uint8` = 5` must perform its conversion and produce a `uint8` rather than the Number 5. What licenses eliding a check is that the value is ALREADY of the target type, so the boundary would have returned it unchanged; assignability alone is a weaker statement than that.</li>
         <li>The target is the `any` type. Every value is a value of it.</li>
         <li>The value's static type and the target are the same type.</li>
         <li>At a RETURN, where every `return` of the function satisfies the conditions above and the function cannot complete without one. A return annotation is shared by every `return` in its function, so the elision is a property of the function rather than of a statement, and a function that can fall off its end returns *undefined*, which the annotation must admit for the elision to hold.</li>
@@ -2753,10 +2817,11 @@ const n: uint32 = g();
           <tbody>
             <tr><td>[[Parameters]]</td><td>a List of Parameter Records</td><td>The parameters, in order.</td></tr>
             <tr><td>[[Return]]</td><td>a Type Record</td><td>The declared return type, or the `any` type where none is declared.</td></tr>
+            <tr><td>[[InferredReturn]]</td><td>a Type Record or ~none~</td><td>The published inferred return type (<emu-xref href="#sec-inferred-return-types"></emu-xref>), or ~none~ where the signature declares a return type or the function does not participate in inference. It is a separate field because identity, overload-set formation, ranking, and viability read [[Return]] alone.</td></tr>
             <tr><td>[[ThisType]]</td><td>a Type Record or ~none~</td><td>The declared `this` type, or ~none~ where none is declared.</td></tr>
             <tr><td>[[Narrows]]</td><td>a List of Narrowing Records</td><td>The narrowings a call of this signature declares (<emu-xref href="#sec-declared-narrowing"></emu-xref>). Empty where none is declared.</td></tr>
             <tr><td>[[TypeParameters]]</td><td>a List of Parse Nodes</td><td>The type parameters the signature declares, empty when it is not generic.</td></tr>
-            <tr><td>[[Untyped]]</td><td>a Boolean</td><td>*true* when the signature declares no parameter type and no return type, in which case it is a catch-all.</td></tr>
+            <tr><td>[[Untyped]]</td><td>a Boolean</td><td>*true* when the signature declares no parameter type and no return type, in which case it is a catch-all. It is a syntactic property: a signature that declares neither is untyped however much is inferred for it.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -3040,7 +3105,7 @@ const n: uint32 = g();
 
     <emu-clause id="sec-overloading-on-return-type">
       <h1>Overloading on Return Type</h1>
-      <p>Because a signature is identified by its return type as well as its parameter types, two signatures may differ only in their return. The return type does not participate in ranking; it participates in viability, through the contextual type of the call (<emu-xref href="#sec-contextual-types"></emu-xref>).</p>
+      <p>Because a signature is identified by its return type as well as its parameter types, two signatures may differ only in their return. The return type does not participate in ranking; it participates in viability, through the contextual type of the call (<emu-xref href="#sec-contextual-types"></emu-xref>). The return type read here is the DECLARED one: a published inferred return type (<emu-xref href="#sec-inferred-return-types"></emu-xref>) does not make a signature viable or non-viable, so which signature a call selects never depends on a function body.</p>
 
       <p>The contextual type of a call is the type its position requires. Where a call has no contextual type and more than one signature remains viable, the call is ~ambiguous~ and it is a type error.</p>
 
