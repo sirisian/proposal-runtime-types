@@ -1523,6 +1523,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>A call of a function whose return type is `void` evaluates to *undefined*, as a call of a function with no `return` statement does today. The `void` type is the statement that a program must not depend on that result, not a claim that no result exists.</p>
+        <p>It follows that a `void` return type constrains the CONSUMER of the result and not the value leaving the function: the check it installs is the one that refuses a binding, and no check is performed on the returned value itself. `return;` and falling off the end are the same function written two ways, so testing *undefined* against a type with no values would refuse one and admit the other. `undefined` is the type to write for a function that returns the value *undefined* and whose caller may hold it (<emu-xref href="#sec-null-and-undefined-types"></emu-xref>).</p>
       </emu-note>
     </emu-clause>
 
@@ -1533,6 +1534,7 @@ contributors: Sirisian
 
       <emu-note>
         <p>These are the types <emu-xref href="#sec-runtimetypeof"></emu-xref> reports for *null* and *undefined*. The reject type of a typed promise is `undefined` by convention when the promise never rejects, which is one place the `undefined` type is written directly; another is a union such as `uint32 | undefined` for a value that may be absent, the position an erased system reaches with an optional. `null` and `undefined` are ordinary members of the type universe and may appear in a union, an intersection, or any other type position.</p>
+        <p>Resolving the `undefined` type name to `void` looks like it keeps the name and RuntimeTypeOf in agreement, and an implementation of this specification did so. They agree on a type with no values, so *undefined* is not a value of the type its own RuntimeTypeOf reports, and with it every `uint32 | undefined` becomes a union no value can inhabit. The agreement to keep is at the `undefined` type: RuntimeTypeOf(*undefined*) is `undefined`, the name denotes that same type, and `void` remains a return type that no binding may hold.</p>
       </emu-note>
     </emu-clause>
 
