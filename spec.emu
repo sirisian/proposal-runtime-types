@@ -3397,6 +3397,12 @@ const n: uint32 = g();
 
       <emu-note>
         <p>An interface is nominal where a class declares that it implements one and structural where a value is checked against it, which are two questions rather than one contradiction: the first asks whether a declaration promised the contract, the second whether a value meets it. `IsOfType` decides the second by <emu-xref href="#sec-isoftype"></emu-xref>, so an object that has the members satisfies an interface-typed position whether or not any class declared it.</p>
+
+      <emu-note>
+        <p>The two questions divide by WHO ASKS, and the division decides a case that reads as a contradiction until it is named. A subtype question - is this type assignable to that one - is answered by <emu-xref href="#sec-issubtype"></emu-xref>, which relates two ~nominal~ types along declared inheritance and no other way; an interface's type is ~nominal~, so a class reaches an interface-typed position by DECLARING `implements` and not by matching the shape. A value question - is this value of that type - is answered by `IsOfType`, which walks the members; a class instance that has them passes it whether or not the class declared anything.</p>
+        <p>So `class Rich { m(): uint8 { … } }` without an `implements` clause gives `new Rich() is Small` the answer *true*, and `let s: Small = new Rich()` a type error. That is the same visible-and-blind split <emu-xref href="#sec-the-boundary-check"></emu-xref> describes: the checker can see that the source is a `Rich`, and refuses the claim a declaration never made; the same value arriving where its type is not visible is checked and admitted. `new Rich() := Small` states the claim in one token where a program means it.</p>
+        <p>The alternative - a class satisfying any interface it happens to match - is what <emu-xref href="#sec-issubtype"></emu-xref> forbids on purpose: a class states a construction and an identity as well as a shape, and it is the identity its type is for. A shape with no identity is written as an object type, and satisfies structurally in every position.</p>
+      </emu-note>
       </emu-note>
     </emu-clause>
 
