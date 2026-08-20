@@ -2159,6 +2159,11 @@ contributors: Sirisian
       <h1>The Boundary Check</h1>
       <p>At a boundary where a value of the `any` type reaches a position of a known type, the value is checked and, if it is a numeric value that the target can represent exactly, converted. A value the target cannot represent raises an error.</p>
 
+      <emu-note>
+        <p>A boundary therefore CONVERTS what assignability REFUSES, and the two are not in disagreement: assignability governs a claim made between two types the checker can see, while a boundary governs the admission of a value whose type it cannot. `let x: uint32 = someNumber` is refused, because a program that has both types in hand and means a conversion writes one; the same Number arriving through an `any` is converted, because refusing it would leave the gradual frontier impassable for the ordinary case of untyped code calling typed code.</p>
+        <p>The consequence a reader meets first is that ADDING an annotation can turn a program that ran into one that is refused &mdash; the same value, the same target, a different verdict, because the checker can now see where it came from. That is the direction gradual typing is supposed to run in: removing annotations preserves behaviour, and adding them may report what was there all along. It is not a defect in either rule, and it is written here because the shape invites the conclusion that one of them is.</p>
+      </emu-note>
+
       <emu-clause id="sec-requiretype" type="abstract operation">
         <h1>
           RequireType (
