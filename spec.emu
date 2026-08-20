@@ -2990,12 +2990,24 @@ const n: uint32 = g();
           <thead><tr><th>Rank</th><th>The argument matches its parameter by</th></tr></thead>
           <tbody>
             <tr><td>1</td><td>Being of exactly the parameter's type.</td></tr>
-            <tr><td>2</td><td>Being an untyped literal that takes the parameter's type, ordered among competing parameter types by <emu-xref href="#table-literal-ranking"></emu-xref>.</td></tr>
-            <tr><td>3</td><td>A user-defined conversion (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).</td></tr>
-            <tr><td>4</td><td>Binding to a signature whose [[Untyped]] is *true*.</td></tr>
+            <tr><td>2</td><td>Satisfying a ~nominal~ parameter type structurally, where the argument's type is not that type and does not refine it.</td></tr>
+            <tr><td>3</td><td>Being an untyped literal that takes the parameter's type, ordered among competing parameter types by <emu-xref href="#table-literal-ranking"></emu-xref>.</td></tr>
+            <tr><td>4</td><td>A user-defined conversion (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).</td></tr>
+            <tr><td>5</td><td>Binding to a signature whose [[Untyped]] is *true*.</td></tr>
           </tbody>
         </table>
       </emu-table>
+
+      <emu-note>
+        <p>Rank 2 separates two ways of matching that are otherwise
+        indistinguishable, and without it a pair of signatures a reader would
+        consider plainly ordered is ~ambiguous~ for every call:</p>
+        <emu-alg>
+          1. `interface I { a: uint8 }` and `type O = { a: uint8 }` as two signatures of one name, called with `{ a: 1 }`.
+        </emu-alg>
+        <p>The argument has the shape exactly, which is rank 1 against `O`; it satisfies `I` by having the members, which is what an interface-typed position accepts and is now rank 2. The exact match wins, which is the answer a reader expects and the one the languages that face this question give.</p>
+        <p>Rank 2 does not reach a class that DECLARES the interface: such a class refines it (<emu-xref href="#sec-issubtype"></emu-xref>), so it matches at rank 1 as any subtype does, and a declaring class is not made to lose to an unrelated structural signature. Nor does it order two ~nominal~ parameter types against each other: two interfaces of one shape are each satisfied structurally by the same argument, both at rank 2, and the call remains ~ambiguous~ - which is correct, since neither is a better answer than the other.</p>
+      </emu-note>
 
       <p>It is a type error if ResolveOverload returns ~none~, and it is a type error if it returns ~ambiguous~. Where an argument has the `any` type the resolution is performed at run time on the argument's runtime type, and the same errors are thrown as a *TypeError* there.</p>
 
