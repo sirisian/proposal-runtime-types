@@ -3271,11 +3271,11 @@ const n: uint32 = g();
 
     <emu-clause id="sec-annotations-on-the-remaining-function-forms">
       <h1>Annotations on the Remaining Function Forms</h1>
-      <p>Every function-shaped production takes the return annotation the same way: a |TypeAnnotation| between the parameter list and the body. The productions below restate their ECMAScript definitions with that insertion (<emu-xref href="#sec-conventions"></emu-xref>); parameter annotations need no insertion here, since a parameter of any of these forms is a |FormalParameter| or |BindingElement| and carries its annotation there.</p>
+      <p>Every function-shaped production takes the return annotation the same way: a |TypeAnnotation| between the parameter list and the body. The productions below restate their ECMAScript definitions with that insertion (<emu-xref href="#sec-conventions"></emu-xref>); parameter annotations need no insertion here, since a parameter of any of these forms is a |FormalParameter| or |BindingElement| and carries its annotation there. A method takes |WhereClauses| the same way a function declaration does (<emu-xref href="#sec-checked-contracts"></emu-xref>), between that annotation and the body: a generic method specializes as a generic function does, so the rule <emu-xref href="#sec-generic-where"></emu-xref> gives - "checked at each specialization once its parameters are bound" - applies unchanged. A method's clause may name the parameters of its CLASS as well as its own, since both are bound at the specialization the clause is checked at.</p>
 
       <emu-grammar type="definition">
         MethodDefinition[Yield,Await] :
-          ClassElementName[?Yield, ?Await] <ins>TypeParameters[?Yield, ?Await]?</ins> `(` UniqueFormalParameters[~Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]?</ins> `{` FunctionBody[~Yield, ~Await] `}`
+          ClassElementName[?Yield, ?Await] <ins>TypeParameters[?Yield, ?Await]?</ins> `(` UniqueFormalParameters[~Yield, ~Await] `)` <ins>TypeAnnotation[?Yield, ?Await]? WhereClauses[?Yield, ?Await]?</ins> `{` FunctionBody[~Yield, ~Await] `}`
           GeneratorMethod[?Yield, ?Await]
           AsyncMethod[?Yield, ?Await]
           AsyncGeneratorMethod[?Yield, ?Await]
