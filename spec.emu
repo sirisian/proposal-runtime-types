@@ -379,6 +379,12 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~nominal~ and _t_.[[Kind]] is ~object~, then
             1. If _s_ is an interface type, return IsSubtype(the structural form of _s_, _t_, _assumptions_).
             1. Return *false*.
+          1. If _s_.[[Kind]] is ~parameter~ or _t_.[[Kind]] is ~parameter~, then
+            1. If _s_.[[Kind]] is ~parameter~ and _t_.[[Kind]] is ~parameter~, then
+              1. If _s_.[[Name]] is _t_.[[Name]] and _s_.[[Arity]] is _t_.[[Arity]], return *true*.
+              1. Return *false*.
+            1. If _s_.[[Kind]] is ~parameter~ and _s_ has a [[Constraint]] field, return IsSubtype(_s_.[[Constraint]], _t_, _assumptions_).
+            1. Return *false*.
           1. If _s_.[[Kind]] is ~shared~ and _t_.[[Kind]] is not ~shared~, return IsSubtype(_s_.[[Target]], _t_, _assumptions_).
           1. If _t_.[[Kind]] is ~shared~ and _s_.[[Kind]] is not ~shared~, return IsSubtype(_s_, _t_.[[Target]], _assumptions_).
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
@@ -408,6 +414,10 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~object~, return IsObjectSubtype(_s_, _t_, _assumptions_).
           1. Return *false*.
         </emu-alg>
+        <emu-note>
+          <p>A type parameter is OPAQUE within the declaration that binds it: it is a subtype of itself and of its constraint, and nothing else is a subtype of IT. The asymmetry is the point. `T: string` says every value of `T` is a String, so a `T` may be returned where a String is wanted &mdash; but it does not say a String is a `T`, because `T` may be bound to a literal type: `f.&lt;"abc"&gt;` satisfies that constraint, and *"s"* is not a value of `"abc"`. So `function f&lt;T: string&gt;(x: T): string { return x; }` is well typed and `function f&lt;T: string&gt;(x: T) { let v: T = "s"; }` is not.</p>
+          <p>Without the [[Constraint]] step a constrained parameter would be LESS usable than an unconstrained one, since writing the constraint would buy its author nothing inside the declaration while still restricting the caller. With it, the constraint is what it reads as: a statement about every binding the parameter can take, available wherever the parameter is.</p>
+        </emu-note>
         <p>Three of the steps above are one relation. A type <dfn id="refines">refines</dfn> another when it is a ~parameterized~ type whose [[Base]] is that type (<emu-xref href="#sec-parameterized-types"></emu-xref>), an enum whose underlying type is that type (<emu-xref href="#sec-enums"></emu-xref>), or a nominal type whose declaration extends or implements that type's declaration. A type is a subtype of every type it refines and of everything that type is a subtype of; the converse never holds without a crossing, a construction boundary for a parameterization, a validated call for an enum, and nothing at all for a class. The three steps are that rule's cases.</p>
 
         <emu-note>
