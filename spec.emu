@@ -728,8 +728,15 @@ contributors: Sirisian
           UnionType[?Yield, ?Await] `|` IntersectionType[?Yield, ?Await]
 
         IntersectionType[Yield, Await] :
-          `&amp;`? PrimaryType[?Yield, ?Await]
-          IntersectionType[?Yield, ?Await] `&amp;` PrimaryType[?Yield, ?Await]
+          `&amp;`? PostfixType[?Yield, ?Await]
+          IntersectionType[?Yield, ?Await] `&amp;` PostfixType[?Yield, ?Await]
+
+        PostfixType[Yield, Await] :
+          PrimaryType[?Yield, ?Await]
+          IndexedAccessType[?Yield, ?Await]
+
+        IndexedAccessType[Yield, Await] :
+          PostfixType[?Yield, ?Await] `[` Type[?Yield, ?Await] `]`
 
         PrimaryType[Yield, Await] :
           `shared` PrimaryType[?Yield, ?Await]
@@ -872,6 +879,19 @@ contributors: Sirisian
             <p>These are the rules of the operator, and the only statement of them: `keyof` is a primitive of the core (<emu-xref href="#annex-standard-kit"></emu-xref>), not a spelling of a kit function, so there is no second definition to keep in step. A union's keys are the common keys, computed by keeping the first arm's keys that remain assignable to each further arm's, which is what lets the literal `'x'` survive against an arm whose keys come from a `string`-keyed index signature. An intersection's keys are the union of its members' keys. A Symbol key contributes its own literal type (<emu-xref href="#sec-literal-types"></emu-xref>), so the operation is total over the keys an object type can have. A refinement has its base's keys, so `keyof` sees through a brand and through the `where` of a dependent record type (<emu-xref href="#sec-dependent-record-types"></emu-xref>) to the properties underneath, which is the only reading on which `keyof` and the property mappers agree about a refined object. A kind with no keys is ~empty~ and a type error, matching the kit's authored throw. `keyof never` is distinct from that case: `never` is the empty ~union~, so the union step above returns it unchanged and `keyof never` is `never`, not ~empty~ and not an error. An implementation folding over the arms must include the empty-union base case, since an arm-intersection fold does not otherwise reach it.</p>
           </emu-note>
         </emu-clause>
+      </emu-clause>
+
+      <emu-clause id="sec-indexed-access-types">
+        <h1>Static Semantics of Indexed Access</h1>
+        <p>An |IndexedAccessType| denotes GetTypeObject of the Type Object that `indexed(_T_, _K_)` (<emu-xref href="#annex-standard-kit"></emu-xref>) returns for the Type Records its |PostfixType| and |Type| denote. It is a type error if the |Type| is not a String literal type, if the |PostfixType| denotes a type with no properties, or if the named property does not exist.</p>
+        <emu-note>
+          <p>It is stated as the kit's operation rather than restated as a walk of its own, for the reason <emu-xref href="#sec-keyof"></emu-xref> is stated as KeyTypesOf: one operation with two spellings cannot drift, and two statements of one algorithm have to be kept in step by hand. `indexed` is already specified, and is already the form a generic position takes, since a call may be written where a type is expected and this syntax may not: `function pluck&lt;T, K: keyof T&gt;(o: T, key: K): indexed(T, K)` names the operation where `T[K]` cannot appear.</p>
+          <p>Reading a property that a declaration marked optional yields the union of its type with `undefined`, which is what reading an absent property gives. `{ a?: string }["a"]` therefore admits a String and `*undefined*`, and `{ a: string }["a"]` admits only a String.</p>
+          <p>The form is POSTFIX, so it binds tighter than the prefix operators and than union and intersection: `keyof T["a"]` is `keyof (T["a"])`, and `T["a"]["b"]` chains left to right. That is why it sits at its own level between |IntersectionType| and |PrimaryType| rather than among the primaries.</p>
+          <p>Only a String literal key is admitted in this edition. A numeric key, an index signature, and a tuple index are each a type error rather than an unspecified corner, so a program that writes `T[number]` is told that this edition does not cover it rather than discovering an implementation's guess. The restriction is a floor and not a ceiling: a later edition may admit them, and could not have taken them away.</p>
+          <p>That restriction is also what keeps this form clear of the INDEX ACCESSORS (<emu-xref href="#sec-user-defined-operators"></emu-xref>), and the two do not overlap today. An index accessor applies where the base is an instance of a class that declares one and every index is a value of a NUMERIC type, and an index that is not numeric makes the access an ordinary property read; this syntax is a TYPE position, takes a String literal key, and reads a declared property. Different position, different key type, and this form does not reach a class instance type at all.</p>
+          <p>Where a later edition admits a numeric key here, it meets the accessor's domain exactly, and the question it must answer is what `Grid[uint8]` denotes for a `Grid` declaring `operator [](i: uint8): string` &mdash; the accessor's RETURN type is the only reading that makes the two spellings describe one operation, as `T["a"]` and a property read already do. Deciding it then rather than now is the point of stating the restriction as an error: nothing has to be un-said.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-clause id="sec-array-and-tuple-types">
