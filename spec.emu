@@ -5062,11 +5062,12 @@ const n: uint32 = g();
           1. Let _names_ be a new empty List.
           1. For each |ImportDeclaration| _d_ of the ModuleItemList of this |Module|, do
             1. If _d_ has a |WithClause| with an ImportAttribute Record whose [[Key]] is *"preprocessor"* and whose [[Value]] is *"true"*, then
+              1. If _d_ has an |ImportedDefaultBinding|, append the StringValue of that |ImportedDefaultBinding| to _names_.
               1. For each |ImportSpecifier| _i_ of _d_'s |NamedImports|, append the StringValue of _i_'s |ImportedBinding| to _names_.
           1. Return _names_.
         </emu-alg>
         <emu-note>
-          <p>Only |NamedImports| contribute. A default import, a namespace import, and a bare |ModuleSpecifier| introduce no name a decoration can be spelled with, so a preprocessor module imported that way provides no replacement decorators.</p>
+          <p>A namespace import and a bare |ModuleSpecifier| do not contribute: the first introduces only a name reached through a member access, which is not an |IdentifierReference| and so cannot appear in a decoration at all, and the second introduces no name. A DEFAULT import does contribute, because it introduces exactly the kind of name a decoration is spelled with. `import jsx from "./jsx.js" with { preprocessor: "true" };` followed by `@jsx { ... }` is the shape a module with one macro takes, and it is the common one - a preprocessor module usually provides a single replacement decorator, which is what a default export is for.</p>
         </emu-note>
       </emu-clause>
 
