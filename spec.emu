@@ -883,15 +883,48 @@ contributors: Sirisian
 
       <emu-clause id="sec-indexed-access-types">
         <h1>Static Semantics of Indexed Access</h1>
-        <p>An |IndexedAccessType| denotes GetTypeObject of the Type Object that `indexed(_T_, _K_)` (<emu-xref href="#annex-standard-kit"></emu-xref>) returns for the Type Records its |PostfixType| and |Type| denote. It is a type error if the |Type| is not a String literal type, if the |PostfixType| denotes a type with no properties, or if the named property does not exist.</p>
+        <p>An |IndexedAccessType| denotes GetTypeObject of the Type Record that IndexedTypeOf returns for the Type Records its |PostfixType| and |Type| denote. It is a type error if IndexedTypeOf returns ~empty~.</p>
         <emu-note>
-          <p>It is stated as the kit's operation rather than restated as a walk of its own, for the reason <emu-xref href="#sec-keyof"></emu-xref> is stated as KeyTypesOf: one operation with two spellings cannot drift, and two statements of one algorithm have to be kept in step by hand. `indexed` is already specified, and is already the form a generic position takes, since a call may be written where a type is expected and this syntax may not: `function pluck&lt;T, K: keyof T&gt;(o: T, key: K): indexed(T, K)` names the operation where `T[K]` cannot appear.</p>
+          <p>It is stated as an abstract operation, as <emu-xref href="#sec-keyof"></emu-xref> is stated as KeyTypesOf, so that one operation has one normative statement and the two spellings cannot drift. The kit's `indexed` (<emu-xref href="#annex-standard-kit"></emu-xref>) computes the same function over a Type Object held in a variable, and is the form a GENERIC position takes, since a call may be written where a type is expected and this syntax may not: `function pluck&lt;T, K: keyof T&gt;(o: T, key: K): indexed(T, K)` names the operation where `T[K]` cannot appear.</p>
           <p>Reading a property that a declaration marked optional yields the union of its type with `undefined`, which is what reading an absent property gives. `{ a?: string }["a"]` therefore admits a String and `*undefined*`, and `{ a: string }["a"]` admits only a String.</p>
           <p>The form is POSTFIX, so it binds tighter than the prefix operators and than union and intersection: `keyof T["a"]` is `keyof (T["a"])`, and `T["a"]["b"]` chains left to right. That is why it sits at its own level between |IntersectionType| and |PrimaryType| rather than among the primaries.</p>
           <p>Only a String literal key is admitted in this edition. A numeric key, an index signature, and a tuple index are each a type error rather than an unspecified corner, so a program that writes `T[number]` is told that this edition does not cover it rather than discovering an implementation's guess. The restriction is a floor and not a ceiling: a later edition may admit them, and could not have taken them away.</p>
           <p>That restriction is also what keeps this form clear of the INDEX ACCESSORS (<emu-xref href="#sec-user-defined-operators"></emu-xref>), and the two do not overlap today. An index accessor applies where the base is an instance of a class that declares one and every index is a value of a NUMERIC type, and an index that is not numeric makes the access an ordinary property read; this syntax is a TYPE position, takes a String literal key, and reads a declared property. Different position, different key type, and this form does not reach a class instance type at all.</p>
           <p>Where a later edition admits a numeric key here, it meets the accessor's domain exactly, and the question it must answer is what `Grid[uint8]` denotes for a `Grid` declaring `operator [](i: uint8): string` &mdash; the accessor's RETURN type is the only reading that makes the two spellings describe one operation, as `T["a"]` and a property read already do. Deciding it then rather than now is the point of stating the restriction as an error: nothing has to be un-said.</p>
         </emu-note>
+
+        <emu-clause id="sec-indexedtypeof" type="abstract operation">
+          <h1>
+            IndexedTypeOf (
+              _t_: a Type Record,
+              _k_: a Type Record,
+            ): either a Type Record or ~empty~
+          </h1>
+          <dl class="header">
+            <dt>description</dt>
+            <dd>It returns the type of the members of _t_ named by the keys _k_, or ~empty~ where there is no such type.</dd>
+          </dl>
+          <emu-alg>
+            1. Let _arms_ be _t_.[[Members]] if _t_.[[Kind]] is ~union~, and &laquo; _t_ &raquo; otherwise.
+            1. Let _keys_ be _k_.[[Members]] if _k_.[[Kind]] is ~union~, and &laquo; _k_ &raquo; otherwise.
+            1. Let _results_ be a new empty List.
+            1. For each element _arm_ of _arms_, do
+              1. Let _shape_ be _arm_.
+              1. Repeat, while _shape_.[[Kind]] is ~parameterized~, or _shape_.[[Kind]] is ~nominal~ and _shape_ has a [[Structure]] field,
+                1. Set _shape_ to _shape_.[[Base]] if _shape_.[[Kind]] is ~parameterized~, and to _shape_.[[Structure]] otherwise.
+              1. If _shape_.[[Kind]] is not ~object~, return ~empty~.
+              1. For each element _key_ of _keys_, do
+                1. If _key_.[[Kind]] is not ~literal~, or _key_.[[Value]] is not a String, return ~empty~.
+                1. Let _p_ be the element of _shape_.[[Properties]] whose [[Key]] is _key_.[[Value]], or ~empty~ if there is none.
+                1. If _p_ is ~empty~, return ~empty~.
+                1. If _p_.[[Optional]] is *true*, append CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; _p_.[[Type]], the Type Record of the `undefined` type &raquo; }) to _results_.
+                1. Else, append _p_.[[Type]] to _results_.
+            1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _results_ }).
+          </emu-alg>
+          <emu-note>
+            <p>Returning ~empty~ rather than raising is what lets the three failures - a key that is not a String literal, an operand with no properties, and a property that does not exist - be reported as one type error by the clause above, while the kit's `indexed` reports which of them it was. A class instance type is not reached: it is ~nominal~ without a [[Structure]] the loop unwraps to, so `C["n"]` is ~empty~ where `I["n"]` for an interface is not.</p>
+          </emu-note>
+        </emu-clause>
       </emu-clause>
 
       <emu-clause id="sec-array-and-tuple-types">
@@ -3989,7 +4022,7 @@ const n: uint32 = g();
           <tbody>
             <tr><td>README</td><td>The core; specified throughout this document.</td></tr>
             <tr><td>typeobjects.md</td><td>Specified: the Type Object and the computed types of <emu-xref href="#sec-computed-types"></emu-xref>.</td></tr>
-            <tr><td>typeprogramming.md</td><td>Specified: builders, canonicalization, the evaluation budget, structural matching (<emu-xref href="#sec-structural-matching"></emu-xref>), provenance (<emu-xref href="#sec-provenance"></emu-xref>), and the expansion artifact (<emu-xref href="#sec-expansion-artifact"></emu-xref>).</td></tr>
+            <tr><td>typeprogramming.md</td><td>Specified: builders, canonicalization, the evaluation budget, structural matching (<emu-xref href="#sec-structural-matching"></emu-xref>), provenance (<emu-xref href="#sec-provenance"></emu-xref>), the expansion artifact (<emu-xref href="#sec-expansion-artifact"></emu-xref>), and the two operators of its &sect;4.1 &mdash; `keyof` (<emu-xref href="#sec-keyof"></emu-xref>) and indexed access (<emu-xref href="#sec-indexed-access-types"></emu-xref>). Its third, `typeof x`, is not an operator of this specification: the type query is `Reflect.typeOf` (<emu-xref href="#sec-reflect-typeof"></emu-xref>), which that section says needs no builder.</td></tr>
             <tr><td>higherkindedtypes.md</td><td>Specified: <emu-xref href="#sec-higher-kinded-parameters"></emu-xref>, which states the [[Arity]] on a ~parameter~ Type Record, what may be bound to a higher-kinded parameter, and how the four clauses of <emu-xref href="#sec-generics"></emu-xref> read when a parameter is one. The refusals of the quantified constraint and of inference are normative, and both rest on <emu-xref href="#sec-evaluation-budget"></emu-xref>.</td></tr>
             <tr><td>generics.md</td><td>Partially specified: the parameters that are types and values, specialization, the `where` constraints, and variance are <emu-xref href="#sec-generics"></emu-xref>. Specialized overloads and their resolution, constraint families as specialization selectors, variadic packs, argument-bound value generics and inference from an expected type, the constraint-family forms, and generic parameters on a decorator are deferred, and <emu-xref href="#table-extension-hooks"></emu-xref> records them as this clause's hook.</td></tr>
             <tr><td>dependentrecordtypes.md</td><td>Specified: <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
