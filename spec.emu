@@ -5011,9 +5011,14 @@ const n: uint32 = g();
         <p>A decoration on a declaration is unaffected. `@m class C {}` decorates the class, and `@m function f() {}` the function; only a `{` following the decoration directly is displaced.</p>
       </emu-note>
 
-      <p>Whether the region's text is ECMAScript is the macro's to declare. Where the value the import binds has a `capture` own property whose value is *true*, the region is <dfn>captured</dfn>: its extent is found by matching delimiters, and its text reaches the decorator as tokens of the ordinary lexical grammar. Otherwise the region is a |Block|, parsed, and its tokens are those of that parse.</p>
+      <p>Whether the region's text is ECMAScript is the macro's to declare, and it declares it in its SIGNATURE. A replacement decorator is called with `(tokens, context, args)` (<emu-xref href="#sec-syntax-replacement"></emu-xref>), so its second parameter is the context it takes; where that parameter's type is `Reflect.Region`, the region is <dfn>captured</dfn>: its extent is found by matching delimiters, and its text reaches the decorator as tokens of the ordinary lexical grammar. Otherwise the region is a |Block|, parsed, and its tokens are those of that parse.</p>
 
       <emu-note>
+        <emu-note>
+          <p>The declaration is what is read, rather than a property set on the exported value. A macro that takes a `Reflect.Region` context has SAID it decorates a region, and a region is the one position whose text the engine does not parse &mdash; so the signature already carries the answer, and a marker beside it could only agree or disagree with what the program wrote. The same reasoning decides which names a preprocessor import contributes (<emu-xref href="#sec-static-semantics-replacementdecoratornames"></emu-xref>): read the declaration, not an artifact of running it.</p>
+          <p>It also settles WHEN the answer is available. A property must be read from an evaluated module; a parameter's type is in the text. The engine still evaluates a preprocessor module before parsing the module that imports it, so nothing turns on this today, but the rule no longer depends on it.</p>
+          <p>A macro that annotates no context takes a parsed |Block|, which is what a macro declaring no `capture` took. No program written against an earlier edition changes meaning by this rule alone.</p>
+        </emu-note>
         <p>The engine provides no grammars, so a decorator is not choosing among them. A macro whose region is not ECMAScript - a query language, a markup dialect - captures it, reads its text, and hands back the ranges that ARE ECMAScript through <emu-xref href="#sec-tokenstream.prototype.parse"></emu-xref>. That is what lets a variant of such a language be written without the implementation changing, which naming a grammar could never do.</p>
       </emu-note>
 
@@ -5050,7 +5055,7 @@ const n: uint32 = g();
 
     <emu-clause id="sec-captured-regions">
       <h1>Captured Regions</h1>
-      <p>A <dfn>captured region</dfn> is the region a decoration takes where the decorator declared `capture` (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed; its text reaches the replacement decorator as tokens of the ordinary lexical grammar, and the decorator reads it however its own syntax requires.</p>
+      <p>A <dfn>captured region</dfn> is the region a decoration takes where the decorator's context parameter is a `Reflect.Region` (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed; its text reaches the replacement decorator as tokens of the ordinary lexical grammar, and the decorator reads it however its own syntax requires.</p>
 
       <emu-note>
         <p><emu-xref href="#sec-scanbalancedrun"></emu-xref> counts brackets it does not interpret, so a captured region's text must BALANCE its brackets outside comments and literals. `@m { &lt;p&gt;a } b&lt;/p&gt; }` ends at the brace in the text and not at the one the author meant, which is a property of capturing rather than of any grammar a decorator implements.</p>
