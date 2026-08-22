@@ -915,6 +915,11 @@ contributors: Sirisian
             <dd>It returns the type of the members of _t_ named by the keys _k_, or ~empty~ where there is no such type.</dd>
           </dl>
           <emu-alg>
+            1. If _t_ mentions a ~parameter~ type or _k_ mentions a ~parameter~ type, then
+              1. Let _tName_ be _t_.[[Name]] if _t_.[[Kind]] is ~parameter~, and the display form of _t_ otherwise.
+              1. Let _kName_ be _k_.[[Name]] if _k_.[[Kind]] is ~parameter~, and the display form of _k_ otherwise.
+              1. Let _name_ be the string-concatenation of _tName_, *"["*, _kName_, and *"]"*.
+              1. Return the Type Record { [[Kind]]: ~parameter~, [[Name]]: _name_ }.
             1. Let _arms_ be _t_.[[Members]] if _t_.[[Kind]] is ~union~, and &laquo; _t_ &raquo; otherwise.
             1. Let _keys_ be _k_.[[Members]] if _k_.[[Kind]] is ~union~, and &laquo; _k_ &raquo; otherwise.
             1. Let _results_ be a new empty List.
@@ -932,7 +937,8 @@ contributors: Sirisian
             1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _results_ }).
           </emu-alg>
           <emu-note>
-            <p>Returning ~empty~ rather than raising is what lets the three failures - a key that is not a String literal, an operand with no properties, and a property that does not exist - be reported as one type error by the clause above, while the kit's `indexed` reports which of them it was. A class instance type is not reached: it is ~nominal~ without a [[Structure]] the loop unwraps to, so `C["n"]` is ~empty~ where `I["n"]` for an interface is not.</p>
+            <p>Where a type parameter is involved the access is DEFERRED rather than computed or refused: within the declaration that binds `T`, nothing is known about it, so `T[K]` names an access that will be performed at each specialization. It is a type of its own, opaque like the parameters it composes &mdash; it relates to itself and nothing concrete relates to it &mdash; which is what makes `function pluck&lt;T, K: keyof T&gt;(o: T, key: K): T[K] { return o[key]; }` well typed while `return 5` from the same signature is not. The EXPRESSION `o[key]` reaches this operation too, so both spellings of one access answer one type; that agreement is the whole reason the deferred form is stated here rather than left to each resolver.</p>
+          <p>Returning ~empty~ rather than raising is what lets the three failures - a key that is not a String literal, an operand with no properties, and a property that does not exist - be reported as one type error by the clause above, while the kit's `indexed` reports which of them it was. A class instance type is not reached: it is ~nominal~ without a [[Structure]] the loop unwraps to, so `C["n"]` is ~empty~ where `I["n"]` for an interface is not.</p>
           </emu-note>
         </emu-clause>
       </emu-clause>
