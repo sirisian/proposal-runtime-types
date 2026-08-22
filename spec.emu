@@ -3126,7 +3126,7 @@ const n: uint32 = g();
 
       <p>It is a type error if ResolveOverload returns ~none~, and it is a type error if it returns ~ambiguous~. Where an argument has the `any` type the resolution is performed at run time on the argument's runtime type, and the same errors are thrown as a *TypeError* there.</p>
 
-      <p>Two signatures declared for one name must not be ambiguous for any argument list. It is a type error to declare a signature that is viable for the same argument list as an existing one at the same rank.</p>
+      <p>Two signatures declared for one name must not be ambiguous for any argument list. A declaration that writes no return annotation declares the SAME return as another that writes none, so two declarations of one name that annotate the same parameter types and neither annotate a return are one signature written twice, and are a type error at the second. Declaring nothing is a declaration of nothing, not an unknown. It is a type error to declare a signature that is viable for the same argument list as an existing one at the same rank.</p>
 
       <emu-note>
         <p>Ranking by the worst match rather than by a sum keeps the rule from trading a bad match on one argument against a good one on another, which is where the ranking rules of C++ become hard to predict. A typed argument never ranks below 1: a typed argument of the wrong type is not viable at all, so it is never a question of how well it matches.</p>
