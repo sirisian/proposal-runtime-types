@@ -5178,8 +5178,9 @@ const n: uint32 = g();
         <p>This is an exception to the rule that decorator expressions are evaluated in document order (<emu-xref href="#sec-decorator-application"></emu-xref>): a replacement decorator runs before the module is parsed, so there is no scope to evaluate an argument against.</p>
       </emu-note>
 
-      <h2>One function per name</h2>
-      <p>A replacement decorator name denotes one function. It is not resolved by overload resolution.</p>
+      <h2>One replacement decorator per name</h2>
+      <p>A name denotes one REPLACEMENT decorator. Selection among replacement decorators is not overload resolution: the arguments of every one of them are Token Records, so there is nothing for a type-directed rule to select on.</p>
+      <p>A name may nonetheless carry an ORDINARY decorator as well, since the two are told apart by their signatures rather than by their arguments: a replacement decorator is the overload that takes a `TokenStream` and returns a token sequence (<emu-xref href="#sec-preprocessor-modules"></emu-xref>), and an ordinary decorator is any other. Where a name carries both, the replacement runs at expansion and the ordinary one at decoration, in that order, and a decoration whose position the ordinary overload does not accept is a type error at that decoration. One name may therefore transform a construct and then decorate what it produced.</p>
       <emu-note>
         <p>Overload resolution selects on argument types, and the arguments of a replacement decorator are all Token Records. There is nothing for a type-directed rule to select on, and a macro that wishes to distinguish its arguments inspects them.</p>
       </emu-note>
