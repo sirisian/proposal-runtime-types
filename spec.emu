@@ -1161,11 +1161,16 @@ contributors: Sirisian
         SingleNameBinding[Yield, Await] :
           BindingIdentifier[?Yield, ?Await] <ins>`?`?</ins> <ins>TypeAnnotation[?Yield, ?Await]?</ins> Initializer[+In, ?Yield, ?Await]?
 
+        BindingElement[Yield, Await] :
+          SingleNameBinding[?Yield, ?Await]
+          BindingPattern[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins> Initializer[+In, ?Yield, ?Await]?
+
         BindingRestElement[Yield, Await] :
           `...` BindingIdentifier[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins>
           `...` BindingPattern[?Yield, ?Await] <ins>TypeAnnotation[?Yield, ?Await]?</ins>
       </emu-grammar>
 
+      <p>A DESTRUCTURED binding takes its annotation the same way a named one does, before its initializer: `function f({ a, b }: Point)` annotates the object being destructured, not the names taken out of it, and each name's type follows from the annotated type's members. Without this a pattern could carry an annotation only as a REST element - `...{ a, b }: T` was admitted where `{ a, b }: T` was not - which is a distinction the grammar drew and nothing else did.</p>
       <p>A rest element's annotation is the type of what it collects, an ~array~ or ~tuple~ type rather than an element type, so `...args: [].&lt;uint32&gt;` collects `uint32` values into a `[].&lt;uint32&gt;`. Its Parameter Record's [[Type]] holds that type, and the <dfn>element type</dfn> of a rest is the [[Element]] of an ~array~ type and the union of the [[Type]] fields of a ~tuple~ type's elements; an operation comparing a single argument against a rest compares against its element type. The production is restated because a rest reaches its binding through |BindingRestElement| rather than through |SingleNameBinding|, so without this the design's `function f(a: string, ...args: [].&lt;uint32&gt;) {}` and `let [a: uint8, ...b: [].&lt;uint8&gt;] = [1, 2]` have no parse.</p>
 
       <p>A parameter list may hold more than one rest parameter, and a rest may appear anywhere in it rather than only last, which the pinned edition's |FormalParameters| does not admit. The productions are restated so that a rest is an ordinary element of the list.</p>
