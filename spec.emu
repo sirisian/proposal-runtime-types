@@ -5025,7 +5025,7 @@ const n: uint32 = g();
 
       <emu-note>
         <emu-note>
-          <p>The declaration is what is read, rather than a property set on the exported value. A macro that takes a `Reflect.Region` context has SAID it decorates a region, and a region is the one position whose text the engine does not parse &mdash; so the signature already carries the answer, and a marker beside it could only agree or disagree with what the program wrote. The same reasoning decides which names a preprocessor import contributes (<emu-xref href="#sec-static-semantics-replacementdecoratornames"></emu-xref>): read the declaration, not an artifact of running it.</p>
+          <p>The declaration is what is read, rather than a property set on the exported value. A macro that takes a `TokenStream` and returns a token sequence has SAID what it is, and its region's text is what such a decorator receives &mdash; so the signature already carries the answer, and a marker beside it could only agree or disagree with what the program wrote. The same reasoning decides which names a preprocessor import contributes (<emu-xref href="#sec-static-semantics-replacementdecoratornames"></emu-xref>): read the declaration, not an artifact of running it.</p>
           <p>It also settles WHEN the answer is available. A property must be read from an evaluated module; a parameter's type is in the text. The engine still evaluates a preprocessor module before parsing the module that imports it, so nothing turns on this today, but the rule no longer depends on it.</p>
           <p>A macro that annotates no context takes a parsed |Block|, which is what a macro declaring no `capture` took. No program written against an earlier edition changes meaning by this rule alone.</p>
         </emu-note>
@@ -5280,7 +5280,7 @@ const n: uint32 = g();
 
     <emu-clause id="sec-syntax-replacement">
       <h1>Syntax Replacement</h1>
-      <p>A replacement decorator is called with the tokens it decorates, a CONTEXT, and its own arguments where it has any - `(tokens, context, args)`. Its TYPE is that reflection context: a macro may write `context: Reflect.Region` and have it mean what it says, which is what lets a name's overloads be told apart by the position each takes. The tokens argument likewise has the `TokenStream` type, not the type of whatever backs it.</p>
+      <p>A replacement decorator is called with the tokens it decorates, a CONTEXT, and its own arguments where it has any - `(tokens, context, args)`. Its TYPE is that reflection context: a macro may write `context: Reflect.Block` and have it mean what it says, which is what lets a name's overloads be told apart by the position each takes. The tokens argument likewise has the `TokenStream` type, not the type of whatever backs it.</p>
       <p>Where a name declares SEVERAL replacement decorators and none of them accepts the position a decoration is written in, there is no replacement to apply there: the decoration is left as written, for an ordinary decorator of that name at decoration time. This is not a decorator declining &mdash; no decorator ran &mdash; and it is not an error. It is the case a name carrying both a replacement decorator and an ordinary one exists for: `@jsx { … }` expands and `@jsx class C {}` decorates.</p>
       <emu-note>
         <p>Decided by resolution before the call rather than by reading the error one would throw. A macro whose own body calls an overloaded function with arguments no signature accepts fails for a real reason, and the two cannot be told apart by their messages.</p>
