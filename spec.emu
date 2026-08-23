@@ -5021,7 +5021,7 @@ const n: uint32 = g();
         <p>A decoration on a declaration is unaffected. `@m class C {}` decorates the class, and `@m function f() {}` the function; only a `{` following the decoration directly is displaced.</p>
       </emu-note>
 
-      <p>Whether the region's text is ECMAScript is the macro's to declare, and it declares it in its SIGNATURE. A replacement decorator is called with `(tokens, context, args)` (<emu-xref href="#sec-syntax-replacement"></emu-xref>), so its second parameter is the context it takes; where that parameter's type is `Reflect.Region`, the region is <dfn>captured</dfn>: its extent is found by matching delimiters, and its text reaches the decorator as tokens of the ordinary lexical grammar. Otherwise the region is a |Block|, parsed, and its tokens are those of that parse.</p>
+      <p>A replacement decorator's region is <dfn>captured</dfn>, always, because it is a replacement decorator: what such a decorator RECEIVES is a `TokenStream` (<emu-xref href="#sec-syntax-replacement"></emu-xref>), and the text of what it decorates is the only thing that can be. There is no second mode and nothing for a macro to declare. Its extent is found by matching delimiters, and its text reaches the decorator as tokens of the ordinary lexical grammar. A macro that wants a range of its region READ AS ECMASCRIPT asks for it, through `TokenStream.prototype.parse` (<emu-xref href="#sec-tokenstream-objects"></emu-xref>), which is how a macro delegates the parts of its own syntax that are ECMAScript.</p>
 
       <emu-note>
         <emu-note>
@@ -5065,7 +5065,7 @@ const n: uint32 = g();
 
     <emu-clause id="sec-captured-regions">
       <h1>Captured Regions</h1>
-      <p>A <dfn>captured region</dfn> is the region a decoration takes where the decorator's context parameter is a `Reflect.Region` (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed; its text reaches the replacement decorator as tokens of the ordinary lexical grammar, and the decorator reads it however its own syntax requires.</p>
+      <p>A <dfn>captured region</dfn> is the region a decoration on a REPLACEMENT decorator takes (<emu-xref href="#sec-preprocessor-modules"></emu-xref>). The region begins at the `{` that follows the decoration, optionally preceded by `do`, and ends at the matching `}` as <emu-xref href="#sec-scanbalancedrun"></emu-xref> finds it. Its contents are not parsed; its text reaches the replacement decorator as tokens of the ordinary lexical grammar, and the decorator reads it however its own syntax requires.</p>
 
       <emu-note>
         <p><emu-xref href="#sec-scanbalancedrun"></emu-xref> counts brackets it does not interpret, so a captured region's text must BALANCE its brackets outside comments and literals. `@m { &lt;p&gt;a } b&lt;/p&gt; }` ends at the brace in the text and not at the one the author meant, which is a property of capturing rather than of any grammar a decorator implements.</p>
