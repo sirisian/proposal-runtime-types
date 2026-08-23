@@ -2539,6 +2539,7 @@ const n: uint32 = g();
           <dd>It returns the value a binding or field of the type _t_ holds before it is assigned, or ~none~ if _t_ has no default.</dd>
         </dl>
         <emu-alg>
+          1. <ins>If _t_.[[Kind]] is ~nominal~ and _t_.[[Declaration]] has a <emu-xref href="#sec-declared-zero">declared zero</emu-xref> _z_, return a copy of _z_.</ins>
           1. If _t_.[[Kind]] is ~any~, return *undefined*.
           1. If _t_ is a numeric type, return the value of _t_ representing 0.
           1. If _t_ is the String type, return the empty String.
@@ -3461,6 +3462,26 @@ const n: uint32 = g();
         <p>That a value type class defaults field by field means an instance can come into existence without its constructor running, which <emu-xref href="#sec-default-values"></emu-xref> flags. This clause endorses it, because the design already requires it in two places and the alternative would break both. `let d: [10].&lt;A&gt;;` must hold ten zero-filled instances for the memory layout extension's contiguous array to exist at all, and a conversion from a matching object literal, `{ ... } := Vector3`, is specified to fill the layout directly and run no constructor. A value type class is therefore a shape with a zero, not an object with an invariant its constructor establishes, and a class that needs its constructor to run states that by holding a field whose type has no default, which makes the zero-filled form a type error. A parameterized field is one way to hold one: a class of unit-typed fields has a zero exactly where the base declares the cast that admits it (<emu-xref href="#sec-default-values"></emu-xref>), so a design that wants its vectors zero-fillable writes that cast, and one whose brand is meant to be reached only through the operators that produce it need not. This is a real constraint on what a value type class can promise, and it should be stated in the design rather than left to follow from the array case.</p>
       </emu-note>
     </emu-clause>
+
+    <ins class="block">
+    <emu-clause id="sec-declared-zero">
+      <h1>Declared Zeros</h1>
+      <p>A class may declare the value its bindings hold before assignment, in place of the one <emu-xref href="#sec-defaultvalueof"></emu-xref> derives field by field. The declaration is a static field named `default`:</p>
+      <emu-grammar>
+        ClassElement[Yield, Await] :
+          `static` `default` `=` AssignmentExpression[+In, ?Yield, ?Await] `;`
+      </emu-grammar>
+      <p>The class's <dfn id="declared-zero">declared zero</dfn> is that |AssignmentExpression|'s value. It REPLACES the derived default rather than adding to it: a class that declares one is stating that the field-by-field value does not describe it, which is why <emu-xref href="#sec-defaultvalueof"></emu-xref> consults the declaration before every other step. A class that declares none is unaffected.</p>
+      <p>The |AssignmentExpression| must be compile-time evaluable (<emu-xref href="#sec-iscompiletimeevaluable"></emu-xref>) and it is a type error otherwise, and it is evaluated ONCE, when the class is declared. The reason is the one <emu-xref href="#sec-array-and-tuple-types"></emu-xref> gives for a tuple element's |Initializer|: a type is interned, so one Type Object serves every use of it, and a zero that allocated per binding would either hand every value the same object or make the type's identity depend on when it was read. A compile-time evaluable zero is copied where it is used, so the sharing is unobservable — which is what a derived default already does, field by field.</p>
+      <p>It is a type error if the declared zero is not a value of the class.</p>
+      <emu-note>
+        <p>The restriction is what keeps a declaration cheap. `let d: [1000].&lt;Transform&gt;;` takes `Transform`'s zero a thousand times; evaluating a user expression that many times would turn a fill into a loop of calls, where copying one snapshot is the fill an engine would have emitted anyway.</p>
+      </emu-note>
+      <emu-note>
+        <p>An interface cannot declare a zero, because it has no static member to declare it in. A binding of an interface type with no default remains a type error, as <emu-xref href="#sec-defaultvalueof"></emu-xref> already makes it.</p>
+      </emu-note>
+    </emu-clause>
+    </ins>
 
     <emu-clause id="sec-abstract-classes">
       <h1>Abstract Classes</h1>
