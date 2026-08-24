@@ -2558,7 +2558,9 @@ const n: uint32 = g();
           <dd>It returns the value a binding or field of the type _t_ holds before it is assigned, or ~none~ if _t_ has no default.</dd>
         </dl>
         <emu-alg>
-          1. <ins>If _t_.[[Kind]] is ~nominal~ and _t_.[[Declaration]] has a <emu-xref href="#sec-declared-zero">declared zero</emu-xref> _z_, return a copy of _z_.</ins>
+          1. <ins>If _t_.[[Kind]] is ~nominal~ and _t_.[[Declaration]] has a <emu-xref href="#sec-declared-zero">declared zero</emu-xref>, then</ins>
+            1. <ins>Let _z_ be the declared zero of _t_.[[Declaration]].</ins>
+            1. <ins>Return a copy of _z_.</ins>
           1. If _t_.[[Kind]] is ~any~, return *undefined*.
           1. If _t_ is a numeric type, return the value of _t_ representing 0.
           1. If _t_ is the String type, return the empty String.
