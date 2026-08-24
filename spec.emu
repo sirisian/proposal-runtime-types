@@ -8332,9 +8332,86 @@ const n: uint32 = g();
 
 <emu-annex id="annex-standard-kit">
   <h1>The Standard Builder Kit</h1>
-  <p>The primitives are normative and live in the core: construction, relations, `never`, `keyof`, and the evaluation semantics. The kit is the roughly two hundred lines of ordinary evaluable code written over them, and it ships as source under one standard module, spelled `std:types` here and reconciled with the standard library extension by observing that the two do not overlap: that extension gives typed signatures to methods that already exist and introduces no module, where the kit is new code and needs one. The kit is therefore the single new specifier, and a signature listing is never one until its final home is reconciled with the standard library extension. Shipping it as source is the proof that no construct in it is engine magic, gives the ecosystem one interned vocabulary, so that `partial(User)` in two packages is one type, and makes the definitions themselves the reference documentation. A codebase that cannot assume the module can polyfill it verbatim.</p>
+  <p>The primitives are normative and live in the core: construction, relations, `never`, `keyof`, and the evaluation semantics. The kit is the 313 non-comment lines of ordinary evaluable code written over them, and it ships as source under one standard module, spelled `std:types` here and reconciled with the standard library extension by observing that the two do not overlap: that extension gives typed signatures to methods that already exist and introduces no module, where the kit is new code and needs one. The kit is therefore the single new specifier, and a signature listing is never one until its final home is reconciled with the standard library extension. Shipping it as source is the proof that no construct in it is engine magic, gives the ecosystem one interned vocabulary, so that `partial(User)` in two packages is one type, and makes the definitions themselves the reference documentation. A codebase that cannot assume the module can polyfill it verbatim.</p>
 
-  <p>The surface, by family: property mapping and the object utilities (`mapProperties`, `mapPropertyTypes`, `partial`, `required`, `readonly`, `mutable`, `pick`, `omit`, `pickByValue`, `record`, `merge`, `renameProperties`, `propertyType`, `prop`, `objectOf`); keys and indexing (`indexed`, `paths`); unions (`union`, `arms`, `exclude`, `extract`, `nonNullable`, `mapUnion`, `discriminants`, `byKind`, `handlers`, `removeKind`); functions (`fn`, `parameters`, `firstParameter`, `returnType`, `constructorParameters`, `thisParameterType`, `omitThisParameter`, `withThisType`, `instanceType`); tuples and arrays (`tupleOf`, `tupleElements`, `elementTypes`, `arrayOf`, `tail`, `reverse`, `zip`, `toArrayAll`, `toArrayEach`, `flatten`); literals and strings (`literal`, `literalValues`, `mapLiterals`, `uppercase`, `lowercase`, `capitalized`, `uncapitalized`, `suffixed`, `routeParams`); recursion and composition (`deepPartial`, `traverse`, `compose`, `awaited`); and the additions of the design's maximal set (`noInfer`, `brand`, `stringPattern`, `options`).</p>
+  <p>The surface is <emu-xref href="#table-standard-kit"></emu-xref>: <b>71</b> exports in nine families. Each row gives the name, its signature as the module declares it, and what it answers. The definitions are the normative text &mdash; that is what shipping as source means &mdash; and the table is the index into them, so a reader can find an export without reading three hundred lines and a conformance suite has one place to enumerate. Three exports the table does not list are worth naming for the same reason: `suffixed` and `stringPattern` are written in the module and NOT exported while the `pattern` meta key remains a provisional claim, and `instanceType` was withdrawn because a class is its own instance type, so the export was the identity for every input anyone would bring it.</p>
+
+      <emu-table id="table-standard-kit" caption="The standard builder kit">
+        <table>
+          <tr><th>Export</th><th>Signature</th><th>Answers</th></tr>
+        <tr><td>`reflect`</td><td>`reflect(T: type)`</td><td>The type node of _T_, as <emu-xref href="#sec-reflect-getreflection"></emu-xref> gives it.</td></tr>
+        <tr><td>`literal`</td><td>`literal(value: string | number | boolean | bigint): type`</td><td>The literal type of _value_.</td></tr>
+        <tr><td>`union`</td><td>`union(armList: [].&lt;type&gt;): type`</td><td>The union of _armList_.</td></tr>
+        <tr><td>`arms`</td><td>`arms(T: type): [].&lt;type&gt;`</td><td>The arms of a union, or the one-element list of a non-union.</td></tr>
+        <tr><td>`intersection`</td><td>`intersection(members: [].&lt;type&gt;): type`</td><td>The intersection of _members_.</td></tr>
+        <tr><td>`literalValues`</td><td>`literalValues(T: type)`</td><td>The values of a union of literal types, in order.</td></tr>
+        <tr><td>`literalValue`</td><td>`literalValue(T: type): any`</td><td>The value of a literal type.</td></tr>
+        <tr><td>`prop`</td><td>`prop(name: string | symbol, type: type,`</td><td>A property record, for `objectOf`.</td></tr>
+        <tr><td>`objectOf`</td><td>`objectOf(properties: [].&lt;any&gt;, indexSignatures: [].&lt;any&gt; = []): type`</td><td>An object type with the given properties.</td></tr>
+        <tr><td>`tupleOf`</td><td>`tupleOf(types: [].&lt;type&gt;): type`</td><td>A tuple type with the given element types.</td></tr>
+        <tr><td>`arrayOf`</td><td>`arrayOf(element: type, extent: uint32 | undefined = undefined): type`</td><td>A dynamic array type of _element_.</td></tr>
+        <tr><td>`tupleElements`</td><td>`tupleElements(T: type): [].&lt;any&gt;`</td><td>The element records of a tuple.</td></tr>
+        <tr><td>`elementTypes`</td><td>`elementTypes(T: type): [].&lt;type&gt;`</td><td>The element types of a tuple.</td></tr>
+        <tr><td>`mapProperties`</td><td>`mapProperties(T: type, f): type`</td><td>_T_ with each property record replaced by _f_ of it.</td></tr>
+        <tr><td>`mapPropertyTypes`</td><td>`mapPropertyTypes(T: type, f): type`</td><td>_T_ with each property TYPE replaced by _f_ of it.</td></tr>
+        <tr><td>`mapElements`</td><td>`mapElements(T: type, f): type`</td><td>A tuple with each element type replaced by _f_ of it.</td></tr>
+        <tr><td>`propertyType`</td><td>`propertyType(T: type, name: string | symbol)`</td><td>The type of the named property of _T_.</td></tr>
+        <tr><td>`genericApplication`</td><td>`genericApplication(base: type, args: [].&lt;any&gt;): type`</td><td>_base_ applied to _args_.</td></tr>
+        <tr><td>`partial`</td><td>`partial(T: type): type`</td><td>_T_ with every property optional.</td></tr>
+        <tr><td>`required`</td><td>`required(T: type): type`</td><td>_T_ with every property required.</td></tr>
+        <tr><td>`readonly`</td><td>`readonly(T: type): type`</td><td>_T_ with every property readonly.</td></tr>
+        <tr><td>`mutable`</td><td>`mutable(T: type): type`</td><td>_T_ with every property mutable.</td></tr>
+        <tr><td>`pick`</td><td>`pick(T: type, K): type`</td><td>_T_ restricted to the keys of _K_.</td></tr>
+        <tr><td>`omit`</td><td>`omit(T: type, K): type`</td><td>_T_ without the named keys.</td></tr>
+        <tr><td>`record`</td><td>`record(K: type, V: type): type`</td><td>An object type with the keys of _K_, each of type _V_.</td></tr>
+        <tr><td>`pickByValue`</td><td>`pickByValue(T: type, V: type): type`</td><td>_T_ restricted to properties whose type is assignable to _V_.</td></tr>
+        <tr><td>`removeKind`</td><td>`removeKind(T: type): type`</td><td>_T_ without its `kind` property.</td></tr>
+        <tr><td>`merge`</td><td>`merge(A: type, B: type): type`</td><td>_A_ overwritten by _B_.</td></tr>
+        <tr><td>`renameProperties`</td><td>`renameProperties(T: type, f): type`</td><td>_T_ with each property name replaced by _f_ of it.</td></tr>
+        <tr><td>`exclude`</td><td>`exclude(T: type, U: type): type`</td><td>The arms of _T_ not assignable to _U_.</td></tr>
+        <tr><td>`extract`</td><td>`extract(T: type, U: type): type`</td><td>The arms of _T_ assignable to _U_.</td></tr>
+        <tr><td>`nonNullable`</td><td>`nonNullable(T: type): type`</td><td>_T_ without *null* and *undefined*.</td></tr>
+        <tr><td>`mapUnion`</td><td>`mapUnion(T: type, f): type`</td><td>The union of _f_ applied to each arm.</td></tr>
+        <tr><td>`toArrayEach`</td><td>`toArrayEach(T: type): type`</td><td>A union of arrays, one per arm.</td></tr>
+        <tr><td>`toArrayAll`</td><td>`toArrayAll(T: type): type`</td><td>An array of the whole union.</td></tr>
+        <tr><td>`discriminants`</td><td>`discriminants(T: type, tag: string = &#x27;kind&#x27;)`</td><td>The literal values of the `kind` property across a union.</td></tr>
+        <tr><td>`byKind`</td><td>`byKind(T: type, k: string, tag: string = &#x27;kind&#x27;): type`</td><td>The arm of _T_ whose `kind` is _k_.</td></tr>
+        <tr><td>`handlers`</td><td>`handlers(T: type, R: type, tag: string = &#x27;kind&#x27;): type`</td><td>An object type of one handler per arm, keyed by discriminant.</td></tr>
+        <tr><td>`fn`</td><td>`fn(parameterTypes: [].&lt;type&gt;, returnType: type): type`</td><td>A function type with the given parameter types and return type.</td></tr>
+        <tr><td>`flatten`</td><td>`flatten(T: type): type`</td><td>The element type of an array or tuple.</td></tr>
+        <tr><td>`firstParameter`</td><td>`firstParameter(F: type): type`</td><td>The first parameter type.</td></tr>
+        <tr><td>`returnType`</td><td>`returnType(F: type): type`</td><td>The return type of a function type.</td></tr>
+        <tr><td>`parameters`</td><td>`parameters(F: type): type`</td><td>The parameter types of a function type, as a tuple.</td></tr>
+        <tr><td>`mapLiterals`</td><td>`mapLiterals(T: type, f): type`</td><td>A union of literals with each value replaced by _f_ of it.</td></tr>
+        <tr><td>`uppercase`</td><td>`uppercase(T: type): type`</td><td>The literal union uppercased.</td></tr>
+        <tr><td>`lowercase`</td><td>`lowercase(T: type): type`</td><td>The literal union lowercased.</td></tr>
+        <tr><td>`capitalized`</td><td>`capitalized(T: type): type`</td><td>The literal union with each first character uppercased.</td></tr>
+        <tr><td>`uncapitalized`</td><td>`uncapitalized(T: type): type`</td><td>The literal union with each first character lowercased.</td></tr>
+        <tr><td>`getters`</td><td>`getters(T: type): type`</td><td>An object type of `get`-prefixed readonly accessors over _T_.</td></tr>
+        <tr><td>`listeners`</td><td>`listeners(T: type): type`</td><td>An object type of `on`-prefixed change listeners over _T_.</td></tr>
+        <tr><td>`head`</td><td>`head(T: type): type`</td><td>The first element type of a tuple.</td></tr>
+        <tr><td>`tail`</td><td>`tail(T: type): type`</td><td>The tuple without its first element.</td></tr>
+        <tr><td>`concat`</td><td>`concat(A: type, B: type): type`</td><td>The two tuples joined.</td></tr>
+        <tr><td>`reverse`</td><td>`reverse(T: type): type`</td><td>The tuple reversed.</td></tr>
+        <tr><td>`zip`</td><td>`zip(A: type, B: type): type`</td><td>The two tuples zipped into a tuple of pairs.</td></tr>
+        <tr><td>`deepPartial`</td><td>`deepPartial(T: type): type`</td><td>`partial`, applied recursively through object properties.</td></tr>
+        <tr><td>`paths`</td><td>`paths(T: type): type`</td><td>The union of dotted paths through _T_.</td></tr>
+        <tr><td>`compose`</td><td>`compose(...fs)`</td><td>The composition of the given type functions.</td></tr>
+        <tr><td>`traverse`</td><td>`traverse(T: type,`</td><td>_T_ rebuilt through the given per-kind visitors.</td></tr>
+        <tr><td>`deepMap`</td><td>`deepMap(T: type, leaf): type`</td><td>_T_ with _f_ applied to every leaf type.</td></tr>
+        <tr><td>`keys`</td><td>`keys(T: type): type`</td><td>The key union of _T_ &mdash; the function form of `keyof`.</td></tr>
+        <tr><td>`indexed`</td><td>`indexed(T: type, K: type): type`</td><td>The indexed access _T_[_K_].</td></tr>
+        <tr><td>`awaited`</td><td>`awaited(T: type): type`</td><td>The awaited type of a `Promise`, or _T_ unchanged.</td></tr>
+        <tr><td>`routeParams`</td><td>`routeParams(path: string): type`</td><td>An object type of the `:name` parameters of a route pattern.</td></tr>
+        <tr><td>`noInfer`</td><td>`noInfer(T: type): type`</td><td>_T_, blocking inference at this position.</td></tr>
+        <tr><td>`withThisType`</td><td>`withThisType(F: type, Self: type): type`</td><td>The signature with _Self_ as its `this` type.</td></tr>
+        <tr><td>`thisParameterType`</td><td>`thisParameterType(F: type): type`</td><td>The declared `this` type, or *never*.</td></tr>
+        <tr><td>`omitThisParameter`</td><td>`omitThisParameter(F: type): type`</td><td>The signature without its `this` type.</td></tr>
+        <tr><td>`options`</td><td>`options(Data: type, Methods: type): type`</td><td>An object type pairing state with its operations.</td></tr>
+        <tr><td>`brand`</td><td>`brand(T: type, tag: string | symbol): type`</td><td>_T_ refined by a `brand` metadata portion carrying _tag_.</td></tr>
+        <tr><td>`constructorParameters`</td><td>`constructorParameters(C: type): type`</td><td>The constructor parameter types of a class, as a tuple.</td></tr>
+        </table>
+      </emu-table>
 
   <p>The style is visible in the definitions. The four property mappers are one line each, the union filters two, and the brand three:</p>
   <pre><code class="javascript">export function partial(T: type): type { return mapProperties(T, p =&gt; ({ ...p, optional: true })); }
