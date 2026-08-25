@@ -4056,7 +4056,7 @@ const n: uint32 = g();
 
   <emu-clause id="sec-keyed-collections">
     <h1><ins>Keyed Collections</ins></h1>
-    <p><ins>`Map`, `Set`, `WeakMap` and `WeakSet` take type arguments, and their members follow from them. <emu-xref href="#sec-array-defaults-and-stores"></emu-xref> states what their key, value and element POSITIONS admit, alongside the array's; this clause states the count they report and the collection that reports nothing.</ins></p>
+    <p><ins>`Map`, `Set`, `WeakMap` and `WeakSet` take type arguments, and their members follow from them. <emu-xref href="#sec-array-defaults-and-stores"></emu-xref> states what their key, value and element POSITIONS admit, alongside the array's; this clause states the count they report, the members that walk them, the type they report as their own, and the collection that has none of it.</ins></p>
 
     <emu-clause id="sec-collection-size">
       <h1><ins>get Map.prototype.size, get Set.prototype.size</ins></h1>
@@ -4065,6 +4065,37 @@ const n: uint32 = g();
       <p><ins>`WeakMap` and `WeakSet` have no `size`, and reading one from a value of either type is a type error rather than *undefined*. A member the type does not declare is a mistake the type can report, which is the treatment <emu-xref href="#sec-span-type"></emu-xref> gives the operations a window does not have.</ins></p>
       <emu-note>
         <p><ins>The accessor returns a VALUE of the index type and not 𝔽 of a count. The distinction is the one <emu-xref href="#sec-get-array.prototype.capacity"></emu-xref> currently gets wrong, whose algorithm returns 𝔽 at every step while <emu-xref href="#index-type"></emu-xref> says the count it reports is of the index type; the two disagree and the dfn is the side that is right. A count reported as a Number cannot be compared with one reported at the index type, which is the whole reason for naming the type.</ins></p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-collection-iteration">
+      <h1><ins>Iterating a Keyed Collection</ins></h1>
+      <p><ins>Where the collection carries type arguments, its <dfn id="collection-entry-type">entry type</dfn> is the tuple type &laquo; _K_, _V_ &raquo; for a `Map.&lt;`_K_`, `_V_`&gt;` and &laquo; _T_, _T_ &raquo; for a `Set.&lt;`_T_`&gt;`, and the members that walk it carry the types below.</ins></p>
+      <emu-table id="table-collection-iteration-members" caption="Iteration members of a typed keyed collection">
+        <table>
+          <thead><tr><th>Member</th><th>On `Map.&lt;`_K_`, `_V_`&gt;`</th><th>On `Set.&lt;`_T_`&gt;`</th></tr></thead>
+          <tr><td>`keys`</td><td>`Iterator.&lt;`_K_`&gt;`</td><td>`Iterator.&lt;`_T_`&gt;`</td></tr>
+          <tr><td>`values`</td><td>`Iterator.&lt;`_V_`&gt;`</td><td>`Iterator.&lt;`_T_`&gt;`</td></tr>
+          <tr><td>`entries`</td><td>`Iterator.&lt;`<emu-xref href="#collection-entry-type">entry type</emu-xref>`&gt;`</td><td>`Iterator.&lt;`<emu-xref href="#collection-entry-type">entry type</emu-xref>`&gt;`</td></tr>
+          <tr><td>`@@iterator`</td><td>as `entries`</td><td>as `values`</td></tr>
+          <tr><td>`forEach`</td><td>`(`_V_`, `_K_`, `_this_`) => void`</td><td>`(`_T_`, `_T_`, `_this_`) => void`</td></tr>
+          <tr><td>`clear`</td><td>`() => void`</td><td>`() => void`</td></tr>
+        </table>
+      </emu-table>
+      <p><ins>A `Map.&lt;`_K_`, `_V_`&gt;` declares that it implements `Iterable.&lt;`&laquo; _K_, _V_ &raquo;`&gt;` and a `Set.&lt;`_T_`&gt;` that it implements `Iterable.&lt;`_T_`&gt;`, in the sense of <emu-xref href="#sec-iteration-types"></emu-xref>: the relation is a DECLARATION rather than a structural inspection, so it is decided by brand and a hand-written iterator entering the same position pays the structural check instead.</ins></p>
+      <p><ins>On a `Set`, `keys` and `values` are the same function object, so they answer the same type; and `entries` yields a pair of the element with itself, which is what the language does and what a destructuring `for`-`of` over a set therefore binds.</ins></p>
+      <p><ins>`WeakMap` and `WeakSet` have none of the members in the table above, nor `size` (<emu-xref href="#sec-collection-size"></emu-xref>), and reading any of them from a value of either type is a type error rather than *undefined*. A weak collection is not enumerable: what it holds may be reclaimed between one step of a walk and the next, so there is no order to report and no count to report it against. The absence is a consequence of weakness rather than an omission to be filled in.</ins></p>
+      <emu-note>
+        <p><ins>The return type is the `Iterator` of <emu-xref href="#sec-iteration-types"></emu-xref> rather than a per-collection type. There is no `MapIterator` or `SetIterator`, for the reason that clause already gives: the bare-argument shorthand carries the narrower element type that TypeScript needs those names for, so the family stays at six interfaces and two classes.</ins></p>
+        <p><ins>`forEach` takes its VALUE first and its key second, which is the order the language chose and the order a reader most often gets wrong. Stating it is most of what typing `forEach` is worth.</ins></p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-collection-runtimetypeof">
+      <h1><ins>RuntimeTypeOf of a Keyed Collection</ins></h1>
+      <p><ins>A typed collection carries the Type Record it was built at, and <emu-xref href="#sec-runtimetypeof"></emu-xref> reports it: `Reflect.typeOf` of a `Map.&lt;`_K_`, `_V_`&gt;` is that type, and of a collection with no type arguments is the bare `Map`, `Set`, `WeakMap` or `WeakSet`.</ins></p>
+      <emu-note>
+        <p><ins>Carried rather than inferred, for the reason a window and a vector carry theirs: the type is not recoverable from the value. A `Map.&lt;string, uint8&gt;` and a `Map.&lt;string, string&gt;` have the same object shape and the same prototype chain, and a `Map` has no own properties at all - so inference read the literal type of an empty object and reported neither the specialization nor the bare nominal.</ins></p>
       </emu-note>
     </emu-clause>
 
@@ -4184,7 +4215,7 @@ const n: uint32 = g();
             <tr><td>pipelineoperator.md</td><td>Specified: <emu-xref href="#sec-pipeline-operator"></emu-xref>, with the token recorded as the proposal's current spelling and every rule stated in terms of the topic rather than the token.</td></tr>
             <tr><td>doexpressions.md</td><td>Specified: <emu-xref href="#sec-do-expressions"></emu-xref>, with the generator types and the divergence analysis it consumes in <emu-xref href="#sec-generator-types"></emu-xref> and <emu-xref href="#sec-divergence"></emu-xref>, both owed to the core rather than to it.</td></tr>
             <tr><td>simd.md</td><td>Specified: the vector type's formation is <emu-xref href="#sec-vector-types"></emu-xref>; its lanes, the broadcast cast, the horizontal sum, and the conversion between a bit vector and an integer are <emu-xref href="#sec-vector-lanes"></emu-xref>; permutation across one and two sources is <emu-xref href="#sec-vector-permutation"></emu-xref>; the component accessors with their desugaring are <emu-xref href="#sec-vector-component-accessors"></emu-xref>; the lane-wise comparisons with their result forms are <emu-xref href="#sec-vector-comparisons"></emu-xref>; the operations that consume a mask are <emu-xref href="#sec-vector-masks"></emu-xref>; the target's preferred width is <emu-xref href="#sec-vector-widths"></emu-xref>; and what an alias of a vector type has that a class wrapping one does not is <emu-xref href="#sec-vector-wrapping"></emu-xref>. Gather, scatter, and masked load and store are deferred by the design itself, which <emu-xref href="#sec-vector-widths"></emu-xref> records.</td></tr>
-            <tr><td>standardlibrary.md</td><td>Partially specified: the numeric library and the overloaded library rules are <emu-xref href="#sec-numeric-library"></emu-xref>; the keyed collections' count, the untyped carve-out, and the GetSetRecord revision are <emu-xref href="#sec-keyed-collections"></emu-xref>, with their key, value and element positions and the set-algebra result types in <emu-xref href="#sec-array-defaults-and-stores"></emu-xref>. Deferred: the collections' iteration members and their constructors, `Map.groupBy` and `Object.groupBy`, the iterator helpers, the `Promise` statics, and `Array.fromAsync`.</td></tr>
+            <tr><td>standardlibrary.md</td><td>Partially specified: the numeric library and the overloaded library rules are <emu-xref href="#sec-numeric-library"></emu-xref>; the keyed collections' count, the untyped carve-out, and the GetSetRecord revision are <emu-xref href="#sec-keyed-collections"></emu-xref>, with their key, value and element positions and the set-algebra result types in <emu-xref href="#sec-array-defaults-and-stores"></emu-xref>. The iteration members, the entry type, and the `Iterable` relation are <emu-xref href="#sec-collection-iteration"></emu-xref>. Deferred: the collections' constructors, `Map.groupBy` and `Object.groupBy`, the iterator helpers, the `Promise` statics, and `Array.fromAsync`.</td></tr>
             <tr><td>errorhandling.md</td><td>Specified: <emu-xref href="#sec-typed-catch"></emu-xref>; the errors the proposal raises are stated at their checks.</td></tr>
             <tr><td>references.md</td><td>Specified: the `ref` type is in the grammar and the borrowing rules are <emu-xref href="#sec-references-and-borrowing"></emu-xref>; a returned reference is consumed as a location by the forms of <emu-xref href="#sec-location-consuming-contexts"></emu-xref>, and a borrow of an `SoA` element is <emu-xref href="#sec-soa-references"></emu-xref>; a destructuring `ref` member is <emu-xref href="#sec-typed-destructuring"></emu-xref>; the deferred form (a user iterator or callback yielding references) is noted there.</td></tr>
             <tr><td>threading.md</td><td>Specified by <emu-xref href="#sec-threading"></emu-xref>: threads and their lifetime, the scheduling of promise reactions across them, `callThread` and cancellation, the `shared` modifier's placement and stability rules, shared typed memory as events of the memory model, `Atomics` over typed values, Lock, Condition, and ThreadLocal, and parallel iteration. The host latitude that remains is listed at its hook (<emu-xref href="#table-extension-hooks"></emu-xref>).</td></tr>
