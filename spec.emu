@@ -3511,6 +3511,20 @@ const n: uint32 = g();
     </emu-clause>
 
     <ins class="block">
+    <emu-clause id="sec-value-type-copying">
+      <h1><ins>Copying a Value Type</ins></h1>
+      <p><ins>Assigning a value of a value type, passing one as an argument, and returning one each COPY it. The copy is of the value's layout (<emu-xref href="#sec-memory-layout"></emu-xref>), padding included; it runs no constructor and no field initializer. There is no move that would leave the source invalid.</ins></p>
+      <p><ins>The positions at which this occurs are: initializing a binding from a value of such a type, assigning to one, storing into a field or an array element, passing an argument, and returning. A read of a field or an element into any of those positions is one of them, so `_e_` in `let _e_: _V_ = _arr_[0]` holds a copy and writing to it does not disturb the element.</ins></p>
+      <p><ins>CONSTRUCTION does not copy. A constructor call, an object-literal conversion, and a `return` of a newly constructed value build their result directly in the destination &mdash; a binding, a field, an array element, or the caller's receiving slot &mdash; so `return { … } := _Matrix4_` writes the caller's storage in place. This is the copy elision that C++17 guarantees for prvalues, required here rather than permitted.</ins></p>
+      <p><ins>A `ref` binding (<emu-xref href="#sec-reference-liveness"></emu-xref>) is the opt-out: it names a storage location rather than taking a value, so no copy and no allocation occurs, which is how a program passes a large value type without paying for it.</ins></p>
+      <p><ins>A method's *this* value is the receiver's STORAGE and not a copy of it, so a method that writes to *this* writes through to the receiver, whether the receiver is a binding, a field, or an array element.</ins></p>
+      <emu-note>
+        <p><ins>The last rule is what makes a mutating method possible at all: were *this* a copy, `_m_.bump()` would compute a new value and discard it. C# reaches the same answer for a receiver that is a variable. Rust requires the receiver to be marked `&amp;mut self` and this specification has no such marker, so the rule is stated rather than inferred &mdash; and the compound assignment forms of <emu-xref href="#sec-user-defined-operators"></emu-xref> already depend on it: the design has them "invoked as method calls on the left-hand side", with "the binding itself never reassigned, so they work on `const` bindings", which a copied *this* would make impossible. That clause states which operators are overloadable and not that a compound assignment leaves its binding alone, so this dependency is currently on the design rather than on anything normative here.</ins></p>
+        <p><ins>A copy running no constructor is coherent with <emu-xref href="#sec-typed-classes"></emu-xref>'s reading of what a value type class is: "a shape with a zero, not an object with an invariant its constructor establishes". A class that needs its constructor to have run states that by holding a field whose type has no default.</ins></p>
+        <p><ins>Copying is a property of ASSIGNMENT rather than of conversion, and the distinction is load-bearing for an implementation. A check inserted at a boundary (<emu-xref href="#table-check-sites"></emu-xref>) may be skipped where the source provably satisfies the target, since a check that cannot fail does nothing. A copy is never nothing. An implementation that performs the copy as part of the boundary check will therefore copy or not according to what its checker happened to prove, which is one semantics decided by an optimisation.</ins></p>
+      </emu-note>
+    </emu-clause>
+
     <emu-clause id="sec-declared-zero">
       <h1>Declared Zeros</h1>
       <p>A class may declare the value its bindings hold before assignment, in place of the one <emu-xref href="#sec-defaultvalueof"></emu-xref> derives field by field. The declaration is a static field named `default`:</p>
