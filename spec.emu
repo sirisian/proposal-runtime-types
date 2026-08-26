@@ -257,6 +257,58 @@ contributors: Sirisian
         </emu-alg>
       </emu-clause>
 
+      <emu-clause id="sec-aredisjoint" type="abstract operation">
+        <h1>
+          AreDisjoint (
+            _s_: a Type Record,
+            _t_: a Type Record,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It determines whether no value is of both _s_ and _t_.</dd>
+        </dl>
+        <emu-alg>
+          1. If _s_.[[Kind]] is ~any~, ~parameter~, or ~application~, return *false*.
+          1. If _t_.[[Kind]] is ~any~, ~parameter~, or ~application~, return *false*.
+          1. If _s_.[[Kind]] is ~shared~, return AreDisjoint(_s_.[[Target]], _t_).
+          1. If _t_.[[Kind]] is ~shared~, return AreDisjoint(_s_, _t_.[[Target]]).
+          1. If _s_.[[Kind]] is ~intersection~, then
+            1. For each element _m_ of _s_.[[Members]], do
+              1. If AreDisjoint(_m_, _t_) is *true*, return *true*.
+            1. Return *false*.
+          1. If _t_.[[Kind]] is ~intersection~, then
+            1. For each element _n_ of _t_.[[Members]], do
+              1. If AreDisjoint(_s_, _n_) is *true*, return *true*.
+            1. Return *false*.
+          1. If _s_.[[Kind]] is ~union~, then
+            1. For each element _p_ of _s_.[[Members]], do
+              1. If AreDisjoint(_p_, _t_) is *false*, return *false*.
+            1. Return *true*.
+          1. If _t_.[[Kind]] is ~union~, then
+            1. For each element _q_ of _t_.[[Members]], do
+              1. If AreDisjoint(_s_, _q_) is *false*, return *false*.
+            1. Return *true*.
+          1. If _s_.[[Kind]] is ~void~ or _t_.[[Kind]] is ~void~, return *true* if _s_.[[Kind]] is not _t_.[[Kind]], and *false* otherwise.
+          1. Let _sb_ be _s_; while _sb_.[[Kind]] is ~parameterized~, set _sb_ to _sb_.[[Base]].
+          1. Let _tb_ be _t_; while _tb_.[[Kind]] is ~parameterized~, set _tb_ to _tb_.[[Base]].
+          1. If _sb_.[[Kind]] is ~literal~ and _tb_.[[Kind]] is ~literal~, return *false* if SameType(_sb_, _tb_) is *true*, and *true* otherwise.
+          1. If _sb_.[[Kind]] is ~literal~, set _sb_ to _sb_.[[Base]].
+          1. If _tb_.[[Kind]] is ~literal~, set _tb_ to _tb_.[[Base]].
+          1. If _sb_.[[Kind]] is ~primitive~ and _tb_.[[Kind]] is ~primitive~, return *false* if SameType(_sb_, _tb_) is *true*, and *true* otherwise.
+          1. If _sb_.[[Kind]] is ~primitive~ and _tb_.[[Kind]] is ~object~, ~function~, ~array~, or ~tuple~, return *true*.
+          1. If _tb_.[[Kind]] is ~primitive~ and _sb_.[[Kind]] is ~object~, ~function~, ~array~, or ~tuple~, return *true*.
+          1. Return *false*.
+        </emu-alg>
+        <emu-note>
+          <p>This is the judgment <emu-xref href="#sec-narrowto"></emu-xref> already made in prose, given a name so that canonicalization, the Early Error of <emu-xref href="#sec-intersection-type-early-errors"></emu-xref>, and the narrowing rows decide it once and the same way. Everything it answers *true* for that clause's note had already committed to: two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or a ~function~ type.</p>
+          <p>The operation is CONSERVATIVE: where the values of a type are not yet known it answers *false*, never *true*. ~any~, a ~parameter~, and an ~application~ whose call has not been evaluated therefore overlap with everything, which is what keeps a generic body from being rejected for a disjointness that only some instantiation would have. It is likewise silent about two ~object~ types, two ~nominal~ types, and a ~nominal~ against an ~object~: two object types may share a value, which is the case intersections exist for, and whether two unrelated nominal CLASSES are disjoint is a question this operation deliberately does not answer, there being no need of it and a subtyping cost to deciding it.</p>
+          <p>Disjointness is decided on the BASE of a ~parameterized~ type and never on its metadata, which is what keeps a layered brand a type rather than an empty one: `string.&lt;{ brand: 'E' }&gt; &amp; string.&lt;{ brand: 'V' }&gt;` is two refinements of one `string`, inhabited by every String granted both, while `string.&lt;{ brand: 'E' }&gt; &amp; uint8` is empty because the bases are. A rule phrased over "two value types" rather than over their bases would have destroyed the first along with the second.</p>
+          <p>The walk to the base is a LOOP and not a single step, because parameterizing an already-parameterized type nests: the outer [[Base]] is the inner type, so `string.&lt;{ brand: 'E' }&gt;.&lt;{ brand: 'N' }&gt;` reaches `string` only by walking through the layer between (<emu-xref href="#sec-parameterized-types"></emu-xref>). A single step would have compared one nested brand against another and found two ~parameterized~ types it could not relate, and reading that as disjoint would have emptied every layered type in the language.</p>
+          <p>The base a walk arrives at need not be a ~primitive~. A ~literal~ base is decided by the primitive beneath it, so a brand on `'a'` and a brand on `string` may share a value while a brand on `'a'` and a brand on `'b'` may not. An ~object~ or ~array~ base carries a brand as a mark on the value, so two brands over one object shape are two refinements of it exactly as over a `string`, and a brand over an object is disjoint from a ~primitive~ for the ordinary reason rather than because it is branded.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-canonicalizetype" type="abstract operation">
         <h1>
           CanonicalizeType (
@@ -278,6 +330,7 @@ contributors: Sirisian
                 1. Append _c_ to _members_.
             1. Remove from _members_ each element that is the same type (SameType) as an element occurring earlier in _members_.
             1. If _t_.[[Kind]] is ~intersection~ and _members_ contains an element whose [[Kind]] is ~union~ and whose [[Members]] is empty, return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; } (the `never` type; see <emu-xref href="#sec-never-type"></emu-xref>).
+            1. If _t_.[[Kind]] is ~intersection~ and _members_ contains two elements _a_ and _b_ such that AreDisjoint(_a_, _b_) is *true*, return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; } (the `never` type).
             1. If _members_ has exactly one element, return that element.
             1. Order the elements of _members_ according to the total order of <emu-xref href="#sec-canonical-total-order"></emu-xref>.
             1. Return the Type Record { [[Kind]]: _t_.[[Kind]], [[Members]]: _members_ }.
@@ -301,7 +354,7 @@ contributors: Sirisian
           1. Return _t_.
         </emu-alg>
         <emu-note>
-          <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing the Type Records in its [[Arguments]], which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration. Flattening is also what removes a `never` member from a union: the member is an empty union, so it contributes nothing, and `T | never` canonicalizes to `T` with no rule naming the case. The intersection step above is the one algebraic fact about `never` that does not fall out this way (<emu-xref href="#sec-never-type"></emu-xref>). Canonicalization performs no subtype absorption: `uint8 | number` keeps both members, because folding by IsSubtype would make the canonical form depend on a relation that reads canonical forms, and the unabsorbed union costs nothing, since membership and assignability answer identically either way.</p>
+          <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing the Type Records in its [[Arguments]], which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration. Flattening is also what removes a `never` member from a union: the member is an empty union, so it contributes nothing, and `T | never` canonicalizes to `T` with no rule naming the case. The first intersection step above is the one algebraic fact about `never` that does not fall out this way (<emu-xref href="#sec-never-type"></emu-xref>). The second is what makes `never` the ONLY empty type rather than one of many: an intersection two of whose members are disjoint has no values, and a type with no values is that type. Without it `number &amp; bigint` interned as a Type Object of its own - uninhabited by the reasoning of <emu-xref href="#sec-narrowto"></emu-xref>, with no default value and no assignable source, and yet neither `never` nor assignable to it, so IsAssignable could not equate two empty types. Reducing also removes a dead arm from a union that has one, flattening then dropping the `never`, so `string | (number &amp; bigint)` is `string`: a slot of that type holds one kind of value and an implementation need not tag it as a union to discover so. Canonicalization performs no subtype absorption: `uint8 | number` keeps both members, because folding by IsSubtype would make the canonical form depend on a relation that reads canonical forms, and the unabsorbed union costs nothing, since membership and assignability answer identically either way.</p>
         </emu-note>
       </emu-clause>
 
@@ -794,6 +847,21 @@ contributors: Sirisian
         <p>|ReferenceType| takes a |PrimaryType| operand, so `ref uint8 | null` is a union of `ref uint8` and `null`. `ref` is a contextual keyword: it is a valid identifier today, so `ref` followed by a token that cannot begin a type is an identifier.</p>
         <p>`keyof` is likewise a contextual keyword, and a |KeyOfType| binds tighter than union and intersection, so `keyof A | B` is the union of `keyof A` and `B`. Its result is the union of the operand's key types, one literal type per named member. The full definition over each kind is given by <emu-xref href="#sec-keyof"></emu-xref>, producing a union of the literal types of <emu-xref href="#sec-literal-types"></emu-xref>.</p>
       </emu-note>
+
+      <emu-clause id="sec-intersection-type-early-errors">
+        <h1>Static Semantics: Early Errors for Intersection Types</h1>
+        <emu-grammar>IntersectionType : IntersectionType `&amp;` PostfixType</emu-grammar>
+        <ul>
+          <li>It is a type error if the Type Records denoted by two of the members of this |IntersectionType| are disjoint (<emu-xref href="#sec-aredisjoint"></emu-xref>), unless one of the members denotes `never`.</li>
+        </ul>
+        <emu-note>
+          <p>Canonicalization already reduces such a type to `never` (<emu-xref href="#sec-canonicalizetype"></emu-xref>), so this rule changes no type; it changes where a program hears about one. Reduction alone would report the mistake at every USE of the annotation, as an assignment refused by a type no value inhabits, rather than at the `&amp;` that made it - which is how an erasure checker reports it and is the least useful place to say it. The members are written right there, and the message names them.</p>
+          <p>This is the call <emu-xref href="#sec-narrowto"></emu-xref> already makes with its ~empty~ sentinel, which reports a test that cannot succeed as a mistake rather than narrowing to the type with no values, and it is made here for the same reason and with less doubt: a narrowing row at least has a live value flowing through it, while a written empty intersection has nothing that could ever reach it. `&amp;` written where `|` was meant is the mistake this catches, and it is the common one.</p>
+          <p>The rule is on the SYNTAX, so a `never` a computation reaches is untouched. `Reflect.makeType` (<emu-xref href="#sec-reflect-maketype"></emu-xref>) constructing a disjoint intersection returns `never` and does not throw, because canonicalization is total and the kit computes with the empty type: `union(&laquo; &raquo;)` and an `exclude` that removes every member are `never`, and a builder that threw instead would put a guard in every kit function. A generic body is likewise not rejected: in `type F&lt;T&gt; = T &amp; string;` the member `T` is a ~parameter~, over which AreDisjoint is conservative, so the declaration stands and an instantiation at `number` reduces to `never` silently.</p>
+          <p>The reduction and this rule have different reach, and this one is the shorter of the two. Canonicalization reduces every disjoint intersection, whatever the shape of its members; this rule is decided over the types the checking pass has resolved, and where a member is not resolved far enough there to be judged &mdash; a parameterization whose base is itself parameterized, or is named by an alias the pass has not evaluated &mdash; AreDisjoint answers *false* and no error is reported. The type is `never` either way, so the failure mode is a MISSED diagnostic and never a wrong one: such a program hears about its mistake from the use site, as it did before this rule existed. An implementation may resolve further and report more; it may not report on a member it has not resolved, an unresolved type being one that may still turn out to be anything.</p>
+          <p>A member that denotes `never` is exempt because writing it says what the rule is for saying. `uint8 &amp; never` is the annihilation identity of <emu-xref href="#sec-never-type"></emu-xref> spelled out rather than a mistake, and an author who wants to write the empty type has `never` itself, which is admitted as a type name on the same terms as every other. The exemption is on a member DENOTING `never`, so an alias for an already-reported empty intersection is reported once at its own declaration and not again at each mention of it.</p>
+        </emu-note>
+      </emu-clause>
 
       <emu-clause id="sec-type-references">
         <h1>Type References and Type Arguments</h1>
@@ -1638,6 +1706,7 @@ contributors: Sirisian
         <li>No type other than `never` is a subtype of `never`. A target of the ~union~ kind requires some member to accept the source, and there is none.</li>
         <li>`never` is the identity of union. Canonicalization (<emu-xref href="#sec-canonicalizetype"></emu-xref>) flattens a member of the same kind into its parent, and flattening an empty union contributes no members, so `T | never` canonicalizes to `T` with no rule naming the case.</li>
         <li>`never` annihilates intersection: an intersection with a `never` member is `never`. This is the one fact that does not fall out, and CanonicalizeType carries the step for it.</li>
+        <li>An intersection two of whose members are disjoint (<emu-xref href="#sec-aredisjoint"></emu-xref>) is `never`, which is the general case of the preceding: a `never` member is disjoint from every member, itself included. CanonicalizeType carries this step too, so `number &amp; bigint`, `uint8 &amp; string`, and `'a' &amp; 'b'` are all this one type. A program that WRITES such an intersection is reported at the annotation rather than left to discover it downstream (<emu-xref href="#sec-intersection-type-early-errors"></emu-xref>).</li>
       </ul>
       <p>No value is a value of the `never` type: IsOfType (<emu-xref href="#sec-isoftype"></emu-xref>) over a union with no members is *false* for every value, and DefaultValueOf (<emu-xref href="#sec-defaultvalueof"></emu-xref>) of it is ~none~, so a binding of the type can be neither defaulted nor, since no expression's value can satisfy it, initialized. A value of the `any` type reaching a position of the `never` type fails its boundary check (<emu-xref href="#sec-requiretype"></emu-xref>) for every value. That vacuity is the point: `never` exists to be computed with, as the result of removing every member from a union, not to be inhabited.</p>
 
@@ -2693,11 +2762,12 @@ const n: uint32 = g();
             1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
           1. If IsSubtype(_s_, _t_, &laquo; &raquo;) is *true*, return _s_.
           1. If IsSubtype(_t_, _s_, &laquo; &raquo;) is *true*, return _t_.
-          1. If _s_ and _t_ have no common values, return ~empty~.
+          1. If AreDisjoint(_s_, _t_) is *true*, return ~empty~.
           1. Return CanonicalizeType(the Type Record { [[Kind]]: ~intersection~, [[Members]]: &laquo; _s_, _t_ &raquo; }).
         </emu-alg>
         <emu-note>
-          <p>Two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that yields ~empty~ for `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
+          <p>The disjointness judgment is <emu-xref href="#sec-aredisjoint"></emu-xref>, which this clause once stated in prose and which canonicalization and the Early Error of <emu-xref href="#sec-intersection-type-early-errors"></emu-xref> now share, so a type is empty in one place exactly when it is empty in the others. Two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that yields ~empty~ for `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
+          <p>~empty~ remains distinct from the `never` this same disjointness produces in a TYPE, and the difference is what each is for. A narrowing row that cannot succeed is a branch the program wrote and can never take, so it is reported as the mistake it is; a type computation that filters every member away has an answer, and the answer is `never`. The two are the same judgment put to different uses, which is why they may share the operation without sharing the result.</p>
         </emu-note>
       </emu-clause>
 
@@ -3774,7 +3844,7 @@ const n: uint32 = g();
       </emu-alg>
       <p>For every type _T_, `Reflect.makeType(Reflect.getReflection.&lt;Reflect.Type&gt;(`_T_`))` is _T_. Construction canonicalizes and interns by <emu-xref href="#sec-canonicalizetype"></emu-xref> and <emu-xref href="#sec-gettypeobject"></emu-xref>, the same operations that give a source-written type its identity, which is what makes the round trip the identity function rather than an equivalence. Reconstruction is STRUCTURAL AND COMPLETE: a node's payload is rebuilt to its full depth, so a nested record within a ~parameterized~ node's metadata becomes a record again rather than remaining the object the node carried it in. A reconstruction that stops short produces a type that answers correctly to every question except identity &mdash; the same kind, the same base, the same field values, and stable under further round trips &mdash; which is why this paragraph states an identity and why a conformance suite that checks shape rather than identity does not test it.</p>
       <emu-note>
-        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, an intersection of distinct value types, or an index signature with an illegal key type fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. Validity is not syntactic reachability: a symbol literal type is a valid type with no declaration form at all, which is why it is constructed rather than written; an index signature has the declaration form of <emu-xref href="#sec-object-types"></emu-xref>, and the declaration and a builder's construction reach the same Record. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
+        <p>Canonicalization is where invalidity is caught: a node describing an infinite value-type layout, or an index signature with an illegal key type, fails exactly as the equivalent declaration fails, with the same message, so a builder's misuse reads as the misuse it is. An intersection whose members are disjoint is NOT among them, and the asymmetry is deliberate rather than an oversight: the declaration is a type error (<emu-xref href="#sec-intersection-type-early-errors"></emu-xref>) and the construction is `never` (<emu-xref href="#sec-canonicalizetype"></emu-xref>). A written intersection is an author naming two types that share no value, which is almost always `&amp;` typed for `|`; a constructed one is the result of a computation over members the caller did not enumerate, and the empty type is the answer such a computation must be able to reach. An earlier draft of this clause claimed the two failed alike, and named a declaration rule that this specification did not then state. Validity is not syntactic reachability: a symbol literal type is a valid type with no declaration form at all, which is why it is constructed rather than written; an index signature has the declaration form of <emu-xref href="#sec-object-types"></emu-xref>, and the declaration and a builder's construction reach the same Record. A *"cycle"* node is not accepted, since it is reflection output; a constructed cycle arises only from the fixpoint of <emu-xref href="#sec-evaluatebuildercall"></emu-xref>. The function is compile-time evaluable, and at run time it is an ordinary function returning the same interned objects, so `String(Reflect.makeType(&hellip;))` prints the canonical form of <emu-xref href="#sec-type-object-opacity"></emu-xref>.</p>
       </emu-note>
     </emu-clause>
 
