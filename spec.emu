@@ -3820,7 +3820,7 @@ const n: uint32 = g();
             <tr><td>*"primitive"*</td><td>`type`, the Type Object itself; `generic`, either *undefined* or a record with `base` (a Type Object) and `arguments` (a List of Type Objects and values), the decomposition of a generic instantiation. This one node covers every named leaf: the built-in primitives, classes, interfaces, enums, and the `any`, `void`, and `type` types. It also carries `family`, the String the Type Object's own `family` reports (<emu-xref href="#table-type-families"></emu-xref>), so a walker holding a node need not return to the Type Object to ask which of those a leaf is.</td></tr>
             <tr><td>*"literal"*</td><td>`value`, a String, Number, Boolean, BigInt, or Symbol; `base`, a Type Object.</td></tr>
             <tr><td>*"parameterized"*</td><td>`base`, a Type Object; `metadata`, an object: the metadata half of a parameterization such as `float32.&lt;{ m: 1 }&gt;`.</td></tr>
-            <tr><td>*"union"*</td><td>`arms`, a List of Type Objects, in the canonical order; empty for the `never` type.</td></tr>
+            <tr><td>*"union"*</td><td>`members`, a List of Type Objects, in the canonical order; empty for the `never` type.</td></tr>
             <tr><td>*"intersection"*</td><td>`members`, a List of Type Objects, in the canonical order.</td></tr>
             <tr><td>*"tuple"*</td><td>`elements`, a List of records with `type` (a Type Object), `rest`, and `initial`.</td></tr>
             <tr><td>*"array"*</td><td>`element`, a Type Object; `extent`, a non-negative integer or *undefined* for a dynamic length.</td></tr>
