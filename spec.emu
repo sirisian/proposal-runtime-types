@@ -4161,7 +4161,7 @@ const n: uint32 = g();
       <p><ins>`size` is an accessor property whose set accessor function is *undefined*, on a typed collection as on an untyped one. An array's `length` is assignable because an array is POSITIONAL and dropping a suffix is well defined; a keyed collection has no such operation that `clear` does not already name, and a count that deleted entries would be a mutator wearing the spelling of a report. Having a type does not imply having a setter: `capacity` (<emu-xref href="#sec-get-array.prototype.capacity"></emu-xref>) is of the index type and reports only.</ins></p>
       <p><ins>`WeakMap` and `WeakSet` have no `size`, and reading one from a value of either type is a type error rather than *undefined*. A member the type does not declare is a mistake the type can report, which is the treatment <emu-xref href="#sec-span-type"></emu-xref> gives the operations a window does not have.</ins></p>
       <emu-note>
-        <p><ins>The accessor returns a VALUE of the index type and not 𝔽 of a count. The distinction is the one <emu-xref href="#sec-get-array.prototype.capacity"></emu-xref> currently gets wrong, whose algorithm returns 𝔽 at every step while <emu-xref href="#index-type"></emu-xref> says the count it reports is of the index type; the two disagree and the dfn is the side that is right. A count reported as a Number cannot be compared with one reported at the index type, which is the whole reason for naming the type.</ins></p>
+        <p><ins>The accessor returns a VALUE of the index type and not 𝔽 of a count. The distinction is the one <emu-xref href="#sec-get-array.prototype.capacity"></emu-xref> states for a `capacity`, whose algorithm returned 𝔽 at every step while <emu-xref href="#index-type"></emu-xref> said the count it reports is of the index type; the dfn was the side that was right, and that clause now agrees with it. A count reported as a Number cannot be compared with one reported at the index type, which is the whole reason for naming the type.</ins></p>
       </emu-note>
     </emu-clause>
 
@@ -4638,13 +4638,15 @@ const n: uint32 = g();
         <emu-alg>
           1. Let _O_ be ? ToObject(*this* value).
           1. If _O_ does not have a [[TypedElement]] internal slot, throw a *TypeError* exception.
-          1. If _O_ has a [[TypedExtent]] internal slot, return 𝔽(_O_.[[TypedExtent]]).
+          1. If _O_ has a [[TypedExtent]] internal slot, <del>return 𝔽(_O_.[[TypedExtent]])</del><ins>return the value of the <emu-xref href="#index-type">index type</emu-xref> whose mathematical value is _O_.[[TypedExtent]]</ins>.
           1. Let _len_ be ? LengthOfArrayLike(_O_).
-          1. If _O_ has a [[TypedCapacity]] internal slot, return 𝔽(max(_O_.[[TypedCapacity]], _len_)).
-          1. Return 𝔽(_len_).
+          1. If _O_ has a [[TypedCapacity]] internal slot, <del>return 𝔽(max(_O_.[[TypedCapacity]], _len_))</del><ins>return the value of the <emu-xref href="#index-type">index type</emu-xref> whose mathematical value is max(_O_.[[TypedCapacity]], _len_)</ins>.
+          1. <del>Return 𝔽(_len_)</del><ins>Return the value of the <emu-xref href="#index-type">index type</emu-xref> whose mathematical value is _len_</ins>.
         </emu-alg>
         <emu-note>
           <p>An accessor and not a method: as a method, `a.capacity` answered the function object rather than the count, so `if (a.capacity > 1000)` was silently true and never reported the mistake. A fixed extent returns the extent itself and not the length, since such an array's storage holds exactly that many elements whether or not they have been written.</p>
+          <p><ins>The three returns produce a value of the <emu-xref href="#index-type">index type</emu-xref> and not 𝔽 of a count. They read 𝔽 while the dfn said the counts a container reports are of that type, and the dfn is the side that is right: it names `capacity` among the counts explicitly, and its closing sentence is that naming the type once is "what keeps `capacity` comparable with `length` without a conversion &mdash; the invariant that a capacity is at least a length is unstateable if the two are not one type". An algorithm returning 𝔽 makes exactly that comparison a conversion, so the clause contradicted the reason the type exists. `sec-collection-size` records the same distinction for `size` and points here.</ins></p>
+          <p><ins>Unconditional, unlike `size`. A keyed collection reports a Number where it carries no type arguments, because an untyped `Map` is an ordinary Map and <emu-xref href="#sec-untyped-collections"></emu-xref> requires that nothing about it change. `capacity` has no such form: it is reached only through a [[TypedElement]] slot, which this accessor requires before it reports anything, so every array that has a `capacity` at all is a typed one and there is no untyped reading to preserve.</ins></p>
         </emu-note>
       </emu-clause>
 
