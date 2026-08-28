@@ -2168,9 +2168,27 @@ contributors: Sirisian
           1. If _to_ is `string` or `boolean`, return ? PrimitiveConvert(_value_, _to_).
           1. Let _conversion_ be the user-defined conversion from _from_ to _to_, if one is declared (<emu-xref href="#sec-user-defined-conversions"></emu-xref>).
           1. If _conversion_ is not ~empty~, return ? the result of applying _conversion_ to _value_.
+          1. <ins>If _to_ is an ~object~ Type Record, or is a ~nominal~ Type Record whose [[Structure]] is one, and _value_ is an Object that is not an Array, then</ins>
+            1. <ins>Let _shape_ be _to_ if _to_.[[Kind]] is ~object~, and _to_.[[Structure]] otherwise.</ins>
+            1. <ins>For each element _prop_ of _shape_.[[Properties]], do</ins>
+              1. <ins>Let _key_ be _prop_'s key.</ins>
+              1. <ins>If ? HasProperty(_value_, _key_) is *false*, then</ins>
+                1. <ins>If _prop_ is optional, continue.</ins>
+                1. <ins>Throw a *TypeError* exception.</ins>
+              1. <ins>Let _current_ be ? Get(_value_, _key_).</ins>
+              1. <ins>Let _converted_ be ? ConvertValue(_current_, RuntimeTypeOf(_current_), _prop_'s type). The source type is read from the value because a member's static type is not carried here.</ins>
+              1. <ins>If _converted_ is not _current_, then</ins>
+                1. <ins>If ? Set(_value_, _key_, _converted_, *false*) is *false*, throw a *TypeError* exception.</ins>
+            1. <ins>An own String-keyed property of _value_ that _shape_.[[Properties]] does not declare, but whose key is of the key type of some element of _shape_.[[IndexSignatures]], crosses by the same steps against that element's value type.</ins>
+            1. <ins>Return _value_.</ins>
           1. If IsAssignable(_from_, _to_) is *true*, return _value_.
           1. Throw a *TypeError* exception.
         </emu-alg>
+        <emu-note>
+          <p><ins>The object step converts the declared members IN PLACE and returns the same Object. A boundary is where a value acquires a type it did not have (<emu-xref href="#table-check-sites"></emu-xref>), and an object boundary that only TESTED membership would leave `let _o_: `{ x: uint8 }` = `{ x: 5 }`` refused, the literal's `5` being a Number that nothing has made a `uint8`. Building a new object from the declared members instead would DISCARD the properties the type does not declare, which the boundary admits and a program keeps, and would break the identity a caller and a callee share: `_f_(_o_) === _o_` holds, and is relied on.</ins></p>
+          <p><ins>Converting in place is therefore the rule, and its cost is the step that REFUSES when the member cannot be written. A frozen object, an accessor with no setter, and a property whose descriptor says otherwise are all values that cannot acquire the type, and a boundary that cannot give a value its type does not have it. The refusal is stated as a step rather than left to the write, so that it reports which member and which type rather than surfacing as an assignment fault; `Set` is called with *false* because the question is whether the write SUCCEEDED, and the property may be inherited.</ins></p>
+          <p><ins>A COMPOSITE is frozen from its creation (<emu-xref href="#sec-composite-objects"></emu-xref>), so this step refuses one whose member needs converting: `Composite`.&lt;`{ n: number }`&gt; does not cross to `{ n: uint32 }`. A composite whose members already hold the target types crosses, since no write is attempted. This is a consequence of freezing meeting in-place conversion, and it is written here rather than discovered: the alternative would be to copy for a frozen source alone, which trades the identity above for it.</ins></p>
+        </emu-note>
         <emu-note>
           <p>The final step is reached only where the operand types are related by no rule above. Where those types are known statically the conversion is rejected as a type error before evaluation (<emu-xref href="#sec-type-errors"></emu-xref>), so the exception is thrown only where a type reaches the conversion dynamically, as when a Type Object computed at run time is called as a function.</p>
         </emu-note>
@@ -6638,6 +6656,10 @@ const n: uint32 = g();
       <p>There are two kinds of composite object. A <dfn>record composite</dfn> is an ordinary object whose [[Prototype]] is *null*, whose [[Extensible]] is *false*, and whose properties are own data properties with String keys, each with [[Writable]] *false*, [[Enumerable]] *true*, and [[Configurable]] *false*. A <dfn>tuple composite</dfn> is an Array exotic object whose [[Prototype]] is *null* and whose [[Extensible]] is *false*, whose integer-indexed properties are own data properties with [[Writable]] *false*, [[Enumerable]] *true*, and [[Configurable]] *false*, and whose *"length"* property is non-writable, non-enumerable, and non-configurable. `Array.isArray` answers *false* for a record composite and *true* for a tuple composite, and `typeof` answers *"object"* for both.</p>
 
       <p>Every composite object has a [[RuntimeType]] internal slot holding the composite type of its contents (<emu-xref href="#sec-composite-types"></emu-xref>), which is what RuntimeTypeOf (<emu-xref href="#sec-runtimetypeof"></emu-xref>) reports for it. A composite object is frozen from its creation, so the slot never becomes stale.</p>
+
+      <emu-note>
+        <p><ins>Being frozen has a consequence at a boundary: a composite whose member needs CONVERTING to cross cannot be narrowed, because the conversion of an object's members happens in place (<emu-xref href="#sec-convertvalue"></emu-xref>) and a frozen member cannot be written. `Composite`.&lt;`{ n: number }`&gt; does not cross to `{ n: uint32 }`; one whose members already hold the target types crosses, no write being attempted. The refusal names the member and the type rather than reporting a failed assignment.</ins></p>
+      </emu-note>
 
       <emu-note>
         <p>A record composite holds what upstream's composites hold. The tuple kind is this design's addition: an array-shaped composite whose *"length"* is own and non-enumerable, so that `Object.keys` lists the elements, and whose iteration <emu-xref href="#sec-composite-modifications"></emu-xref> supplies without a prototype to carry `%Symbol.iterator%`. The two kinds never intern together (<emu-xref href="#sec-compositematch"></emu-xref>): `Composite([1])` and `Composite({ 0: 1 })` are different objects, because a record with the entry *"0"* and a tuple of one element disagree about shape even where they agree about every entry.</p>
