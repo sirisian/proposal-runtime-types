@@ -1999,7 +1999,7 @@ contributors: Sirisian
               <tr><td>`Promise.all`</td><td>`(promises: Iterable.&lt;Promise.&lt;`_R_`, `_E_`&gt;&gt;): Promise.&lt;[` `]` `.` `&lt;`_R_`&gt;, `_E_`&gt;`</td></tr>
               <tr><td>`Promise.race`</td><td>`(promises: Iterable.&lt;Promise.&lt;`_R_`, `_E_`&gt;&gt;): Promise.&lt;`_R_`, `_E_`&gt;`</td></tr>
               <tr><td>`Promise.any`</td><td>`(promises: Iterable.&lt;Promise.&lt;`_R_`, `_E_`&gt;&gt;): Promise.&lt;`_R_`, AggregateError&gt;`</td></tr>
-              <tr><td>`Promise.resolve`</td><td>`(value: `_R_`): Promise.&lt;`_R_`, `_E_`&gt;`, _E_ from the contextual type and `any` without one</td></tr>
+              <tr><td>`Promise.resolve`</td><td>`(value: `_R_`): Promise.&lt;`_R_`, never&gt;`, a resolved promise having nothing to reject with</td></tr>
               <tr><td>`Promise.try`</td><td>`(callback: () =&gt; `_R_` | Promise.&lt;`_R_`, `_E_`&gt;, ...args): Promise.&lt;`_R_`, `_E_`&gt;`</td></tr>
               <tr><td>`Promise.reject`</td><td>`(reason: `_E_`): Promise.&lt;never, `_E_`&gt;`</td></tr>
               <tr><td>`Promise.allSettled`</td><td>`(promises: Iterable.&lt;Promise.&lt;`_R_`, `_E_`&gt;&gt;): Promise.&lt;[` `]` `.` `&lt;PromiseSettledResult.&lt;`_R_`, `_E_`&gt;&gt;, undefined&gt;`</td></tr>
