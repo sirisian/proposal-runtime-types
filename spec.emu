@@ -3658,10 +3658,20 @@ const n: uint32 = g();
               1. If IsSubtype(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
             1. Else,
               1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+          1. <ins>For each element _y_ of _t_.[[IndexSignatures]], do</ins>
+            1. <ins>Let _x_ be an element of _s_.[[IndexSignatures]] such that SameType(_x_.[[KeyType]], _y_.[[KeyType]]) is *true* and IsSubtype(_x_.[[ValueType]], _y_.[[ValueType]], _assumptions_) is *true*, or ~empty~ if there is none.</ins>
+            1. <ins>If _x_ is not ~empty~, continue.</ins>
+            1. <ins>If _s_.[[IndexSignatures]] is not empty, return *false*.</ins>
+            1. <ins>For each element _p_ of _s_.[[Properties]], do</ins>
+              1. <ins>If _y_ accepts _p_.[[Key]] and _t_.[[Properties]] contains no element whose [[Key]] is _p_.[[Key]], then</ins>
+                1. <ins>If IsSubtype(_p_.[[Type]], _y_.[[ValueType]], _assumptions_) is *false*, return *false*.</ins>
           1. Return *true*.
         </emu-alg>
         <emu-note>
           <p>An object type is subtyped in width, so a type with more members is a subtype of one with fewer: an object that has everything `{ x: float32 }` requires is usable where that type is required, whatever else it has.</p>
+          <p><ins>An index signature is covered by one of _s_'s own, or - where _s_ declares none - by _s_'s properties. <emu-xref href="#sec-object-types"></emu-xref> gives the meaning the second case follows: `{ [key: string]: uint32 }` is the type whose remaining string-keyed properties, beyond those declared, are `uint32`, so a type whose every such property fits is one of its values. This is what a boundary already does with a VALUE (<emu-xref href="#sec-the-boundary-check"></emu-xref>) and what an object literal is already checked against (<emu-xref href="#fresh"></emu-xref>); stating it here is what lets a value that has a type reach such a position, and not only one written in place.</ins></p>
+          <p><ins>The value type is covariant in both cases, which is not the rule a writable named member follows. A signature does not name a slot a program can be relied on to write through: a property it admits is admitted by its key, not declared, so the layout argument below does not reach it. The two cases agree deliberately - a source that declares a signature and one that does not should not be judged differently.</ins></p>
+          <p><ins>A property _t_ declares by name is judged by the property loop above and is skipped here, so a named member whose type differs from the signature's is _t_'s own business.</ins></p>
           <p>It is subtyped in depth only through a `readonly` member. A `readonly` member is covariant, since a value read from it and never written through it need only be of the required type. A writable member is invariant, because covariance there is unsound: were `{ x: Meter }` a subtype of `{ x: float32 }`, a bare `float32` could be written through the supertype view into a slot the program believes holds a `Meter`. This is the same rule the ~reference~ and ~array~ kinds already follow in <emu-xref href="#sec-issubtype"></emu-xref>, and it is the point at which this proposal parts company with an erasable type system, which can afford covariance there because nothing depends on the claim. Here the layout does.</p>
         </emu-note>
       </emu-clause>
