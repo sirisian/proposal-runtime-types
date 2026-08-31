@@ -1703,6 +1703,12 @@ contributors: Sirisian
 
       <emu-note>
         <p>A call of a function whose return type is `void` evaluates to *undefined*, as a call of a function with no `return` statement does today. The `void` type is the statement that a program must not depend on that result, not a claim that no result exists.</p>
+        <emu-note>
+          <p>The sentence is about the FUNCTION'S OWN return type, and it holds because such a function cannot return a value at all: <emu-xref href="#sec-check-insertion"></emu-xref> refuses a body that contradicts its annotation, so every call it describes already answers *undefined*.</p>
+          <p>A call reaching a function through a `void`-returning TYPE is a different case. <emu-xref href="#sec-issubtype"></emu-xref> makes a `void` return required of nothing, so `const _h_: () =&gt; `void`` may hold a function returning a String; `_h_()` then evaluates to that String. What `void` promises is that no TYPED position will accept it: the Static Type of `_h_()` is `void`, so `let _s_: `string` = _h_()` is refused, and every position that demands a type refuses it likewise.</p>
+          <p>The value is therefore observable only where nothing was declared - an untyped binding, an argument to an untyped parameter, `Reflect.typeOf`. That is the same reach `any` has everywhere else in this specification, and it is why the promise is stated over the STATIC reading rather than over the value.</p>
+          <p>Erasing the value at the call was considered and is not specified. It would require the checking pass to compute a Static Type for EVERY call, including the ones no position asks about, since a call whose value nothing wants is exactly where the erasure would have to act; and it would not close the gap, because `Reflect.typeOf` is itself such a position.</p>
+        </emu-note>
         <p>It follows that a `void` return type constrains the CONSUMER of the result and not the value leaving the function: the check it installs is the one that refuses a binding, and no check is performed on the returned value itself. `return;` and falling off the end are the same function written two ways, so testing *undefined* against a type with no values would refuse one and admit the other. `undefined` is the type to write for a function that returns the value *undefined* and whose caller may hold it (<emu-xref href="#sec-null-and-undefined-types"></emu-xref>).</p>
       </emu-note>
     </emu-clause>
