@@ -548,6 +548,14 @@ contributors: Sirisian
           </tbody>
         </table>
       </emu-table>
+      <emu-note>
+        <ins>
+        <p>Reading a member of a UNION gives the union of that member's type across the union's members, and is a type error where ANY of them does not declare the key.</p>
+        <p>The accessible keys are therefore the INTERSECTION of the members' keys, and the type of a read is the UNION of what each declares for it. `_c_.x` at `{ x: `int32` } | { x: `int8` }` is `int32 | int8`, so reading it AS an `int32` is an error: the program cannot know which member `_c_` holds. `_c_.x` at `{ x: `int32` } | { y: `string` }` is an error outright, and a `null` member - which declares nothing - makes every read of a nullable object one.</p>
+        <p>Narrowing is how a program reads a member a single member declares (<emu-xref href="#sec-narrowto"></emu-xref>). A key EVERY member declares still reads without narrowing, which is what makes a discriminated union usable: the discriminant is readable, and reading it is what narrows.</p>
+        <p>An INTERSECTION is not this case. Every value of one satisfies all its members, so each member's type is known and a read of it needs nothing.</p>
+        </ins>
+      </emu-note>
 
       <emu-note>
         <p>An element of a destructuring pattern is a binding, and its annotation is a boundary like any other: `let [a: `uint8`] = [300]` throws, and `let [a: `uint8`] = [1]` binds a `uint8` rather than a Number. The design writes this form throughout, and a pattern is where the annotation has nowhere else to go &mdash; there is no second place to say what `a` is.</p>
@@ -2521,6 +2529,12 @@ contributors: Sirisian
         <h1>Selecting a Union Member at a Boundary</h1>
         <p>Where the target of a boundary is a union and the value is not already of it, some member receives the value, and which one is decided by what the VALUE is rather than by where a member was written. A union is canonical (<emu-xref href="#sec-canonicalizetype"></emu-xref>): its members are held in a fixed order and Type Objects are interned on that record, so `uint8 | uint32` and `uint32 | uint8` are one type, and a boundary may meet it as a Type Object that no source text spelled. A rule that read the order of the members would therefore give one type two behaviours.</p>
 
+        <emu-note>
+          <p><ins>A union WRITTEN in an annotation has its members canonicalized like any other: ordered by <emu-xref href="#sec-canonical-total-order"></emu-xref>, and a member that is itself a union contributing ITS members rather than itself.</ins></p>
+          <p><ins>Both follow from the guarantee above and neither is optional. Without the ordering, `{ x: int32 } | { x: uint8 }` and its reverse - one interned type, comparing `===` - select DIFFERENT members for one value, which is the outcome the fixed order exists to prevent. Without the flattening, `(uint8 | int8) | uint16` offers two members where three exist, and a value that would have reached `uint8` reaches `uint16` instead.</ins></p>
+          <p><ins>A numeric member is selected by width and signedness rather than by position, so a union of numeric members alone is unaffected by either. The difference shows where a member is an object, an array, or a nested union - none of which that ranking speaks about.</ins></p>
+        </emu-note>
+
         <emu-clause id="sec-selectunionmember" type="abstract operation">
           <h1>
             SelectUnionMember (
@@ -2573,7 +2587,15 @@ contributors: Sirisian
       </emu-note>
     </emu-clause>
 
-    <emu-clause id="sec-check-insertion">
+    <emu-note>
+        <ins>
+        <p>An object literal's members are those it writes AND those a spread supplies, wherever the spread operand's type is known. A member a spread supplies is judged as though it had been written in that position: it satisfies what the target requires, it is excess where the target declares no such key, and its type must be the one the target declares.</p>
+        <p>The literal contributes NOTHING where its keys cannot be known - a spread of an ~any~-typed operand, a getter, a computed key - because a shape that omitted what could not be read would report every declared member as missing.</p>
+        <p>Where a key is written more than once, by any combination of members and spreads, the LAST one to write it decides its type. That is the evaluation order the language already has, not a rule about types: `{ ..._t_, a: 1 }` is well-typed where `_t_`'s `a` is not, and `{ a: 1, ..._t_ }` is not.</p>
+        </ins>
+      </emu-note>
+
+      <emu-clause id="sec-check-insertion">
       <h1>Where Checks Are Inserted</h1>
       <p>A check is inserted where a value whose static type is `any` reaches a position whose type is not, and nowhere else. <emu-xref href="#table-check-sites"></emu-xref> lists the positions.</p>
 
@@ -3027,6 +3049,9 @@ const n: uint32 = g();
       <p>The two exceptions in that step are duals, and between them they keep the Static Type to the values the expression can produce: `obj &amp;&amp; f()` is the type of `f()`, since no object value is falsy and the left cannot be produced, while `undefined &amp;&amp; f()` is `undefined`, since the right is never evaluated at all.</p>
 
       <p>The first step is where the short-circuit operators part company with the rest: they produce one of their OPERANDS rather than a value of a common type, so the step that refuses two unlike types does not reach them and `a && a &lt; 10` is a `uint32` or a *boolean* rather than an error. A contextual type applies to the operands rather than to the application, since it is an operand that is produced: `let c: uint32 = x || 10` puts the `10` at `uint32` by literal propagation exactly as `let c: uint32 = 10` does. A literal that is a member of a union reaches its target only this way, since assignability compares the union as a whole.</p>
+        <p><ins>An untyped numeric literal at a union is adapted toward the member it FITS, by the rule <emu-xref href="#sec-selectunionmember"></emu-xref> applies to a value: narrower before wider, an integer member before a floating one, and a member whose range excludes the value not at all. `let _v_: `string` | `uint8` = 1` gives `_v_` the `uint8` member, and `{ x: 1 }` at `{ x: `int32` } | { x: `uint8` }` gives its `x` the same member the scalar position would.</ins></p>
+        <p><ins>The members are ordered and flattened first, so which member is chosen is a property of the TYPE and not of how the program spelled it. Where no member accepts the value the literal is refused, as it is at a single type.</ins></p>
+        <p><ins>An INTERSECTION is not this case: its members must ALL be satisfied, so members that disagree admit nothing and the literal is refused.</ins></p>
 
       <p>The last step is the substance of it: an operator on operands of one type yields that type, and never a wider one. What follows from that, and is not implied by a type's name, is collected here.</p>
 
