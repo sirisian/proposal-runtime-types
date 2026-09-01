@@ -1101,6 +1101,11 @@ contributors: Sirisian
       <emu-clause id="sec-object-types">
         <h1>Object Types</h1>
         <p>An object type describes a value by its members. It is the inline form of an interface.</p>
+        <p><ins>It is an early error for a |TypeMemberList| to declare the same |PropertyName| twice, whatever the two members say. `{ n: `int32`, n: `string` }` and `{ n: `int32`, n: `int32` }` are both refused, the second although its halves agree.</ins></p>
+        <emu-note>
+          <p><ins>The rule is about the DECLARATION and not about inhabitability: a repeated member is a mistake at the point it is written, and refusing only the contradictory spelling would accept the redundant one while a duplicate BINDING name a scope out is refused whatever it is bound to.</ins></p>
+          <p><ins>Merging two declarations is a separate question with its own answer (<emu-xref href="#sec-interfaces-semantics"></emu-xref>): members arriving from different declarations of one interface are merged, and it is only within a single list that a repeat is an error.</ins></p>
+        </emu-note>
         <p>The relationship runs both ways, and the reverse direction needs a name. The <dfn>structural form</dfn> of an interface type is the ~object~ Type Record whose [[Members]] are the members the interface declares, taken together with those it inherits, and with the interface's type arguments substituted. Every interface has one. A class has none: a class states a construction and an identity as well as a shape, and it is the identity that its type is for.</p>
         <emu-note>
           <p>This is what lets a value satisfy an interface by having its members, which <emu-xref href="#sec-issubtype"></emu-xref> reads. Without it the rules would refuse `f({ a: 'a' })` for `interface IExample { a: string; }`, since an interface is a ~nominal~ type (<emu-xref href="#table-type-record-kinds"></emu-xref>) and an object literal's type is ~object~, and the step separating the kinds would answer before any member was inspected. The composite types have relied on the notion since they were specified, naming it in their own subtype rule; this clause is where it is defined rather than assumed.</p>
