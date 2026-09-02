@@ -345,7 +345,12 @@ contributors: Sirisian
           1. If _t_.[[Kind]] is ~tuple~, then
             1. Let _elements_ be a new empty List.
             1. For each element _e_ of _t_.[[Elements]], do
-              1. Append the Tuple Element Record { [[Type]]: CanonicalizeType(_e_.[[Type]]), [[Rest]]: _e_.[[Rest]], [[Initial]]: _e_.[[Initial]] } to _elements_.
+              1. Let _c_ be CanonicalizeType(_e_.[[Type]]).
+              1. If _e_.[[Rest]] is *true* and _c_.[[Kind]] is ~tuple~, then
+                1. NOTE: A rest element whose type is itself a tuple is that tuple's elements in place, `[...[uint8, string], T]` being `[uint8, string, T]`, which is what lets a spread of a bound variadic parameter (<emu-xref href="#sec-variadic-parameters"></emu-xref>) intern as the tuple it spells.
+                1. For each element _n_ of _c_.[[Elements]], append _n_ to _elements_.
+              1. Else,
+                1. Append the Tuple Element Record { [[Type]]: _c_, [[Rest]]: _e_.[[Rest]], [[Initial]]: _e_.[[Initial]] } to _elements_.
             1. Return the Type Record { [[Kind]]: ~tuple~, [[Elements]]: _elements_ }.
           1. If _t_.[[Kind]] is ~array~, return the Type Record { [[Kind]]: ~array~, [[Element]]: CanonicalizeType(_t_.[[Element]]), [[Extent]]: _t_.[[Extent]] }.
           1. If _t_.[[Kind]] is ~reference~, return the Type Record { [[Kind]]: ~reference~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
@@ -1145,6 +1150,7 @@ contributors: Sirisian
           TypeMember[Yield, Await] :
             PropertyName[?Yield, ?Await] `?`? TypeAnnotation[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]?
             PropertyName[?Yield, ?Await] `?`? MethodSignature[?Yield, ?Await]
+            MethodSignature[?Yield, ?Await]
             IndexSignature[?Yield, ?Await]
 
           MethodSignature[Yield, Await] :
@@ -1157,6 +1163,8 @@ contributors: Sirisian
         <emu-note>
           <p>Members are separated by either `,` or `;`, and a trailing separator is permitted, so both `{ x: float32, y: float32 }` and `{ x: float32; y: float32; }` are written. A `?` marks an optional member.</p>
         </emu-note>
+
+        <p><ins>A |MethodSignature| with no |PropertyName| is a <dfn id="call-signature">call signature</dfn>. An object type or interface whose members are all call signatures denotes the ~function~ Type Record whose [[Signatures]] are those signatures in declaration order, so `{ (uint32): uint32 }` is `(uint32) =&gt; uint32` written with braces, `{ (uint32): uint32; (string): string }` is the overloaded function type the arrow form cannot spell, and `{ &lt;T&gt;(x: T): T }` is a generic one (<emu-xref href="#sec-function-types"></emu-xref>). A call signature's |TypeParameters| are subject to the same early errors as a function type's. It is a type error for an object type to mix call signatures with named members or an index signature: this specification gives a callable value a function type and a keyed value an object type, and the design writes no shape that is both.</ins></p>
 
         <p>A member may be declared `readonly`, which sets the [[Readonly]] field of the Property Type Record it contributes. A write to a `readonly` member is a type error, at compile time where the type of the base is known and at run time otherwise, and every assignment form is a write: an assignment operator of any kind, and an increment or decrement. `readonly` is shallow here as it is for a field (<emu-xref href="#sec-typed-classes"></emu-xref>): it fixes the member, not the object the member refers to.</p>
         <emu-note>
@@ -1172,7 +1180,7 @@ contributors: Sirisian
 
         <emu-grammar type="definition">
           <ins>FunctionType[Yield, Await] :
-            FunctionTypeParameters[?Yield, ?Await] `=&gt;` Type[?Yield, ?Await]
+            TypeParameters[?Yield, ?Await]? FunctionTypeParameters[?Yield, ?Await] `=&gt;` Type[?Yield, ?Await]
 
           FunctionTypeParameters[Yield, Await] :
             CoverParenthesizedTypeAndFunctionTypeParameters[?Yield, ?Await]
@@ -1202,6 +1210,8 @@ contributors: Sirisian
         <emu-note>
           <p>`(uint8)` is a parenthesized type and `(uint8) =&gt; uint8` is a function type, and the two are told apart by the token after the closing parenthesis, exactly as a parenthesized expression is told from arrow parameters. The cover grammar is the same device the specification already uses there.</p>
         </emu-note>
+
+        <p><ins>A function type may declare type parameters, `&lt;T&gt;(x: T) =&gt; T`, and is then the type of a <em>generic</em> function: its Signature Record's [[TypeParameters]] are the Type Parameter Records of the declared list (<emu-xref href="#sec-signature-records"></emu-xref>), and its parameter and return types may name them. The list is subject to the early errors of <emu-xref href="#sec-type-parameters-static-semantics-early-errors"></emu-xref> as a declaration's is, and its parameters bind by BindTypeArguments when a call through a binding of the type supplies type arguments. A function type declares no `where` clause: a `where` belongs to a declaration and is not part of a signature's identity, so it is checked at the specialization a crossing performs (<emu-xref href="#sec-crossing-with-a-generic-function"></emu-xref>) and never read by the relations on types. Identity and subtyping of generic function types are given by <emu-xref href="#sec-samefunctiontype"></emu-xref> and <emu-xref href="#sec-issignaturesubtype"></emu-xref>.</ins></p>
       </emu-clause>
     </emu-clause>
 
@@ -1451,7 +1461,7 @@ contributors: Sirisian
           <ins>CallExpression[?Yield, ?Await] TypeArguments[?Yield, ?Await]</ins>
         </emu-grammar>
 
-        <p>A |MemberExpression| or |CallExpression| followed by |TypeArguments| evaluates the expression and specializes the result by the listed types. The value must be generic: a generic function, a generic class, or a parameterized type; the selection and substitution are those of <emu-xref href="#sec-generic-specialization"></emu-xref>, of which this production is the explicit written form. Where the expression's Static Type shows a value that is not generic it is a type error, and otherwise a specialization of a non-generic value throws a *TypeError* exception. The |OptionalChain| productions are not extended; a specialization does not follow `?.`.</p>
+        <p>A |MemberExpression| or |CallExpression| followed by |TypeArguments| evaluates the expression and specializes the result by the listed types. The value must be generic: a generic function, a generic class, or a parameterized type; the arguments bind by BindTypeArguments (<emu-xref href="#sec-bindtypearguments"></emu-xref>) &mdash; positional, named, and spread alike &mdash; and the substitution is that of <emu-xref href="#sec-generic-specialization"></emu-xref>, of which this production is the explicit written form. <ins>For a generic function the result is the specialization as a value (<emu-xref href="#sec-generic-function-values"></emu-xref>): one interned function object per function and ordered bindings, whose `where` clauses ran once at its creation, so `f.&lt;uint8&gt;` may be stored, compared, passed to `map`, and called later exactly as the function it specializes, and evaluates its type arguments once rather than at each call.</ins> Where the expression's Static Type shows a value that is not generic it is a type error, and otherwise a specialization of a non-generic value throws a *TypeError* exception. The |OptionalChain| productions are not extended; a specialization does not follow `?.`.</p>
 
         <p>The placement forms allocate into an existing buffer rather than into fresh storage. The first argument is the buffer, the second, when present, is the byte offset and otherwise 0, and the third, when present, is the byte length reserved for each element and otherwise the constructed type's `byteLength`. Construction stores each field of each instance at its laid-out position (<emu-xref href="#table-extension-hooks"></emu-xref>, memory layout); a third argument larger than `byteLength` leaves padding between elements, a smaller one makes elements overlap, and bytes the layout does not assign keep the buffer's contents, since reusing storage is what the form is for and the zero-fill rule of fresh allocation does not apply. It is a *RangeError* exception when the extent so computed exceeds the buffer's length. Over a resizable buffer the extent is recorded: shrinking the buffer below a live allocation's extent detaches those instances, touching a detached instance throws a *TypeError* exception, and growing never invalidates.</p>
 
@@ -1629,7 +1639,7 @@ contributors: Sirisian
       </emu-note>
 
       <emu-note>
-        <p>The design writes the index list as a variadic value generic parameter, `swizzle&lt;...I: [].&lt;uint32&gt;&gt;()`, whose length gives the result's lane count. Value generics and their variadic form are the generics extension's (<emu-xref href="#table-extension-hooks"></emu-xref>); the rules above are what that spelling means, stated so that this clause does not wait on it.</p>
+        <p>The design writes the index list as a variadic value generic parameter, `swizzle&lt;...I: [].&lt;uint32&gt;&gt;()`, whose length gives the result's lane count. Value generics and their variadic form are specified by <emu-xref href="#sec-generics"></emu-xref> and <emu-xref href="#sec-variadic-parameters"></emu-xref>; the rules above are what that spelling means.</p>
       </emu-note>
     </emu-clause>
 
@@ -3304,6 +3314,20 @@ const n: uint32 = g();
           1. For each integer _i_ such that 0 &le; _i_ and _i_ &lt; the number of elements of _s_.[[Signatures]], do
             1. Let _a_ be _s_.[[Signatures]][_i_].
             1. Let _b_ be _t_.[[Signatures]][_i_].
+            1. If _a_.[[TypeParameters]] and _b_.[[TypeParameters]] do not have the same number of elements, return *false*.
+            1. Let _identified_ be a List whose elements are the elements of _assumptions_.
+            1. For each integer _k_ such that 0 &le; _k_ and _k_ &lt; the number of elements of _a_.[[TypeParameters]], do
+              1. Let _u_ be _a_.[[TypeParameters]][_k_].
+              1. Let _w_ be _b_.[[TypeParameters]][_k_].
+              1. If _u_.[[Kind]] is not _w_.[[Kind]], or _u_.[[Variadic]] is not _w_.[[Variadic]], or _u_.[[Variance]] is not _w_.[[Variance]], or _u_.[[Arity]] is not _w_.[[Arity]], return *false*.
+              1. Append the Record { [[First]]: the ~parameter~ Type Record whose [[Declaration]] is _u_.[[Declaration]], [[Second]]: the ~parameter~ Type Record whose [[Declaration]] is _w_.[[Declaration]] } to _identified_.
+            1. For each integer _k_ such that 0 &le; _k_ and _k_ &lt; the number of elements of _a_.[[TypeParameters]], do
+              1. Let _u_ be _a_.[[TypeParameters]][_k_].
+              1. Let _w_ be _b_.[[TypeParameters]][_k_].
+              1. If exactly one of _u_.[[Constraint]] and _w_.[[Constraint]] is ~none~, return *false*.
+              1. If _u_.[[Constraint]] is not ~none~ and SameTypeWithAssumptions(the Type Record _u_.[[Constraint]] denotes, the Type Record _w_.[[Constraint]] denotes, _identified_) is *false*, return *false*.
+              1. If exactly one of _u_.[[Default]] and _w_.[[Default]] is ~none~, return *false*.
+              1. If _u_.[[Default]] is not ~none~ and SameTypeWithAssumptions(the Type Record _u_.[[Default]] denotes, the Type Record _w_.[[Default]] denotes, _identified_) is *false*, return *false*.
             1. If _a_.[[Parameters]] and _b_.[[Parameters]] do not have the same number of elements, return *false*.
             1. For each integer _j_ such that 0 &le; _j_ and _j_ &lt; the number of elements of _a_.[[Parameters]], do
               1. Let _p_ be _a_.[[Parameters]][_j_].
@@ -3315,15 +3339,16 @@ const n: uint32 = g();
                 1. If _p_.[[Initial]] is not ~none~ or _q_.[[Initial]] is not ~none~, return *false*.
               1. Else if SameValue(_p_.[[Initial]], _q_.[[Initial]]) is *false*, then
                 1. Return *false*.
-              1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _assumptions_) is *false*, return *false*.
+              1. If SameTypeWithAssumptions(_p_.[[Type]], _q_.[[Type]], _identified_) is *false*, return *false*.
             1. If _a_.[[ThisType]] is ~none~ or _b_.[[ThisType]] is ~none~, then
               1. If _a_.[[ThisType]] is not ~none~ or _b_.[[ThisType]] is not ~none~, return *false*.
-            1. Else if SameTypeWithAssumptions(_a_.[[ThisType]], _b_.[[ThisType]], _assumptions_) is *false*, then
+            1. Else if SameTypeWithAssumptions(_a_.[[ThisType]], _b_.[[ThisType]], _identified_) is *false*, then
               1. Return *false*.
-            1. If SameTypeWithAssumptions(_a_.[[Return]], _b_.[[Return]], _assumptions_) is *false*, return *false*.
+            1. If SameTypeWithAssumptions(_a_.[[Return]], _b_.[[Return]], _identified_) is *false*, return *false*.
           1. Return *true*.
         </emu-alg>
         <emu-note>
+          <p>Two generic signatures are the same up to renaming: the type parameters are identified position by position through _assumptions_, the mechanism the recursive cases already use, so a parameter of _a_ and the parameter at the same position of _b_ are one type for the comparison, and `&lt;T&gt;(x: T) =&gt; T` and `&lt;U&gt;(x: U) =&gt; U` are one function type. [[Name]] is never read. Kind, variadic marker, variance, arity, and the constraints and defaults are compared under the same identification, so `&lt;T extends A&gt;` and `&lt;T extends B&gt;` are two, as are `&lt;T&gt;` and `&lt;T = uint8&gt;`.</p>
           <p>Signatures are compared position-wise, so the order in which a name's overloads are declared is part of the function type. Canonicalization does not reorder them, because there is no order over signatures that is both total and meaningful, and because the declaration order is already observable through the reflected `signatures` list.</p>
         </emu-note>
       </emu-clause>
@@ -3342,6 +3367,24 @@ const n: uint32 = g();
         </dl>
         <emu-alg>
           1. If _a_.[[Untyped]] is *true* and _a_.[[InferredReturn]] is ~none~, return *true*.
+          1. If _a_.[[TypeParameters]] is not empty and _b_.[[TypeParameters]] is empty, then
+            1. Let _bindings_ be the bindings of _a_.[[TypeParameters]] inferred from _b_'s parameter types and [[Return]] by the structural matching of <emu-xref href="#sec-structural-matching"></emu-xref>, each binding checked against its parameter's constraint by IsAssignable; if a parameter cannot be bound or a binding fails its constraint, return *false*.
+            1. Set _a_ to the Signature Record whose fields are those of _a_ with each Type Record they hold replaced by the result of SubstituteType applied to it and _bindings_, and whose [[TypeParameters]] is empty.
+          1. Else if _a_.[[TypeParameters]] is empty and _b_.[[TypeParameters]] is not empty, then
+            1. Return *false*.
+          1. Else if _a_.[[TypeParameters]] is not empty, then
+            1. If _a_.[[TypeParameters]] and _b_.[[TypeParameters]] do not have the same number of elements, return *false*.
+            1. For each integer _k_ such that 0 &le; _k_ and _k_ &lt; the number of elements of _a_.[[TypeParameters]], do
+              1. Let _u_ be _a_.[[TypeParameters]][_k_].
+              1. Let _w_ be _b_.[[TypeParameters]][_k_].
+              1. If _u_.[[Kind]] is not _w_.[[Kind]], or _u_.[[Variadic]] is not _w_.[[Variadic]], or _u_.[[Arity]] is not _w_.[[Arity]], return *false*.
+              1. Append the Record { [[First]]: the ~parameter~ Type Record whose [[Declaration]] is _u_.[[Declaration]], [[Second]]: the ~parameter~ Type Record whose [[Declaration]] is _w_.[[Declaration]] } to _assumptions_.
+            1. For each integer _k_ such that 0 &le; _k_ and _k_ &lt; the number of elements of _a_.[[TypeParameters]], do
+              1. Let _u_ be _a_.[[TypeParameters]][_k_].
+              1. Let _w_ be _b_.[[TypeParameters]][_k_].
+              1. If _u_.[[Constraint]] is not ~none~, then
+                1. If _w_.[[Constraint]] is ~none~, return *false*.
+                1. If IsSubtype(the Type Record _w_.[[Constraint]] denotes, the Type Record _u_.[[Constraint]] denotes, _assumptions_) is *false*, return *false*.
           1. If _a_ requires more arguments than _b_ may supply, return *false*.
           1. For each integer _j_ such that 0 &le; _j_ and _j_ &lt; the number of elements of _b_.[[Parameters]], do
             1. Let _q_ be _b_.[[Parameters]][_j_].
@@ -3364,6 +3407,7 @@ const n: uint32 = g();
           1. Return IsSubtype(_aReturn_, _b_.[[Return]], _assumptions_).
         </emu-alg>
         <emu-note>
+          <p>The four directions a generic signature can face follow one question: could a caller reading _b_ be misled? A generic _a_ is usable where a concrete _b_ is required by INSTANTIATION &mdash; `(uint8) =&gt; uint8` holds `id.&lt;uint8&gt;` &mdash; and the bindings the relation infers are the ones the crossing specializes at (<emu-xref href="#sec-crossing-with-a-generic-function"></emu-xref>). A concrete _a_ is not usable where a generic _b_ is required, since `&lt;T&gt;(x: T) =&gt; T` promises every `T` and `(x: uint8) =&gt; uint8` would return a `uint8` for a `string`; the untyped catch-all of the first step is the one exception, as it is everywhere. A generic _a_ is usable where a generic _b_ is required when it is at least as general: the same parameters position by position, each constraint of _a_ admitting everything the corresponding constraint of _b_ admits, so `&lt;T&gt;(x: T) =&gt; T` satisfies `&lt;T extends Animal&gt;(x: T) =&gt; T` and not the reverse. The inference here never runs user code: it is the structural walk the checker already has, and the constraint check on an inferred binding is IsAssignable. A `where` on _a_'s declaration is not consulted, because a function type has none; it is checked at the specialization the crossing performs.</p>
           <p>A parameter and a [[ThisType]] are related by <emu-xref href="#sec-isassignable"></emu-xref> and not by <emu-xref href="#sec-issubtype"></emu-xref>, because a parameter position is a BOUNDARY and `any` is bidirectional at a boundary. IsSubtype admits `any` only as its target, which is the right rule for a subtype question and the wrong one here: it made a specific parameter refuse an `any`-typed position, so `(uint8) =&gt; void` was not usable where `(any) =&gt; any` was declared although the mirror was, and gradual typing broke at the function boundary in one direction only.</p>
           <p>A return type keeps IsSubtype, and the asymmetry is deliberate. A return is covariant and is a PROMISE the function makes rather than a position a caller supplies, so a function returning `any` may stand where a specific return is declared through IsSubtype's ordinary target rule, and nothing needs relaxing.</p>
         </emu-note>
@@ -3418,7 +3462,13 @@ const n: uint32 = g();
         </dl>
         <emu-alg>
           1. Let _viable_ be a new empty List.
-          1. For each element _sig_ of _signatures_, do
+          1. For each element _declared_ of _signatures_, do
+            1. Let _sig_ be _declared_.
+            1. If _sig_.[[TypeParameters]] is not empty, then
+              1. Let _bindings_ be the bindings of _sig_.[[TypeParameters]] from the call's explicit type arguments by BindTypeArguments (<emu-xref href="#sec-bindtypearguments"></emu-xref>) where the call supplies them, and otherwise, or for the parameters they leave unbound, from _args_ by <emu-xref href="#sec-inference-through-results"></emu-xref>.
+              1. If some parameter of _sig_.[[TypeParameters]] is left unbound, or binding it was a throw completion, then
+                1. Continue.
+              1. Set _sig_ to the Signature Record whose fields are those of _sig_ with each Type Record they hold replaced by the result of SubstituteType applied to it and _bindings_, and whose [[TypeParameters]] is empty.
             1. If BindArguments(_sig_, _args_) is ~unmatched~ (<emu-xref href="#sec-bindarguments"></emu-xref>), then
               1. Continue.
             1. If some element of _args_ is not assignable to the type of the parameter that receives it, then
@@ -3431,6 +3481,9 @@ const n: uint32 = g();
             1. Let _rank_ be the greatest rank in <emu-xref href="#table-argument-match-ranks"></emu-xref> required by any element of _args_ to match its parameter in _sig_.
             1. Let _sig_'s worst rank be _rank_.
           1. Let _best_ be the elements of _viable_ whose worst rank is least.
+          1. If _best_ has more than one element, then
+            1. NOTE: Specificity breaks the tie the ranks leave. For each argument, a parameter written as a concrete type is more specific than one written as a type parameter, and a parameter of a fixed position is more specific than the element of a variadic parameter, read from the declared signature each element of _best_ was instantiated from.
+            1. Remove from _best_ each element that some other element of _best_ is more specific than for some argument, and that is more specific than that other element for no argument.
           1. If _best_ has exactly one element, return that element.
           1. Return ~ambiguous~.
         </emu-alg>
@@ -3462,7 +3515,8 @@ const n: uint32 = g();
 
       <p>It is a type error if ResolveOverload returns ~none~, and it is a type error if it returns ~ambiguous~. Where an argument has the `any` type the resolution is performed at run time on the argument's runtime type, and the same errors are thrown as a *TypeError* there.</p>
 
-      <p>Two signatures declared for one name must not be ambiguous for any argument list. A declaration that writes no return annotation declares the SAME return as another that writes none, so two declarations of one name that annotate the same parameter types and neither annotate a return are one signature written twice, and are a type error at the second. Declaring nothing is a declaration of nothing, not an unknown. It is a type error to declare a signature that is viable for the same argument list as an existing one at the same rank.</p>
+      <p>Two signatures declared for one name must not be ambiguous for any argument list. A declaration that writes no return annotation declares the SAME return as another that writes none, so two declarations of one name that annotate the same parameter types and neither annotate a return are one signature written twice, and are a type error at the second. Declaring nothing is a declaration of nothing, not an unknown. It is a type error to declare a signature that is viable for the same argument list as an existing one at the same rank. Two generic signatures that are the same up to renaming (<emu-xref href="#sec-signature-records"></emu-xref>) are one signature written twice, and are the same error: `function r&lt;T&gt;(e: T)` after `function r&lt;U&gt;(e: U)` redeclares, whatever the letters.</p>
+      <p>A generic signature is viable when its type parameters bind, from the call's explicit type arguments or by inference from its value arguments, and is then ranked as the instantiated signature it becomes; one whose parameters cannot be bound is not viable, as one whose arity does not fit is not. Where ranks tie, a concrete position is preferred to a type parameter and a fixed parameter to an element of a variadic one, so `route(e: Click)`, `route&lt;T extends Event&gt;(e: T)`, and `route&lt;...Es extends [].&lt;Event&gt;&gt;(...es: Es)` layer from most to least specific and `route(click)` selects the first: a declaration that names the type is the one its author meant for it.</p>
 
       <emu-note>
         <p>Ranking by the worst match rather than by a sum keeps the rule from trading a bad match on one argument against a good one on another, which is where the ranking rules of C++ become hard to predict. A typed argument never ranks below 1: a typed argument of the wrong type is not viable at all, so it is never a question of how well it matches.</p>
@@ -4555,7 +4609,7 @@ const n: uint32 = g();
             <tr><td>memory layout</td><td>The placement construction that lands an instance on existing bytes, and the descriptor generation the layout is read for. The layout properties, the placement rule, the explicit controls, the bit-fields, and the finiteness condition that <emu-xref href="#sec-typed-classes"></emu-xref> states are delivered by <emu-xref href="#sec-memory-layout"></emu-xref>.</td></tr>
             <tr><td>SIMD</td><td>The lane-wise intrinsics an engine lowers to one instruction each, `swizzle`, `shuffle`, `lane`, `select`, and the reductions, together with the accessor vocabulary. The comparison operators and the lane counts are delivered by <emu-xref href="#sec-vector-comparisons"></emu-xref>.</td></tr>
             <tr><td>simd</td><td>Gather, scatter, and masked load and store, which vectorize an indirect access and need an addressing model this specification does not have. The design defers them too (simd.md), and every other operation of that document is stated in the clauses <emu-xref href="#sec-vector-types"></emu-xref> through <emu-xref href="#sec-vector-wrapping"></emu-xref>.</td></tr>
-            <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); variadic packs and the derivation of a result type from a pack's length; argument-bound value generics and inference from an expected type; the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`; and the generic parameters a decorator declares, which the design writes and this specification neither states nor defers elsewhere. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
+            <tr><td>generics</td><td>The design's full generics surface built on the model of <emu-xref href="#sec-generics"></emu-xref>: specialized overloads and their resolution; constraint families as specialization selectors (`uint&lt;N: uint32&gt;`); argument-bound value generics and inference from an expected type; the constraint-family forms `int`, `uint`, and `enum.&lt;TValue&gt;`; and the generic parameters a decorator declares, which the design writes and this specification neither states nor defers elsewhere. The ~parameter~ kind, substitution and specialization, the `where` clause, and declaration-site variance are delivered by that clause.</td></tr>
             <tr><td>dependent record types</td><td>The design's JSON Schema correspondence, by which a `where` clause and a schema's `dependentRequired`, `dependentSchemas`, and `if`/`then`/`else` express one another, and the validator generation that correspondence is for. The `is` operator, the `where` clause, and their narrowing are delivered by <emu-xref href="#sec-dependent-record-types"></emu-xref>.</td></tr>
             <tr><td>decorators</td><td>Delivered by <emu-xref href="#sec-decorators"></emu-xref>, which now covers the shape of every reflection (<emu-xref href="#sec-reflection-shapes"></emu-xref>), what each context admits as a replacement value (<emu-xref href="#sec-replacement-values"></emu-xref>), `addInitializer` (<emu-xref href="#sec-addinitializer"></emu-xref>), the retrieval forms (<emu-xref href="#sec-reflection-retrieval"></emu-xref>), the metadata channel, and the resolution and order of a decoration. What remains at this hook is the decorator SYNTAX itself, which rides the decorators proposal rather than this one.</td></tr>
             <tr><td>complex numbers</td><td>The operators and `Math` overloads of the complex types. The type of an imaginary literal and the conversions are delivered by <emu-xref href="#sec-complex-numbers"></emu-xref>.</td></tr>
@@ -5130,6 +5184,22 @@ const n: uint32 = g();
       <emu-note>
         <p>Transforming a pack is not a mapped-type sub-language. A value pack is an array in the body, so `I.map(i =&gt; i * 2)` inside a compile-time function transforms it; a type pack restructures by spread in a tuple type, `[...Ts, T]`, and transforms per element through a builder (<emu-xref href="#sec-computed-types"></emu-xref>) written once and named. The one modifier that distributes rather than maps is `ref` on a rest parameter (<emu-xref href="#sec-function-types"></emu-xref>), which is what lets a callback take a pack directly: `(e: Entity, ref ...refs: Cs) =&gt; void`. Most inversions are better avoided than declared: a declaration that binds the pack as <em>what the caller passes</em>, `all&lt;...Ps extends [].&lt;PromiseLike&gt;&gt;(...ps: Ps): Promise.&lt;awaitedAll(Ps)&gt;`, needs only the structural rung and yields the types the inverted spelling would, types being structural.</p>
         <p>A specialization chain that lengthens a tuple at each step &mdash; the reader of the design's binary packet example, `read&lt;T&gt;(): Reader.&lt;[...Ts, T]&gt;` &mdash; is finite per call site and costs what any specialization costs. A declaration that applies <em>itself</em> to a longer pack recurses without end and is stopped by the evaluation budget (<emu-xref href="#sec-evaluation-budget"></emu-xref>), as a recursive type alias is: a diagnostic naming the declaration, never an implementation's stack.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-generic-function-values">
+      <h1>Specialization as a Value</h1>
+      <p>A generic function applied in expression position, `f.&lt;uint8&gt;`, denotes a function object: the <dfn id="specialization">specialization</dfn> of `f` at the bindings BindTypeArguments (<emu-xref href="#sec-bindtypearguments"></emu-xref>) yields for its arguments. Specializations are interned per function object and ordered bindings, so `f.&lt;uint8&gt; === f.&lt;uint8&gt;`, `f.&lt;uint8&gt; === f.&lt;T: uint8&gt;`, a `Map` keyed on one round-trips, and `arr.map(f.&lt;uint8&gt;)` runs the specialized body; two spellings of one binding list are one value because identity is the bindings and not the text. A specialization's `where` clauses are evaluated when it is created, as the last step of BindTypeArguments, and never per call. A specialization declares no type parameters, so applying type arguments to one is a type error. It does not capture a receiver: `obj.m.&lt;uint8&gt;` is the specialization of the function `obj.m` denotes, receiver-independent, and a call `obj.m.&lt;uint8&gt;(x)` supplies `obj` as `this` exactly as `obj.m(x)` does. The bare name keeps the generic signature: `Reflect.typeOf(f)` is `&lt;T&gt;(x: T) =&gt; T`, and `Reflect.typeOf(f.&lt;uint8&gt;)` is `(uint8) =&gt; uint8`.</p>
+      <emu-note>
+        <p>A call written with type arguments, `f.&lt;uint8&gt;(x)`, creates or finds the specialization and calls it; finding one is a lookup keyed on the bindings, which is the cost of an interned record and not of a call. The design's `swizzle.&lt;0, 1&gt;()` and the reflection API's `getReflection.&lt;Reflect.Class, T&gt;()` are this form. Nothing here is new to a type parameter in a type position: a class application `A.&lt;uint8&gt;` has been a distinct type with its own Type Object throughout, and a function application is the same specialization with a function object as its value.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-crossing-with-a-generic-function">
+      <h1>Crossing a Boundary with a Generic Function</h1>
+      <p>A generic function that crosses into a binding of a <em>concrete</em> function type is specialized at the crossing: the bindings are those the instantiation step of <emu-xref href="#sec-issignaturesubtype"></emu-xref> infers, the value that crosses is the specialization at them (<emu-xref href="#sec-generic-function-values"></emu-xref>), its `where` clauses are checked there, and every call through the binding is a direct call of one body, so the crossing moves the decision to the assignment and costs the call nothing. A generic function that crosses into a binding of a <em>generic</em> function type crosses as itself. A call through such a binding, `m.&lt;uint8&gt;(x)`, selects the specialization of whichever function the binding holds, by that function's identity and the call's bindings, and a call that infers its type arguments infers them against the held function's signature. This is the one place a specialization is selected by a callee not known where the call is written; the checks remain compiled away, and what is dynamic is the callee, which is dynamic at every indirect call already.</p>
+      <emu-note>
+        <p>The cost is that of an indirect call together with a lookup keyed on callee and bindings, the dispatch C# performs for a generic virtual method, and it is paid only at calls through a binding of generic function type. The common case &mdash; a generic function handed to a slot that wants a concrete signature, `arr.map(id)` &mdash; pays nothing beyond the assignment. An implementation may cache the lookup at the call site as it caches any indirect call's target.</p>
       </emu-note>
     </emu-clause>
 
@@ -6073,7 +6143,7 @@ const n: uint32 = g();
           </table>
         </emu-table>
 
-        <p>A <dfn>signature reflection</dfn>, the element of a `signatures` List, has `parameters`, a List of parameter reflections of the family the declaration belongs to, and `return`, the return reflection of that family. A parameter reflection is the same shape wherever it appears: `ClassMethodParameter`, `ClassOperatorParameter`, `ClassSetterParameter`, `FunctionParameter`, and `ObjectMethodParameter` differ in which declaration they reflect and not in what they report, and `ClassSetterParameter` carries no `index` because a setter has exactly one parameter.</p>
+        <p>A <dfn>signature reflection</dfn>, the element of a `signatures` List, has `parameters`, a List of parameter reflections of the family the declaration belongs to, and `return`, the return reflection of that family. Where the signature declares type parameters it has `typeParameters`, a List in declaration order of type parameter reflections, each reporting `name`, `kind` (`'type'` or `'value'`), `variadic`, `variance`, `arity`, and `constraint` and `default` as the type objects the declared |Type|s denote, or a deferred application where they read an earlier parameter &mdash; the declared data of the Type Parameter Record (<emu-xref href="#table-type-parameter-record"></emu-xref>), which is what lets a tool complete a named type argument at an application site. A parameter reflection is the same shape wherever it appears: `ClassMethodParameter`, `ClassOperatorParameter`, `ClassSetterParameter`, `FunctionParameter`, and `ObjectMethodParameter` differ in which declaration they reflect and not in what they report, and `ClassSetterParameter` carries no `index` because a setter has exactly one parameter.</p>
 
         <p>A constructor is reflected as a `ClassMethod` whose `name` is *"constructor"*, and its parameters as that method's, so a construct signature needs no context of its own (<emu-xref href="#sec-decorator-contexts"></emu-xref>).</p>
 
