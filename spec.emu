@@ -671,7 +671,7 @@ contributors: Sirisian
 
       <emu-clause id="sec-evaluation-budget">
         <h1>The Evaluation Budget</h1>
-        <p>Evaluation under this clause is metered by two host-defined limits: a count of evaluation steps and a count of constructed Type Records, each per top-level type-position evaluation. Every operation that evaluates a type is metered, the instantiation of a generic type alias among them, since an unmetered one is a way to recurse without spending the budget. For a given source text, two hosts either produce, position for position, the same interned types, or at least one reports a type error: the limits decide whether compilation fails, never what it produces.</p>
+        <p>Evaluation under this clause is metered by two host-defined limits: a count of evaluation steps and a count of constructed Type Records, each per top-level type-position evaluation. Every operation that evaluates a type is metered, the instantiation of a generic type alias among them, since an unmetered one is a way to recurse without spending the budget; so is BindTypeArguments (<emu-xref href="#sec-bindtypearguments"></emu-xref>), and with it the specialization of a declaration over a variadic parameter, since a declaration applying itself to a pack one element longer is the recursion a type alias performs with one more field. For a given source text, two hosts either produce, position for position, the same interned types, or at least one reports a type error: the limits decide whether compilation fails, never what it produces.</p>
 
         <p>The budget bounds a computation, which either completes or is abandoned and reported. A rule requiring a SEARCH — over the types an argument could take, rather than over a fixed evaluation — is not metered by it and is refused where it would otherwise arise (<emu-xref href="#sec-higher-kinded-parameters"></emu-xref>), because truncating a search under a budget yields a wrong answer where truncating a computation yields none.</p>
 
@@ -915,16 +915,35 @@ contributors: Sirisian
 
           TypeArgument[Yield, Await] :
             Type[?Yield, ?Await]
-            <ins>BindingIdentifier[?Yield, ?Await] `:` Type[?Yield, ?Await]</ins></ins>
+            <ins>BindingIdentifier[?Yield, ?Await] `:` Type[?Yield, ?Await]</ins>
+            <ins>`...` Type[?Yield, ?Await]</ins></ins>
         </emu-grammar>
 
         <emu-note>
           <p>Because `.&lt;` is a single punctuator, a qualified name and an application are told apart lexically: in `Temporal.Unit` the `.` is followed by an identifier, while in `Map.&lt;string, uint8&gt;` the `.&lt;` opens an argument list, so a |TypeName| cannot extend across it.</p>
           <p>A type argument is written as a |Type| even when it is a value, as the width in `int.&lt;8&gt;` and the lane count in `vector.&lt;float32, 4&gt;` are. A numeric or string literal argument is a |LiteralType|, and a name that resolves to a value generic parameter is a |TypeReference|, so the syntax need not distinguish the two; the clause on generics decides which a given parameter expects. A value argument that is a computed expression, such as an arithmetic combination of value generic parameters, is written through a |ComputedType| (<emu-xref href="#sec-computed-types"></emu-xref>): the builder call is the spelling for a computed argument, evaluated once its parameters are bound, and the argument position takes no further computation syntax of its own. A `where` clause (<emu-xref href="#sec-generic-where"></emu-xref>) constrains the values a variadic or value parameter admits.</p>
           <p><ins>A |TypeArgument| may NAME the parameter it supplies, `Box.&lt;Element: uint8&gt;`, which lets an application skip a parameter that has a default rather than repeat it: given `Grid&lt;T = float64, Rows = 4, Cols = 4&gt;`, `Grid.&lt;Cols: 8&gt;` says what differs where `Grid.&lt;float64, 4, 8&gt;` repeats what does not. The separator is `:` rather than `=` to match the named ARGUMENT form of a call, and because `=` already means "the default if none is supplied" in the declaration - the opposite sense at the same position.</ins></p>
-          <p><ins>Each parameter takes, in order: its positional argument where one was supplied, otherwise the named argument bearing its name, otherwise its |TypeParameterDefault|. A parameter left by all three is an error, as it is for a positional application.</ins></p>
+          <p><ins>Arguments bind to parameters by BindTypeArguments (<emu-xref href="#sec-bindtypearguments"></emu-xref>), the one operation every application site performs, whichever spelling the list uses: a parameter takes its positional argument where one reaches it, otherwise the named argument bearing its name, otherwise its |TypeParameterDefault|, and a parameter left by all three is an error, as it is for a positional application. A |TypeArgument| of the third form spreads a tuple: its |Type| must resolve to a ~tuple~ type or to an ~array~ type whose extent is stated, and it is a type error otherwise, since a spread whose length is not known cannot say how many parameters it fills; the elements are spliced into the list, in order, before anything binds, so `swizzle.&lt;...Pair&gt;` for `type Pair = [0, 1]` is `swizzle.&lt;0, 1&gt;` and names the same specialization.</ins></p>
           <p><ins>It is a Syntax Error for a |TypeArgumentList| to contain a |TypeArgument| of the second form whose |BindingIdentifier| does not name a |TypeParameter| of the type or function being applied. This reaches the forms that take |TypeArguments| WITHOUT declaring parameters - an |ArrayOrTupleType| such as `[4].&lt;uint8&gt;`, whose extent and element the grammar does not name - so a named argument there names nothing and is refused. A name that matched nothing would otherwise be discarded silently and the parameter would take its default, which makes a misspelling change what a program means.</ins></p>
-          <p><ins>It is a Syntax Error for two |TypeArgument|s of the second form in one |TypeArgumentList| to have the same |BindingIdentifier|, or for one to name a |TypeParameter| already supplied positionally. It is a Syntax Error for a |TypeArgument| of the first form to follow one of the second, so the positional arguments are exactly the leading ones and a positional argument's meaning does not depend on the names used after it.</ins></p>
+          <p><ins>It is a Syntax Error for two |TypeArgument|s of the second form in one |TypeArgumentList| to have the same |BindingIdentifier|, or for one to name a |TypeParameter| already supplied positionally. It is a Syntax Error for a |TypeArgument| of the first form to follow one of the second, so the positional arguments are exactly the leading ones and a positional argument's meaning does not depend on the names used after it &mdash; except where the second-form argument names a variadic parameter, in which case the first-form arguments after it, up to the next second-form argument, join its run: `q.&lt;I: 0, 1, N: 8&gt;` binds `I` to `[0, 1]`, since a name that could supply a pack only one element would not be able to supply it at all.</ins></p>
+
+          <p><ins>The standard library's generic types carry the parameter names their signatures are written with, listed in <emu-xref href="#table-library-type-parameter-names"></emu-xref>, so `Map.&lt;V: uint8, K: string&gt;` means what it says and `Map.&lt;Z: uint8&gt;` is the error a user declaration's unknown name is.</ins></p>
+
+          <emu-table id="table-library-type-parameter-names" caption="Type Parameter Names of Library Generics">
+            <table>
+              <thead><tr><th>Generic</th><th>Parameters</th><th>Declared in</th></tr></thead>
+              <tbody>
+                <tr><td>`Map`, `WeakMap`</td><td>`K`, `V`</td><td><emu-xref href="#sec-keyed-collections"></emu-xref></td></tr>
+                <tr><td>`Set`, `WeakSet`</td><td>`T`</td><td><emu-xref href="#sec-keyed-collections"></emu-xref></td></tr>
+                <tr><td>`Iterable`</td><td>`T`</td><td><emu-xref href="#sec-iteration-types"></emu-xref></td></tr>
+                <tr><td>`vector`</td><td>`T`, `N`</td><td><emu-xref href="#sec-vector-types"></emu-xref></td></tr>
+                <tr><td>`int`, `uint`</td><td>`N`</td><td><emu-xref href="#sec-integer-types"></emu-xref></td></tr>
+              </tbody>
+            </table>
+          </emu-table>
+          <emu-note>
+            <p>The table is the names the clauses cited already write, collected so an application can use them; a generic whose signature names nothing, such as an |ArrayOrTupleType|, is in it by omission and refuses every name. A standard library declared in the language's own syntax would carry these names on its declarations and retire the table.</p>
+          </emu-note>
         </emu-note>
       </emu-clause>
 
@@ -1169,8 +1188,8 @@ contributors: Sirisian
           FunctionTypeParameter[Yield, Await] :
             `ref`? Type[?Yield, ?Await]
             `ref`? BindingIdentifier[?Yield, ?Await] `?`? TypeAnnotation[?Yield, ?Await]
-            `...` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]
-            `...` Type[?Yield, ?Await]</ins>
+            `ref`? `...` BindingIdentifier[?Yield, ?Await] TypeAnnotation[?Yield, ?Await]
+            `ref`? `...` Type[?Yield, ?Await]</ins>
         </emu-grammar>
 
         <p>When the production <emu-grammar>PrimaryType : CoverParenthesizedTypeAndFunctionTypeParameters</emu-grammar> is recognized, the interpretation of |CoverParenthesizedTypeAndFunctionTypeParameters| is refined using <emu-grammar>ParenthesizedType : `(` Type `)`</emu-grammar>; it is a type error if the cover does not match that refinement.</p>
@@ -1200,6 +1219,7 @@ contributors: Sirisian
 
         TypeParameter[Yield, Await] :
           VarianceModifier? BindingIdentifier[?Yield, ?Await] TypeParameterConstraint[?Yield, ?Await]? TypeParameterDefault[?Yield, ?Await]?
+          VarianceModifier? `...` BindingIdentifier[?Yield, ?Await] TypeParameterConstraint[?Yield, ?Await]? TypeParameterDefault[?Yield, ?Await]?
 
         VarianceModifier : one of
           `in` `out`
@@ -1218,8 +1238,21 @@ contributors: Sirisian
       </emu-note>
 
       <emu-note>
-        <p>A parameter written with `:` is a value generic parameter, whose argument is a value of the named type, as `W` and `H` are in `class GridArray&lt;W: uint32, H: uint32&gt;`. A parameter written with `extends` is a type parameter bounded by a type, as `T` is in `T extends []`. A parameter with neither is an unbounded type parameter. The `where` clause that further constrains a parameter is defined by the generics extension.</p>
+        <p>A parameter written with `:` is a value generic parameter, whose argument is a value of the named type, as `W` and `H` are in `class GridArray&lt;W: uint32, H: uint32&gt;`. A parameter written with `extends` is a type parameter bounded by a type, as `T` is in `T extends []`. A parameter with neither is an unbounded type parameter. The `where` clause that further constrains a parameter is <emu-xref href="#sec-generic-where"></emu-xref>.</p>
+        <p>A parameter written with `...` is a <dfn id="variadic-type-parameter">variadic parameter</dfn>, collecting any number of arguments as a rest parameter collects any number of values, and its |TypeParameterConstraint| is the type of what it collects &mdash; `...I: [].&lt;uint32&gt;` for a pack of `uint32` values, `...Ts extends [].&lt;Bound&gt;` for a pack of types, `...I: [4].&lt;uint8&gt;` for exactly four &mdash; the habit the rest-parameter annotation of <emu-xref href="#sec-type-annotations"></emu-xref> already teaches. What a variadic parameter binds is a ~tuple~ Type Record (<emu-xref href="#sec-variadic-parameters"></emu-xref>); the `...` is only the collection marker at the application, so `&lt;...Ts&gt;` applied `.&lt;uint8, string&gt;` and `&lt;Ts extends [].&lt;any&gt;&gt;` applied `.&lt;[uint8, string]&gt;` bind the same thing.</p>
       </emu-note>
+
+      <emu-clause id="sec-type-parameters-static-semantics-early-errors">
+        <h1>Static Semantics: Early Errors</h1>
+        <emu-grammar>TypeParameterList : TypeParameterList `,` TypeParameter</emu-grammar>
+        <ul>
+          <li>It is a Syntax Error if, within any maximal sequence of consecutive |TypeParameter|s of the list that are not of the `...` form, a |TypeParameter| that has no |TypeParameterDefault| follows one that has a |TypeParameterDefault|.</li>
+          <li>It is a Syntax Error if two consecutive |TypeParameter|s of the list are both of the `...` form and the first has no |TypeParameterConstraint|.</li>
+        </ul>
+        <emu-note>
+          <p>The first rule is the trailing-defaults rule stated per <em>run</em>: a variadic parameter counts as defaulted, since an application may leave it empty, and it ends the run, so `&lt;...A: [].&lt;uint32&gt;, N: uint32&gt;` is legal with `N` required &mdash; the parameter after a pack is what stops the pack's run positionally, and is otherwise reached by name. The second is the syntactic half of the rest-parameter sentence "two rests with nothing typed between them are an error": a pack with no constraint admits everything, so a pack adjacent to it could never receive an argument positionally. The half that needs the constraint resolved &mdash; a constraint that resolves to `[].&lt;any&gt;` admits everything too &mdash; is the type error of <emu-xref href="#sec-variadic-parameters"></emu-xref>.</p>
+        </emu-note>
+      </emu-clause>
 
       <emu-clause id="sec-computed-constraints">
         <h1>Computed Constraints and Literal Inference</h1>
@@ -1306,8 +1339,13 @@ contributors: Sirisian
 
         <ins>FormalParameterElement[Yield, Await] :
           FormalParameter[?Yield, ?Await]
-          FunctionRestParameter[?Yield, ?Await]</ins>
+          FunctionRestParameter[?Yield, ?Await]
+
+        FunctionRestParameter[Yield, Await] :
+          `ref`? BindingRestElement[?Yield, ?Await]</ins>
       </emu-grammar>
+
+      <p><ins>`ref` on a rest parameter, in a declaration and in a function type alike, distributes over the run: each parameter the rest collects is a `ref` parameter. References are not values, so a `ref` rest binds no array. Its name is usable in exactly three forms, each a direct use of one collected reference and none a store &mdash; spread into another call's `ref` rest position, `name[k]` with a compile-time-constant `k`, and `name.length` &mdash; and any other use is the escape error a single `ref` parameter already has, applied per element. A callback whose type carries a `ref` rest is satisfied by a function whose parameters are individually `ref`; the run is matched by <emu-xref href="#sec-sequenceassignment"></emu-xref> as any rest is.</ins></p>
 
       <p>|UniqueFormalParameters| and the arrow forms are defined over |FormalParameters| and so admit the wider list without restatement; the duplicate-name early errors of the pinned edition apply to it unchanged. It is a Syntax Error for a |FunctionRestParameter| to carry an |Initializer|, as it is today. It is a type error if a parameter list contains two rest parameters with no parameter of a declared type between them: two rests that admit the same values have no boundary, and no assignment of arguments between them is more right than another (<emu-xref href="#sec-bindarguments"></emu-xref>).</p>
 
@@ -3059,7 +3097,7 @@ const n: uint32 = g();
         <p><ins>The members need not differ in a NUMERIC type, and the difference need not be at the literal's own level. Where they differ in an object member, an array member, a tuple member, or in a member of one of those in turn, the literal is adapted toward the first member it fits, by the same rule. `{ p: { x: 1 } }` at `{ p: { x: `int32` } } | { p: { x: `string` } }` reaches the first, and so does `{ p: [1] }` at `{ p: []&lt;`int32`&gt; } | { p: []&lt;`string`&gt; }`.</ins></p>
         <emu-note>
           <p><ins>Whether a literal fits a member is decided by ATTEMPTING the adaptation and observing whether it reports, not by comparing types. By the time a member must be chosen the literal has a type in which the values are gone - `{ p: { x: 1 } }` is `{ p: { x: `number` } }` - so a question about range, which decides `{ p: { x: 70000 } }` against `{ p: { x: `uint8` } }`, cannot be asked of it.</ins></p>
-          <p><ins>An attempt that reports nothing is a fit whatever it returns. An ARRAY literal adapted against its target returns no type at all - <emu-xref href="#sec-array-types"></emu-xref> withholds one so the boundary is not elided, since the boundary is where an Array carrying the element type is built - and it is nonetheless adapted, on the same evidence as any other literal.</ins></p>
+          <p><ins>An attempt that reports nothing is a fit whatever it returns. An ARRAY literal adapted against its target returns no type at all - <emu-xref href="#sec-array-literal-static-type"></emu-xref> withholds one so the boundary is not elided, since the boundary is where an Array carrying the element type is built - and it is nonetheless adapted, on the same evidence as any other literal.</ins></p>
           <p><ins>An attempt that reports is discarded together with anything it recorded, so a member that does not fit leaves nothing behind for the members after it.</ins></p>
         </emu-note>
         <p><ins>An INTERSECTION is not this case: its members must ALL be satisfied, so members that disagree admit nothing and the literal is refused.</ins></p>
@@ -3207,11 +3245,31 @@ const n: uint32 = g();
             <tr><td>[[InferredReturn]]</td><td>a Type Record or ~none~</td><td>The published inferred return type (<emu-xref href="#sec-inferred-return-types"></emu-xref>), or ~none~ where the signature declares a return type or the function does not participate in inference. It is a separate field because identity, overload-set formation, ranking, and viability read [[Return]] alone.</td></tr>
             <tr><td>[[ThisType]]</td><td>a Type Record or ~none~</td><td>The declared `this` type, or ~none~ where none is declared.</td></tr>
             <tr><td>[[Narrows]]</td><td>a List of Narrowing Records</td><td>The narrowings a call of this signature declares (<emu-xref href="#sec-declared-narrowing"></emu-xref>). Empty where none is declared.</td></tr>
-            <tr><td>[[TypeParameters]]</td><td>a List of Parse Nodes</td><td>The type parameters the signature declares, empty when it is not generic.</td></tr>
+            <tr><td>[[TypeParameters]]</td><td>a List of Type Parameter Records</td><td>The type parameters the signature declares (<emu-xref href="#table-type-parameter-record"></emu-xref>), empty when it is not generic.</td></tr>
             <tr><td>[[Untyped]]</td><td>a Boolean</td><td>*true* when the signature declares no parameter type and no return type, in which case it is a catch-all. It is a syntactic property: a signature that declares neither is untyped however much is inferred for it.</td></tr>
           </tbody>
         </table>
       </emu-table>
+
+      <p>A <dfn id="type-parameter-record">Type Parameter Record</dfn> describes one declared type parameter, of a signature or of a generic declaration. It has the fields of <emu-xref href="#table-type-parameter-record"></emu-xref>.</p>
+
+      <emu-table id="table-type-parameter-record" caption="Type Parameter Record Fields">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>[[Name]]</td><td>a String</td><td>The declared name. Carried for named arguments and for reflection, and not part of the parameter's identity: two signatures that differ only in how they name a parameter are one signature.</td></tr>
+            <tr><td>[[Kind]]</td><td>~type~ or ~value~</td><td>~value~ when the parameter is declared with `:` (<emu-xref href="#sec-generic-parameters-as-values"></emu-xref>), ~type~ otherwise.</td></tr>
+            <tr><td>[[Variadic]]</td><td>a Boolean</td><td>*true* when the parameter is declared with `...` (<emu-xref href="#sec-variadic-parameters"></emu-xref>).</td></tr>
+            <tr><td>[[Variance]]</td><td>~invariant~, ~covariant~, or ~contravariant~</td><td>The declared variance (<emu-xref href="#sec-generic-variance"></emu-xref>); ~invariant~ where no |VarianceModifier| is written. For a variadic parameter it applies per element position.</td></tr>
+            <tr><td>[[Arity]]</td><td>a non-negative integer</td><td>The count of `_` holes of a higher-kinded parameter (<emu-xref href="#sec-higher-kinded-parameters"></emu-xref>); 0 for a parameter that stands for a type or a value.</td></tr>
+            <tr><td>[[Constraint]]</td><td>a Parse Node or ~none~</td><td>The |Type| of the |TypeParameterConstraint|. It is a Parse Node rather than a Type Record because a constraint is evaluated per application, over the bindings of the parameters before it (<emu-xref href="#sec-computed-constraints"></emu-xref>); a record that evaluated it once would fix `V: T = 0` at whatever `T` meant first.</td></tr>
+            <tr><td>[[Default]]</td><td>a Parse Node or ~none~</td><td>The |Type| of the |TypeParameterDefault|, evaluated as the constraint is.</td></tr>
+            <tr><td>[[Declaration]]</td><td>a Parse Node</td><td>The |TypeParameter| itself: the identity a ~parameter~ Type Record substitutes by, and what makes two references to one parameter one thing.</td></tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>Two Lists of Type Parameter Records are the same up to renaming when they have the same length and, pairwise, the same [[Kind]], [[Variadic]], [[Variance]], and [[Arity]], and constraints and defaults that denote the same types once each parameter of one list is identified with the parameter at the same position of the other. This is how generic signatures compare (<emu-xref href="#sec-samefunctiontype"></emu-xref>): [[Name]] is never read, so `&lt;T&gt;(x: T) =&gt; T` and `&lt;U&gt;(x: U) =&gt; U` are one type, and a constraint, a default, a modifier, or the order makes two.</p>
 
       <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), an [[Initial]] field (an ECMAScript language value or ~none~, the declared default), and a [[Reference]] field (a Boolean). [[Reference]] is *true* exactly when [[Type]].[[Kind]] is ~reference~: the flag restates the type for convenience, and reflection reads the fact from the type.</p>
 
@@ -4949,13 +5007,129 @@ const n: uint32 = g();
 
   <emu-clause id="sec-generics">
     <h1>Generics</h1>
-    <p>A generic declaration introduces parameters that a later application binds to types or values, and each distinct application is a distinct type with its own Type Object and its own specialized body. The core relies on this clause in three places already stated: the deferred applications of <emu-xref href="#sec-deferred-applications"></emu-xref> carry the ~parameter~ Type Records this clause substitutes, the computed constraints of <emu-xref href="#sec-computed-constraints"></emu-xref> bind parameters through the ordering this clause defines, and the invariance step of <emu-xref href="#sec-issubtype"></emu-xref> is relaxed by the variance this clause declares. The full surface of the design's generics extension, specialized overloads, constraint families, variadic packs, and their inference, builds on the model here and is that extension's to complete (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
+    <p>A generic declaration introduces parameters that a later application binds to types or values, and each distinct application is a distinct type with its own Type Object and its own specialized body. The core relies on this clause in three places already stated: the deferred applications of <emu-xref href="#sec-deferred-applications"></emu-xref> carry the ~parameter~ Type Records this clause substitutes, the computed constraints of <emu-xref href="#sec-computed-constraints"></emu-xref> bind parameters through the ordering this clause defines, and the invariance step of <emu-xref href="#sec-issubtype"></emu-xref> is relaxed by the variance this clause declares. Named and spread arguments, and variadic parameters, are specified here (<emu-xref href="#sec-bindtypearguments"></emu-xref>, <emu-xref href="#sec-variadic-parameters"></emu-xref>); the remaining surface of the design's generics extension, specialized overloads and constraint families, builds on the model here and is that extension's to complete (<emu-xref href="#table-extension-hooks"></emu-xref>).</p>
 
     <emu-clause id="sec-generic-parameters-as-values">
       <h1>Parameters as Types and as Values</h1>
       <p>A generic parameter is a ~parameter~ Type Record whose [[Declaration]] is its |TypeParameter|. A type parameter, declared with `extends` or unbounded, denotes that Record in a type position and, in an expression position, the Type Object bound to it, exactly as a type name does. A value parameter, declared with `:` and a value type, is the <dfn id="value-generic-parameter">value generic parameter</dfn> of the design: its argument is a value of the named type rather than a type, and this specification binds it to the literal type of that value (<emu-xref href="#sec-literal-types"></emu-xref>) with the value recoverable as that type's one value. The literal-type binding is primitive and the value is its view, the decision <emu-xref href="#sec-computed-constraints"></emu-xref> records: a body that reads `V` where a value is required, as `2 ** V`, reads the [[Value]] of the literal type, and a body that reads `V` where a type is required, as `Reflect.typeOf(V)`, reads the type itself.</p>
       <emu-note>
         <p>Two applications name one specialization when their arguments are pairwise the same: a type argument under SameType, and a value argument under SameValue, which is the identity the literal type already has, so `A.&lt;0&gt;` and `A.&lt;-0&gt;` are distinct and `A.&lt;NaN&gt;` is usable, following from identity rather than as special cases. A reference value cannot be an argument, since specialization identity would then turn on object identity; the permitted value types are the primitive value types the design lists.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-bindtypearguments" type="abstract operation">
+      <h1>
+        BindTypeArguments (
+          _params_: a List of Type Parameter Records,
+          _args_: a List of |TypeArgument| Parse Nodes,
+          _declaration_: a Parse Node,
+        ): either a normal completion containing a List of Records with fields [[Declaration]] (a |TypeParameter| Parse Node) and [[Value]] (a Type Record), or a throw completion
+      </h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd>It binds an application's arguments to a declaration's type parameters &mdash; positional, named, spread, and variadic alike &mdash; and is the one operation every application site performs: a type reference, an expression-position application, `new`, a heritage clause, an explicit call, and the explicit half of a call whose remaining parameters are inferred. Its result is the _bindings_ that SubstituteType consumes, and the identity of the specialization.</dd>
+      </dl>
+      <emu-alg>
+        1. Let _entries_ be a new empty List.
+        1. For each |TypeArgument| _a_ of _args_, do
+          1. If _a_ is <emu-grammar>TypeArgument : `...` Type</emu-grammar>, then
+            1. Let _t_ be ? the Type Record the |Type| of _a_ denotes.
+            1. If _t_.[[Kind]] is ~tuple~, let _elements_ be a List of the [[Type]] fields of _t_.[[Elements]], in order.
+            1. Else if _t_ is an ~array~ Type Record whose extent is stated, let _elements_ be a List of that many copies of _t_.[[Element]].
+            1. Else, throw a *TypeError* exception.
+            1. For each element _e_ of _elements_, append the Record { [[Name]]: ~none~, [[Type]]: _e_, [[Node]]: ~none~ } to _entries_.
+          1. Else if _a_ is <emu-grammar>TypeArgument : BindingIdentifier `:` Type</emu-grammar>, then
+            1. Append the Record { [[Name]]: the StringValue of |BindingIdentifier|, [[Type]]: ~none~, [[Node]]: the |Type| of _a_ } to _entries_.
+          1. Else,
+            1. Append the Record { [[Name]]: ~none~, [[Type]]: ~none~, [[Node]]: _a_ } to _entries_.
+        1. Let _firstNamed_ be the least integer _idx_ such that _entries_[_idx_].[[Name]] is not ~none~, or the number of elements of _entries_ if there is no such integer.
+        1. Let _positional_ be a List of the first _firstNamed_ elements of _entries_.
+        1. Let _named_ be a new empty List.
+        1. Let _i_ be _firstNamed_.
+        1. Repeat, while _i_ &lt; the number of elements of _entries_,
+          1. Let _e_ be _entries_[_i_].
+          1. If _e_.[[Name]] is ~none~, throw a *TypeError* exception.
+          1. If _params_ contains no element whose [[Name]] is _e_.[[Name]], throw a *TypeError* exception.
+          1. Let _p_ be the element of _params_ whose [[Name]] is _e_.[[Name]].
+          1. If _named_ contains a Record whose [[Parameter]] is _p_, throw a *TypeError* exception.
+          1. Let _run_ be « _e_ ».
+          1. Set _i_ to _i_ + 1.
+          1. If _p_.[[Variadic]] is *true*, then
+            1. Repeat, while _i_ &lt; the number of elements of _entries_ and _entries_[_i_].[[Name]] is ~none~,
+              1. Append _entries_[_i_] to _run_.
+              1. Set _i_ to _i_ + 1.
+          1. Append the Record { [[Parameter]]: _p_, [[Run]]: _run_ } to _named_.
+        1. Let _slots_ be a new empty List.
+        1. For each element _p_ of _params_, do
+          1. If _p_.[[Variadic]] is *true*, append a rest slot to _slots_.
+          1. Else if _p_.[[Default]] is ~none~, append a fixed slot to _slots_.
+          1. Else, append an optional slot to _slots_.
+        1. Let _prefix_ be the elements of _params_ before the first whose [[Variadic]] is *true*, or all of _params_ if there is none.
+        1. Let _admits_ be a new Abstract Closure with parameters (_j_, _k_) that captures _params_, _named_, _positional_, and _prefix_ and performs the following steps when called:
+          1. Let _p_ be _params_[_j_].
+          1. If _p_.[[Variadic]] is *false*, return *true*.
+          1. If _named_ contains a Record whose [[Parameter]] is _p_, return *false*.
+          1. If _p_.[[Constraint]] is ~none~, return *true*.
+          1. If the |Type| of _p_.[[Constraint]] reads any parameter not in _prefix_, return *true*.
+          1. Let _bound_ be the Type Record that |Type| denotes, evaluated over the bindings of the elements of _prefix_ to the corresponding leading elements of _positional_, as the binding loop below binds them.
+          1. If _bound_ is not an ~array~ or ~tuple~ Type Record, return *true*.
+          1. Let _element_ be the element type of _bound_ (<emu-xref href="#sec-type-annotations"></emu-xref>).
+          1. Let _v_ be the Type Record _positional_[_k_] denotes.
+          1. Return IsSubtype(_v_, _element_, a new empty List).
+        1. Let _counts_ be SequenceAssignment(_slots_, the number of elements of _positional_, _admits_).
+        1. If _counts_ is ~unmatched~, throw a *TypeError* exception.
+        1. Let _bindings_ be a new empty List.
+        1. Let _cursor_ be 0.
+        1. For each integer _j_ such that 0 &le; _j_ &lt; the number of elements of _params_, in ascending order, do
+          1. Let _p_ be _params_[_j_].
+          1. Let _supplied_ be a List of the _counts_[_j_] elements of _positional_ beginning at index _cursor_.
+          1. Set _cursor_ to _cursor_ + _counts_[_j_].
+          1. If _named_ contains a Record whose [[Parameter]] is _p_, then
+            1. Let _r_ be that Record.
+            1. If _supplied_ is not empty, throw a *TypeError* exception.
+            1. Set _supplied_ to _r_.[[Run]].
+          1. If _p_.[[Constraint]] is ~none~, let _constraint_ be ~none~; otherwise let _constraint_ be ? the Type Record the |Type| of _p_.[[Constraint]] denotes, evaluated over _bindings_ (<emu-xref href="#sec-computed-constraints"></emu-xref>).
+          1. If _p_.[[Variadic]] is *false*, then
+            1. If _supplied_ is empty, then
+              1. If _p_.[[Default]] is ~none~, throw a *TypeError* exception.
+              1. Let _v_ be ? the Type Record the |Type| of _p_.[[Default]] denotes, evaluated over _bindings_.
+            1. Else,
+              1. Let _v_ be ? the Type Record _supplied_[0] denotes: its [[Type]] where that is not ~none~, and the type its [[Node]] denotes otherwise.
+            1. If _p_.[[Kind]] is ~value~ and _v_.[[Kind]] is ~literal~, set _v_ to the literal type of _v_.[[Value]] converted to _constraint_ as <emu-xref href="#sec-computed-constraints"></emu-xref> binds a literal argument; if the conversion fails, throw a *TypeError* exception.
+          1. Else,
+            1. If _supplied_ is empty and _p_.[[Default]] is not ~none~, then
+              1. Let _v_ be ? the Type Record the |Type| of _p_.[[Default]] denotes, evaluated over _bindings_.
+              1. If _v_.[[Kind]] is not ~tuple~, throw a *TypeError* exception.
+            1. Else,
+              1. Let _elements_ be a new empty List.
+              1. For each element _e_ of _supplied_, do
+                1. Let _ev_ be ? the Type Record _e_ denotes.
+                1. If _p_.[[Kind]] is ~value~ and _ev_.[[Kind]] is ~literal~ and _constraint_ is not ~none~, set _ev_ to the literal type of _ev_.[[Value]] converted to the element type of _constraint_; if the conversion fails, throw a *TypeError* exception.
+                1. Append _ev_ to _elements_.
+              1. Let _v_ be the ~tuple~ Type Record whose [[Elements]] are Records with [[Type]] the elements of _elements_, in order, none of them a rest and none carrying an [[Initial]].
+          1. If _constraint_ is not ~none~ and IsSubtype(_v_, _constraint_, a new empty List) is *false*, throw a *TypeError* exception.
+          1. Append the Record { [[Declaration]]: _p_.[[Declaration]], [[Value]]: _v_ } to _bindings_.
+        1. Assert: _cursor_ is the number of elements of _positional_.
+        1. For each `where` clause of _declaration_, evaluate it over _bindings_ as <emu-xref href="#sec-generic-where"></emu-xref> specifies; if the result is *false*, throw a *TypeError* exception.
+        1. Return _bindings_.
+      </emu-alg>
+      <emu-note>
+        <p>The positional half is the rest-parameter rule verbatim: <emu-xref href="#sec-sequenceassignment"></emu-xref> is the operation the design's "greedy, giving back to satisfy the parameters after" names for values, and a pack is a rest slot in it. A run ends where the next argument fails the pack's element bound; a non-variadic slot admits by arity alone, its constraint checked once bound, which keeps the split independent of what fixed parameters would accept &mdash; one rule for values and for types, and the same diagnostics. A pack whose bound reads a parameter declared at or after the first pack cannot help split, so it admits everything for the split and is checked in full once the assignment is fixed, the conservatism argument binding already applies to a parameter type that mentions a not-yet-bound type parameter. A literal is a type too: an unconstrained type parameter admits `0` positionally, so in `&lt;T, ...I: [].&lt;uint32&gt;&gt;` applied `.&lt;0, 1&gt;` the fixed `T` takes the literal type `0`; the result is deterministic, and writing `T: uint8` says what was meant.</p>
+        <p>Two applications whose _bindings_ are pairwise the same &mdash; SameType for a type, SameValue for a value &mdash; name one specialization whatever their spelling, positional, named, or spread; identity is the ordered bindings and never the text. Where the applied declaration is known statically, the refusals this operation performs for a positional argument after a named one, an unknown name, and a parameter supplied twice are the Syntax Errors of <emu-xref href="#sec-type-references"></emu-xref>; the operation restates them for an application resolved at run time.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-variadic-parameters">
+      <h1>Variadic Parameters</h1>
+      <p>A variadic parameter (<emu-xref href="#sec-type-parameters"></emu-xref>) binds a ~tuple~ Type Record: the elements are the Type Records its arguments denote, in order, and the tuple's length is the number of arguments. It is a type error if its |TypeParameterConstraint| does not resolve to an ~array~ or ~tuple~ type, the rule <emu-xref href="#sec-type-annotations"></emu-xref> states for a rest parameter's annotation; it is a type error if its |TypeParameterDefault| does not resolve to a ~tuple~ type; and it is a type error if two consecutive variadic parameters have constraints either of whose element type is the `any` type, which completes the early error of <emu-xref href="#sec-type-parameters-static-semantics-early-errors"></emu-xref> for the bounds that need resolving. Two consecutive variadic parameters of one element type are admitted: the first takes what both admit, and the parameter after them says where the run must stop, as it does for two rest parameters of one type.</p>
+
+      <p>Within the specialized body, a variadic <em>value</em> parameter &mdash; one declared with `:` &mdash; reads as a frozen fixed-extent array, one per specialization, whose elements are the values of its literal types: `I.length`, `I[k]` for a constant `k`, and the array methods over them are compile-time expressions (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>), and the same array answers every read, so `I === I` across calls of one specialization. A variadic <em>type</em> parameter reads as the Type Object of its tuple, as any type parameter reads as its type. This is the rule of <emu-xref href="#sec-generic-parameters-as-values"></emu-xref> applied pointwise: a value parameter reads as its value, so a tuple of them reads as their array. A `where` clause over a variadic parameter (<emu-xref href="#sec-generic-where"></emu-xref>) is checked once per specialization, every element being a constant.</p>
+
+      <p>A variadic parameter is bound from a call's arguments wherever a scalar parameter is: through a rest parameter typed by it, from constant arguments as every value generic argument is; through a parameter of its tuple type, from one tuple; through a written tuple pattern, `pairUp&lt;T, ...Rest&gt;(p: [T, ...Rest])`, by the assignment BindTypeArguments performs on its positional half; through a callback's signature, structurally; and through a builder that stands between it and the arguments only by that builder's declared inverse (<emu-xref href="#sec-declared-inverses"></emu-xref>), never by search. The ladder is that of <emu-xref href="#sec-inference-through-results"></emu-xref> without exception. A spread argument, `f(...xs)`, binds a variadic parameter only where the length of `xs` is statically known, as the type-argument spread of <emu-xref href="#sec-type-references"></emu-xref> requires. Where a parameter's binding depends on the variadic parameter's length &mdash; `N: uint32 = I.length` &mdash; it is a computed default of <emu-xref href="#sec-computed-constraints"></emu-xref> and evaluates once the pack is bound.</p>
+
+      <emu-note>
+        <p>Transforming a pack is not a mapped-type sub-language. A value pack is an array in the body, so `I.map(i =&gt; i * 2)` inside a compile-time function transforms it; a type pack restructures by spread in a tuple type, `[...Ts, T]`, and transforms per element through a builder (<emu-xref href="#sec-computed-types"></emu-xref>) written once and named. The one modifier that distributes rather than maps is `ref` on a rest parameter (<emu-xref href="#sec-function-types"></emu-xref>), which is what lets a callback take a pack directly: `(e: Entity, ref ...refs: Cs) =&gt; void`. Most inversions are better avoided than declared: a declaration that binds the pack as <em>what the caller passes</em>, `all&lt;...Ps extends [].&lt;PromiseLike&gt;&gt;(...ps: Ps): Promise.&lt;awaitedAll(Ps)&gt;`, needs only the structural rung and yields the types the inverted spelling would, types being structural.</p>
+        <p>A specialization chain that lengthens a tuple at each step &mdash; the reader of the design's binary packet example, `read&lt;T&gt;(): Reader.&lt;[...Ts, T]&gt;` &mdash; is finite per call site and costs what any specialization costs. A declaration that applies <em>itself</em> to a longer pack recurses without end and is stopped by the evaluation budget (<emu-xref href="#sec-evaluation-budget"></emu-xref>), as a recursive type alias is: a diagnostic naming the declaration, never an implementation's stack.</p>
       </emu-note>
     </emu-clause>
 
@@ -4986,7 +5160,7 @@ const n: uint32 = g();
         1. Return CanonicalizeType(_u_).
       </emu-alg>
       <emu-note>
-        <p>Substitution and evaluation are one pass: a deferred application becomes evaluable exactly when substitution has closed every parameter it read, at which point <emu-xref href="#sec-evaluatebuildercall"></emu-xref> runs under the budget and memo already specified, so a builder used at two instantiations evaluates twice under two distinct memo keys and interns each result. A value generic contributes its literal type where a type is substituted and that type's value where the body computes, which is the one mechanism seen from two sides. Where substitution leaves a ~parameter~ in place, in the body of a still-generic outer declaration, the result is itself generic and specializes when the outer one does.</p>
+        <p>Substitution and evaluation are one pass: a deferred application becomes evaluable exactly when substitution has closed every parameter it read, at which point <emu-xref href="#sec-evaluatebuildercall"></emu-xref> runs under the budget and memo already specified, so a builder used at two instantiations evaluates twice under two distinct memo keys and interns each result. A value generic contributes its literal type where a type is substituted and that type's value where the body computes, which is the one mechanism seen from two sides. Where substitution leaves a ~parameter~ in place, in the body of a still-generic outer declaration, the result is itself generic and specializes when the outer one does. A ~tuple~ element written with `...` whose [[Type]] substitutes to a ~tuple~ Type Record is spliced element-wise into the containing tuple, so `[...Ts, T]` under `Ts` bound to `[uint8, string]` is `[uint8, string, T]` and not a tuple holding a tuple; CanonicalizeType performs the same splice, so the two spellings intern as one record.</p>
       </emu-note>
     </emu-clause>
 
