@@ -5494,6 +5494,11 @@ const n: uint32 = g();
             <tr><td>`rescale(constraint, factor)`</td><td>No</td><td>The constraint `constraint` denotes once its value has been multiplied by `factor`, so that a bound in metres survives a conversion into kilometres.</td></tr>
             <tr><td>`quantize(value, constraint)`</td><td>No</td><td>The value that `value` becomes under the representation `constraint` requires, such as a decimal rounded onto a scale.</td></tr>
             <tr><td>`describe(constraint)`</td><td>No</td><td>A String naming the constraint, for a diagnostic.</td></tr>
+          <tr>
+            <td>`meet(a, b)`</td>
+            <td>No</td>
+            <td>What the constraints `a` and `b` have in common: a constraint satisfied by exactly the values satisfying both, *null* where the meta type can prove that nothing satisfies both, and *undefined* where it cannot decide. A meta type declaring no `meet` is read as declining, since the two answers mean the same thing to the caller: the intersection stands. *null* is reserved for a PROOF &mdash; a meta type constraining by pattern cannot generally decide whether two patterns share a string, and one forced to choose between a meet and an emptiness would have to answer one of them wrongly.</td>
+          </tr>
           </tbody>
         </table>
       </emu-table>
