@@ -339,6 +339,20 @@ contributors: Sirisian
             1. <ins>Set _members_ to _kept_.</ins>
             1. If _t_.[[Kind]] is ~intersection~ and _members_ contains an element whose [[Kind]] is ~union~ and whose [[Members]] is empty, return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; } (the `never` type; see <emu-xref href="#sec-never-type"></emu-xref>).
             1. If _t_.[[Kind]] is ~intersection~ and _members_ contains two elements _a_ and _b_ such that AreDisjoint(_a_, _b_) is *true*, return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; } (the `never` type).
+            1. If _t_.[[Kind]] is ~intersection~, _members_ has more than one element, and every element of _members_ has [[Kind]] ~object~, then
+              1. Let _properties_ be a new empty List.
+              1. Let _signatures_ be a new empty List.
+              1. For each element _m_ of _members_, do
+                1. For each Property Record _p_ of _m_.[[Properties]], do
+                  1. Let _q_ be the Property Record in _properties_ whose [[Key]] is _p_.[[Key]], or ~empty~ if _properties_ contains no such Record.
+                  1. If _q_ is ~empty~, then
+                    1. Append a copy of _p_ to _properties_.
+                  1. Else,
+                    1. Set _q_.[[Optional]] to *true* if _q_.[[Optional]] is *true* and _p_.[[Optional]] is *true*, and *false* otherwise.
+                    1. Set _q_.[[Readonly]] to *true* if either _q_.[[Readonly]] or _p_.[[Readonly]] is *true*.
+                    1. Set _q_.[[Type]] to CanonicalizeType(the Type Record { [[Kind]]: ~intersection~, [[Members]]: &laquo; _q_.[[Type]], _p_.[[Type]] &raquo; }).
+                1. For each Index Signature Record _ix_ of _m_.[[IndexSignatures]], append _ix_ to _signatures_.
+              1. Return CanonicalizeType(the Type Record { [[Kind]]: ~object~, [[Properties]]: _properties_, [[IndexSignatures]]: _signatures_ }).
             1. If _members_ has exactly one element, return that element.
             1. Order the elements of _members_ according to the total order of <emu-xref href="#sec-canonical-total-order"></emu-xref>.
             1. Return the Type Record { [[Kind]]: _t_.[[Kind]], [[Members]]: _members_ }.
@@ -353,17 +367,31 @@ contributors: Sirisian
                 1. Append the Tuple Element Record { [[Type]]: _c_, [[Rest]]: _e_.[[Rest]], [[Initial]]: _e_.[[Initial]] } to _elements_.
             1. Return the Type Record { [[Kind]]: ~tuple~, [[Elements]]: _elements_ }.
           1. If _t_.[[Kind]] is ~array~, return the Type Record { [[Kind]]: ~array~, [[Element]]: CanonicalizeType(_t_.[[Element]]), [[Extent]]: _t_.[[Extent]] }.
-          1. If _t_.[[Kind]] is ~reference~, return the Type Record { [[Kind]]: ~reference~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
-          1. If _t_.[[Kind]] is ~shared~, return the Type Record { [[Kind]]: ~shared~, [[Target]]: CanonicalizeType(_t_.[[Target]]) }.
+          1. If _t_.[[Kind]] is ~reference~, then
+            1. Let _target_ be CanonicalizeType(_t_.[[Target]]).
+            1. If _target_ is `never`, return `never`.
+            1. Return the Type Record { [[Kind]]: ~reference~, [[Target]]: _target_ }.
+          1. If _t_.[[Kind]] is ~shared~, then
+            1. Let _target_ be CanonicalizeType(_t_.[[Target]]).
+            1. If _target_ is `never`, return `never`.
+            1. Return the Type Record { [[Kind]]: ~shared~, [[Target]]: _target_ }.
           1. If _t_.[[Kind]] is ~literal~, return the Type Record { [[Kind]]: ~literal~, [[Value]]: _t_.[[Value]], [[Base]]: CanonicalizeType(_t_.[[Base]]) }.
-          1. If _t_.[[Kind]] is ~parameterized~, return the Type Record { [[Kind]]: ~parameterized~, [[Base]]: CanonicalizeType(_t_.[[Base]]), [[Metadata]]: _t_.[[Metadata]] }.
+          1. If _t_.[[Kind]] is ~parameterized~, then
+            1. Let _base_ be CanonicalizeType(_t_.[[Base]]).
+            1. If _base_ is `never`, return `never`.
+            1. Return the Type Record { [[Kind]]: ~parameterized~, [[Base]]: _base_, [[Metadata]]: _t_.[[Metadata]] }.
           1. If _t_.[[Kind]] is ~application~, then
             1. Let _args_ be a new empty List.
             1. For each element _a_ of _t_.[[Arguments]], do
               1. If _a_ is a Type Record, append CanonicalizeType(_a_) to _args_.
               1. Else, append _a_ to _args_.
             1. Return the Type Record { [[Kind]]: ~application~, [[Builder]]: _t_.[[Builder]], [[Arguments]]: _args_ }.
-          1. If _t_.[[Kind]] is ~object~ or _t_.[[Kind]] is ~function~, return the canonical form of _t_ defined alongside that kind, with each contained Type Record canonicalized.
+          1. If _t_.[[Kind]] is ~object~, then
+            1. Let _c_ be the canonical form of _t_ defined alongside that kind, with each contained Type Record canonicalized.
+            1. For each Property Record _p_ of _c_.[[Properties]], do
+              1. If _p_.[[Optional]] is *false* and _p_.[[Type]] is `never`, return `never`.
+            1. Return _c_.
+          1. If _t_.[[Kind]] is ~function~, return the canonical form of _t_ defined alongside that kind, with each contained Type Record canonicalized.
           1. Return _t_.
         </emu-alg>
         <emu-note>
@@ -372,6 +400,12 @@ contributors: Sirisian
           <p><ins>The unabsorbed form does cost something, and the cost is not in the judgments. Membership and assignability do answer identically, but a union with a subsumed arm still has that arm, and an implementation lays out and TAGS what a type says it holds. `string | (number &amp; bigint)` describes one inhabited arm and would be given a tagged two-arm representation; absorbed, it is `string`, and a slot of it holds one kind of value. The saving is in shape and inline caches rather than in what the relation answers, which is precisely where a canonical form is supposed to pay.</ins></p>
         </emu-note>
         <emu-note>
+          <p>An intersection every member of which is an ~object~ Type Record is ONE object type, and is returned as one. An intersection requires every member, so a value of it has every member's properties, and a name more than one member declares must be satisfied for each of them at once &mdash; which is what an intersection of the types they give it denotes. The merged member is built as an intersection and handed back to this operation rather than decided here, so the three answers already defined are the three it gets: two identical types deduplicate, a subtype pair subsumes to the narrower, and a disjoint pair reduces to `never`. A member REQUIRED by any one arm is required, an intersection requiring all of them, and one declared `readonly` anywhere is readonly for the same reason.</p>
+          <p>Distribution reaches the case whole-object subsumption cannot. `{ a: number }` and `{ a: 5 }` are already related, `{ a: 5 }` being a subtype, so their intersection folded to the narrower before this step existed; in `{ a: uint32 } &amp; { a: string }` neither object is a subtype of the other, so the pair stood as an intersection whose emptiness was discovered at every use of the annotation rather than stated once in the type. It also removes a disagreement between a type and its own identity: `{ a: number } &amp; { a: 5 }` interns as `{ a: 5 }`, and an operation that read the members as written could accept a value at one spelling and refuse it at the other.</p>
+          <p>The step is gated on EVERY member being an ~object~ Type Record. A member of another kind has values the merge cannot describe &mdash; an array shares values with an object type, being a subtype of `Iterable`, so `[].&lt;uint8&gt; &amp; { length: uint32 }` is inhabited and is not the object type the properties alone would give &mdash; and such an intersection is left standing.</p>
+          <p>An ~object~ Type Record a REQUIRED property of which is `never` has no values, since a value of it would have to hold a value of a type that has none, and is `never`. An OPTIONAL property of `never` does not empty the type: it declares a member that may never be present, which every value omitting it satisfies. The test is one level deep and on the CANONICAL property types, which is what makes it terminate without an inhabitation judgment or a fixpoint: canonicalization is bottom-up, so `{ a: { b: never } }` reduces because the inner record reduced first. A recursive type closes its cycle through a reference position &mdash; an array element, a nullable union &mdash; and neither propagates, so a cycle cannot drive a type to `never` through this step.</p>
+          <p>A ~reference~, a ~shared~ type, and a ~parameterized~ type reduce with their target or base for the same reason: a `ref` names a location and there is no location of the empty type, a ~shared~ marker is not observable in the value (<emu-xref href="#sec-aredisjoint"></emu-xref>), and metadata narrows a base's values and cannot add one.</p>
+          <p>A ~tuple~ and a fixed-extent ~array~ are products too, and are deliberately NOT reduced. A tuple has a second reading an object type does not: the type-programming extension reads one as a heterogeneous list, where `never` is ordinary data rather than a claim about inhabitation &mdash; `[1, never, 'a']` is the input to a filter that drops it &mdash; and the extension has no other list structure to move that program to. The emptiness remains reachable where it matters, an attempt to store an element of the position being refused. This is the one place the propagation is withheld, and it is withheld for a stated cost rather than for symmetry: TypeScript keeps such a tuple for the same practical reason, while Rust's `(i32, !, char)` is uninhabited &mdash; Rust having no type-level list built on the tuple, so the cost that decides it here does not arise there.</p>
           <p>Flattening merges a nested union into its parent, and likewise for intersection; de-duplication and the fixed order make member order insignificant, so `A | B` and `B | A` canonicalize to one Record and, after interning, one Type Object. A ~nominal~, ~primitive~, ~any~, or ~void~ Type Record is already canonical apart from canonicalizing the Type Records in its [[Arguments]], which the recursion reaches when they occur. Recursion terminates because a cycle in a type passes through a ~nominal~ position, which is canonical without descending into its declaration. Flattening is also what removes a `never` member from a union: the member is an empty union, so it contributes nothing, and `T | never` canonicalizes to `T` with no rule naming the case. The first intersection step above is the one algebraic fact about `never` that does not fall out this way (<emu-xref href="#sec-never-type"></emu-xref>). The second is what makes `never` the ONLY empty type rather than one of many: an intersection two of whose members are disjoint has no values, and a type with no values is that type. Without it `number &amp; bigint` interned as a Type Object of its own - uninhabited by the reasoning of <emu-xref href="#sec-narrowto"></emu-xref>, with no default value and no assignable source, and yet neither `never` nor assignable to it, so IsAssignable could not equate two empty types. Reducing also removes a dead arm from a union that has one, flattening then dropping the `never`, so `string | (number &amp; bigint)` is `string`: a slot of that type holds one kind of value and an implementation need not tag it as a union to discover so. <ins>Canonicalization ABSORBS by subtyping, and the two kinds keep opposite survivors: a union keeps the WIDER member, so `"a" | string` is `string`, and an intersection the NARROWER, so `"a" &amp; string` is `"a"`. A single rule for both would fix one and break the other.</ins></p>
         </emu-note>
       </emu-clause>
@@ -894,8 +928,12 @@ contributors: Sirisian
         <emu-grammar>IntersectionType : IntersectionType `&amp;` PostfixType</emu-grammar>
         <ul>
           <li>It is a type error if the Type Records denoted by two of the members of this |IntersectionType| are disjoint (<emu-xref href="#sec-aredisjoint"></emu-xref>), unless one of the members denotes `never`.</li>
+          <li>It is a type error if two of the members of this |IntersectionType| denote ~object~ Type Records that declare a property of the same key, neither declaration is optional, neither property type denotes `never`, and the two property types are disjoint (<emu-xref href="#sec-aredisjoint"></emu-xref>).</li>
         </ul>
         <emu-note>
+          <p>The second rule reaches THROUGH a member, and is the same rule as the first rather than an addition to it. Canonicalization distributes an all-~object~ intersection and gives a shared member the intersection of the types its arms declare (<emu-xref href="#sec-canonicalizetype"></emu-xref>), so a disjoint pair there empties the object exactly as a disjoint pair of arms empties the intersection. Without it the case would be reported nowhere useful: <emu-xref href="#sec-aredisjoint"></emu-xref> is silent about two ~object~ types, so the whole-arm rule answers *false* and the emptiness reaches the program as a refusal at every use of the annotation.</p>
+          <p>The exemptions are the first rule's, for the first rule's reasons. A member written `never` states the emptiness deliberately, so `{ a: never } &amp; { a: never }` is the annihilation identity of <emu-xref href="#sec-never-type"></emu-xref> at a property rather than a mistake. An OPTIONAL declaration on either side is exempt because it does not empty anything: a value omitting the property satisfies both arms, so `{ a?: uint32 } &amp; { a: string }` is inhabited by every value with a `string` `a` and by none with a `uint32` one, which is a narrowing rather than a contradiction.</p>
+          <p>The message names the property as well as the two types, since a reader given only the types has to find which of the arms' members they came from, and an intersection of wide object types may declare many.</p>
           <p>Canonicalization already reduces such a type to `never` (<emu-xref href="#sec-canonicalizetype"></emu-xref>), so this rule changes no type; it changes where a program hears about one. Reduction alone would report the mistake at every USE of the annotation, as an assignment refused by a type no value inhabits, rather than at the `&amp;` that made it - which is how an erasure checker reports it and is the least useful place to say it. The members are written right there, and the message names them.</p>
           <p>This is the call <emu-xref href="#sec-narrowto"></emu-xref> already makes with its ~empty~ sentinel, which reports a test that cannot succeed as a mistake rather than narrowing to the type with no values, and it is made here for the same reason and with less doubt: a narrowing row at least has a live value flowing through it, while a written empty intersection has nothing that could ever reach it. `&amp;` written where `|` was meant is the mistake this catches, and it is the common one.</p>
           <p>The rule is on the SYNTAX, so a `never` a computation reaches is untouched. `Reflect.makeType` (<emu-xref href="#sec-reflect-maketype"></emu-xref>) constructing a disjoint intersection returns `never` and does not throw, because canonicalization is total and the kit computes with the empty type: `union(&laquo; &raquo;)` and an `exclude` that removes every member are `never`, and a builder that threw instead would put a guard in every kit function. A generic body is likewise not rejected: in `type F&lt;T&gt; = T &amp; string;` the member `T` is a ~parameter~, over which AreDisjoint is conservative, so the declaration stands and an instantiation at `number` reduces to `never` silently.</p>
