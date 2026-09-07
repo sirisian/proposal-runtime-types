@@ -2899,6 +2899,7 @@ const n: uint32 = g();
             1. Return ~none~.
           1. If _t_.[[Kind]] is ~array~, then
             1. If _t_.[[Extent]] is ~dynamic~, return a new empty array of the type _t_.
+            1. If _t_.[[Extent]] is 0, return a new empty array of the type _t_.
             1. Let _d_ be DefaultValueOf(_t_.[[Element]]).
             1. If _d_ is ~none~, return ~none~.
             1. Return a new array of the type _t_ whose _t_.[[Extent]] elements are each _d_.
@@ -2918,6 +2919,7 @@ const n: uint32 = g();
         </emu-alg>
       </emu-clause>
 
+      <p>A ZERO extent is answered before the element is consulted. A fixed array's default is its extent filled with the element's default, so an element with none leaves the array with none &mdash; but at extent zero there is nothing to fill, and the element's default is not needed. Asking for it first would make `[0].&lt;never&gt;` have no default while `[0].&lt;uint8&gt;` has one, a difference no value of either can observe, both being the empty array and the same value the dynamic extent already takes. The step matters where an element type is reached through a type parameter rather than written, since a generic body is checked once for every instantiation and a declaration of `[0].&lt;_T_&gt;` must not become unwritable at the instantiations whose argument has no default.</p>
       <p>It is a type error to declare a binding or a field with a type _t_ and no initializer when DefaultValueOf(_t_) is ~none~.</p>
 
       <p>A parameterization's default is its base's zero having crossed into it, by the same conversion an initializer of the base's type crosses (<emu-xref href="#sec-metadata-conversion"></emu-xref>), so that `let _x_: _T_;` and `let _x_: _T_ = 0;` succeed together and fail together. Three consequences follow from the crossing rather than from a rule of its own. A meta type whose `validate` refuses the base's zero leaves the parameterization with no default, since the crossing throws and the step reports ~none~: `float64.&lt;{ min: 1 }&gt;` has no zero because 0 is not one of its values. A brand for which no cast is declared has no default either, being "reachable only by construction" and a declaration without an initializer not being one. And a parameterization whose base declares a cast has the crossed zero, which is what keeps a unit type zero-fillable: `Velocity` is a `float64` whose dimensions meta type defines no `validate`, so the cast admits the zero and `let _v_: Velocity;` holds 0 m/s.</p>
