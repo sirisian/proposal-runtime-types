@@ -7370,13 +7370,13 @@ const n: uint32 = g();
         <emu-clause id="sec-compositefromshape" type="abstract operation">
           <h1>
             CompositeFromShape (
-              _S_: an ~object~, ~tuple~ or ~array~ Type Record (a shape, per <emu-xref href="#sec-composite-types"></emu-xref>),
+              _S_: an ~object~, ~tuple~ or ~array~ Type Record,
               _source_: an ECMAScript language value,
             ): either a normal completion containing a composite object or a throw completion
           </h1>
           <dl class="header">
             <dt>description</dt>
-            <dd>It performs the typed creation of a composite: each supplied value is converted to its member's type, a required absence throws, an undeclared property throws, and an optional member's declared default is filled, before canonicalization and interning.</dd>
+            <dd>It performs the typed creation of a composite: each supplied value is converted to its member's type, a required absence throws, an undeclared property throws, and an optional member's declared default is filled, before canonicalization and interning. _S_ is a SHAPE (<emu-xref href="#sec-composite-types"></emu-xref>), which is what the three kinds it may be have in common.</dd>
           </dl>
           <emu-alg>
           1. If _source_ is not an Object, throw a *TypeError* exception.
