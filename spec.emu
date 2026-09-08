@@ -599,9 +599,14 @@ contributors: Sirisian
             <tr><td>*null*</td><td>The type named `"null"`.</td></tr>
             <tr><td>A reference to a binding</td><td>The declared type of that binding, or the ~any~ type if the binding has none.</td></tr>
             <tr><td>A type name or type expression in expression position</td><td>The ~primitive~ type named `"type"`.</td></tr>
+            <tr><td>`new.target`</td><td>The ~any~ type.</td></tr>
           </tbody>
         </table>
       </emu-table>
+      <p>`new.target` is ~any~ DELIBERATELY, and the reason is worth stating so that a later reading does not take it for an omission. Its value is a constructor or *undefined*, and the constructor is not bounded by the enclosing function: `Reflect.construct(_target_, _args_, _newTarget_)` supplies an arbitrary one, so a type naming the enclosing class or a subclass of it would be unsound. The honest type is therefore a union of a callable type with *undefined* - and a union with *undefined* cannot have its members read without narrowing, which `new.target ? new.target.name : *undefined*` requires and which this specification defines only for references: a binding, and a member access through one. `new.target` is a meta-property rather than a reference, so no narrowing applies to it.</p>
+      <emu-note>
+        <p>A union type here would refuse a program that ECMAScript admits, which is worse than saying nothing: ~any~ claims nothing and so cannot license an elision (<emu-xref href="#sec-check-elision"></emu-xref>) that a value contradicts. Should narrowing ever extend to meta-properties - `import.meta` has the same shape - the union becomes both sound and usable, and this row should be revisited then. Widening ~any~ to a type is a compatible change; a wrong type is not.</p>
+      </emu-note>
       <emu-note>
         <ins>
         <p>Reading a member of a UNION gives the union of that member's type across the union's members, and is a type error where ANY of them does not declare the key.</p>
