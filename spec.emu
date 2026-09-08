@@ -133,13 +133,6 @@ contributors: Sirisian
         <emu-alg>
           1. If _s_ and _t_ are the same Record, return *true*.
           1. If _assumptions_ contains a Record _p_ such that _p_.[[First]] is _s_ and _p_.[[Second]] is _t_, return *true*.
-          1. If _s_.[[Kind]] is ~nominal~ and _s_.[[Declaration]] is an enum declaration, then
-            1. If IsSubtype(the underlying type of _s_.[[Declaration]], _t_, _assumptions_) is *true*, return *true*.
-          1. If _s_.[[Kind]] is ~literal~, return IsSubtype(_s_.[[Base]], _t_, _assumptions_).
-          1. If _s_.[[Kind]] is ~parameterized~, then
-            1. If IsSubtype(_s_.[[Base]], _t_, _assumptions_) is *true*, return *true*.
-            1. If _t_.[[Kind]] is ~parameterized~ and SameTypeWithAssumptions(_s_.[[Base]], _t_.[[Base]], _assumptions_) is *true* and the metadata subtype judgment of <emu-xref href="#sec-parameterized-types"></emu-xref> holds of _s_.[[Metadata]] and _t_.[[Metadata]], return *true*.
-            1. Return *false*.
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. Set _assumptions_ to the list-concatenation of _assumptions_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
           1. If _s_.[[Kind]] is ~any~ or _s_.[[Kind]] is ~void~, return *true*.
@@ -463,6 +456,11 @@ contributors: Sirisian
           1. If _assumptions_ contains a Record _p_ such that _p_.[[First]] is _s_ and _p_.[[Second]] is _t_, return *true*.
           1. Set _assumptions_ to the list-concatenation of _assumptions_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
           1. If _t_.[[Kind]] is ~any~, return *true*.
+          1. <ins>If _s_.[[Kind]] is ~nominal~ and _s_.[[Declaration]] is an enum declaration and IsSubtype(the underlying type of _s_.[[Declaration]], _t_, _assumptions_) is *true*, return *true*.</ins>
+          1. <ins>If _s_.[[Kind]] is ~literal~ and IsSubtype(_s_.[[Base]], _t_, _assumptions_) is *true*, return *true*.</ins>
+          1. <ins>If _s_.[[Kind]] is ~parameterized~, then</ins>
+            1. <ins>If IsSubtype(_s_.[[Base]], _t_, _assumptions_) is *true*, return *true*.</ins>
+            1. <ins>If _t_.[[Kind]] is ~parameterized~ and SameTypeWithAssumptions(_s_.[[Base]], _t_.[[Base]], _assumptions_) is *true* and the metadata subtype judgment of <emu-xref href="#sec-parameterized-types"></emu-xref> holds of _s_.[[Metadata]] and _t_.[[Metadata]], return *true*.</ins>
           1. If _s_.[[Kind]] is ~union~, then
             1. For each element _m_ of _s_.[[Members]], do
               1. If IsSubtype(_m_, _t_, _assumptions_) is *false*, return *false*.
@@ -535,6 +533,7 @@ contributors: Sirisian
           1. If _s_.[[Kind]] is ~object~, return IsObjectSubtype(_s_, _t_, _assumptions_).
           1. Return *false*.
         </emu-alg>
+        <emu-note><p><ins>A refinement is a subtype of what it refines, and the three steps above are where that is decided. They were carried by <emu-xref href="#sec-sametype"></emu-xref>, which this operation consults before any rule below, and that placement made them unreachable: a relation named for sameness answered *true* for two object types whose members merely refined each other, so this operation returned there and <emu-xref href="#sec-isobjectsubtype"></emu-xref>'s writable-member invariance was never consulted. `{ a: "x" }` was a subtype of `{ a: string }`, and the write that clause warns of - "a bare `float32` could be written through the supertype view into a slot the program believes holds a `Meter`" - was admitted. SameType decides sameness; this operation decides refinement.</ins></p></emu-note>
         <emu-note>
           <p>A type parameter is OPAQUE within the declaration that binds it: it is a subtype of itself and of its constraint, and nothing else is a subtype of IT. The asymmetry is the point. `T: string` says every value of `T` is a String, so a `T` may be returned where a String is wanted &mdash; but it does not say a String is a `T`, because `T` may be bound to a literal type: `f.&lt;"abc"&gt;` satisfies that constraint, and *"s"* is not a value of `"abc"`. So `function f&lt;T: string&gt;(x: T): string { return x; }` is well typed and `function f&lt;T: string&gt;(x: T) { let v: T = "s"; }` is not.</p>
           <p>Without the [[Constraint]] step a constrained parameter would be LESS usable than an unconstrained one, since writing the constraint would buy its author nothing inside the declaration while still restricting the caller. With it, the constraint is what it reads as: a statement about every binding the parameter can take, available wherever the parameter is.</p>
