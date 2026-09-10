@@ -7074,7 +7074,39 @@ const n: uint32 = g();
 
     <emu-note>
       <p>This is what makes the standalone conformance of <emu-xref href="#annex-evaluable-fragment"></emu-xref> pay. A tool that reads an artifact is trusting that whoever produced it computed what this specification says, and the conformance suite is what makes that claim checkable rather than hopeful; the hash is what makes the trust revocable. The artifact also carries the extracted documentation for the origins of <emu-xref href="#sec-provenance"></emu-xref>, since a dependency's sources are exactly what a consumer does not have on disk, which is the one thing provenance alone cannot supply.</p>
-      <p>The format is not fixed here. What is fixed is the contract: the key is a hash of the module graph, the contents are canonical forms, a mismatch re-derives, and nothing in it can change what a program means.</p>
+      <p>The format is fixed here, because a consumer that can only read one producer's
+      artifacts is not reading an artifact, it is reading that producer. An artifact is a
+      TABLE of entries. An entry is the reflection node <emu-xref href="#table-reflection-nodes"></emu-xref>
+      gives for its type, with every nested Type Object replaced by a reference to another
+      entry, written as an object whose sole key is `$ref` and whose value is that entry's
+      index. A table rather than nesting, because a ~primitive~ record refers to itself and a
+      recursive type reaches itself through a member, so a form that carried nested types by
+      containment would not terminate on the simplest type this specification defines. A
+      tagged reference rather than a bare index, because a ~literal~ carries a value and a
+      member carries an initializer, either of which may be a number.</p>
+      <p>Entries are ordered as the interning table orders the records they came from, so an
+      artifact does not depend on the order a producer enumerated a module's exports; two
+      producers over one graph write one artifact. A ~nominal~ type is carried as its module
+      specifier and its declared name, never by value: its record holds a declaration and a
+      constructor, and neither crosses a boundary. A consumer resolves that name against its
+      own copy of the module. Every other leaf is a value, encoded as itself. A symbol is not
+      encodable and a producer refuses rather than carrying one: an unregistered symbol has no
+      name that survives a boundary, and a registered one would need the consumer to agree
+      about identity across a wire, which is not a question a serialization answers. An
+      artifact carries a version, and a producer writes it from the first artifact it writes.</p>
+      <p>A consumer verifies the hash, and declines anything it does not understand — a
+      version above the one it knows, a name it cannot resolve, an entry whose shape it does
+      not recognize — and evaluates instead. This is what makes "nothing in it can change
+      what a program means" a rule rather than a hope: a consumer either reads an artifact it
+      understands entirely, or it evaluates, so no artifact changes what a program means
+      however it was produced. Declining is also what makes the format evolvable, since an
+      addition a reader has never seen is refused by the same step that refuses a stale one.</p>
+      <p>What is not fixed here is what carries the bytes, how the hash is computed, and how
+      a producer finds a module graph. None of the three affects whether two artifacts are
+      mutually readable, which is the whole of what fixing a format is for. What is fixed
+      besides the format is the contract: the key is a hash of the module graph, the contents
+      are canonical forms, a mismatch re-derives, and nothing in it can change what a program
+      means.</p>
     </emu-note>
   </emu-clause>
 
