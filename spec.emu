@@ -2808,6 +2808,10 @@ const n: uint32 = g();
       <h1>Typed Storage</h1>
       <p>A class in which at least one public or private field is typed is automatically sealed, as if PreventExtensions had been performed on each of its instances, and its prototype is frozen. A field may be written, since a field's type is what constrains it, but a property may not be added or removed, and the prototype may not be modified.</p>
 
+      <emu-note>
+        <p>READING a property the type does not declare is unaffected. The restriction is on a property being ADDED or REMOVED, and a read of an absent property adds nothing: it yields *undefined*, as it does for any non-extensible object, and a program may legitimately be testing for that - `if (o.maybe)`, `typeof o.maybe`, and `o.absent === *undefined*` are all ordinary. The asymmetry is deliberate. A write that adds cannot succeed, and in sloppy mode it fails SILENTLY, so refusing it early prevents a program that cannot work; a read succeeds and the value it produces is one a program may want.</p>
+      </emu-note>
+
       <p>A store to a typed field or a typed element checks the value against the field's or element's declared type, by <emu-xref href="#table-check-sites"></emu-xref>. Deleting a typed field, a typed element, or a member required by an implemented interface throws a *TypeError* exception.</p>
 
       <p>A class whose fields are typed may opt out with the `dynamic` modifier, which leaves it unsealed. Such a class cannot be used for sequential data and cannot be a value type in a typed array.</p>
