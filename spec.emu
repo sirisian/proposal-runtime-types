@@ -7085,7 +7085,14 @@ const n: uint32 = g();
     <h1>The Expansion Artifact</h1>
     <p>Because evaluation is deterministic and its results are interned canonical forms, they may be computed once and shipped. An <dfn id="expansion-artifact">expansion artifact</dfn> is a serialization of the interning table for the concrete types a module graph's public surface produces, every closed application among them pre-evaluated, keyed by a hash of the module graph that produced it. A consumer verifies the hash and reads the types out of it rather than evaluating them; on a mismatch it evaluates, and determinism is what makes the two agree.</p>
 
-    <p>An artifact contains no open application. `partial(T)` inside an exported generic evaluates against the consumer's `T`, at the consumer, so the evaluator is not removed by the artifact and cannot be: what the artifact removes is the common path, a dependency's concrete surface, which is the part that would otherwise be recomputed by every tool on every build. An artifact is an optimization and never a semantics: a consumer that ignores every artifact computes the same types, and one that reads a stale artifact detects it by the hash rather than by disagreeing.</p>
+    <p>An artifact contains no open application. `partial(T)` inside an exported generic evaluates against the consumer's `T`, at the consumer, so the evaluator is not removed by the artifact and cannot be: what the artifact removes is the common path, a dependency's concrete surface, which is the part that would otherwise be recomputed by every tool on every build. An artifact is an optimization and never a semantics: a consumer that ignores every artifact computes the same types, and one that reads a stale artifact detects it by the hash rather than by disagreeing. More generally it carries no UNBOUND TYPE PARAMETER, wherever one stands: an
+      exported generic signature is unbound for the same reason `partial(T)` is, since what
+      takes the parameter's place is the consumer's type. A name whose type carries one is
+      omitted from the artifact rather than the artifact being refused — an artifact contains
+      no open application, which is not the same as a module holding one being unable to have
+      an artifact — and the omitted names are carried, so a producer says what it left out
+      rather than a consumer inferring it from absence. A consumer that finds nothing for a
+      name evaluates, which is always correct.</p>
 
     <emu-note>
       <p>This is what makes the standalone conformance of <emu-xref href="#annex-evaluable-fragment"></emu-xref> pay. A tool that reads an artifact is trusting that whoever produced it computed what this specification says, and the conformance suite is what makes that claim checkable rather than hopeful; the hash is what makes the trust revocable. The artifact also carries the extracted documentation for the origins of <emu-xref href="#sec-provenance"></emu-xref>, since a dependency's sources are exactly what a consumer does not have on disk, which is the one thing provenance alone cannot supply.</p>
