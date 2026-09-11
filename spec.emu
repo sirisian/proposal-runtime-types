@@ -7116,12 +7116,20 @@ const n: uint32 = g();
       understands entirely, or it evaluates, so no artifact changes what a program means
       however it was produced. Declining is also what makes the format evolvable, since an
       addition a reader has never seen is refused by the same step that refuses a stale one.</p>
-      <p>What is not fixed here is what carries the bytes, how the hash is computed, and how
-      a producer finds a module graph. None of the three affects whether two artifacts are
-      mutually readable, which is the whole of what fixing a format is for. What is fixed
-      besides the format is the contract: the key is a hash of the module graph, the contents
-      are canonical forms, a mismatch re-derives, and nothing in it can change what a program
-      means.</p>
+      <p>The key is the SHA-256 digest of a canonical encoding of the module graph: for each
+      module in the graph, reached transitively and ordered by specifier, the specifier and
+      the source text, each written with its length before it. Length-prefixed rather than
+      delimited, because a specifier and a source may contain any separator, and two graphs
+      that encode alike would be one key. The digest is fixed alongside the encoding rather
+      than left open: a shared input with an unshared digest is half a guarantee, and two
+      implementations would then agree on what to hash and still not read each other’s
+      artifacts. Replacing the digest later is a change of version, which a reader already
+      declines.</p>
+      <p>What is not fixed here is what carries the bytes and how a producer finds a module
+      graph. Neither affects whether two artifacts are mutually readable, which is the whole
+      of what fixing a format is for. What is fixed besides the format is the contract: the
+      key is a hash of the module graph, the contents are canonical forms, a mismatch
+      re-derives, and nothing in it can change what a program means.</p>
     </emu-note>
   </emu-clause>
 
