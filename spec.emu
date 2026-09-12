@@ -611,9 +611,11 @@ contributors: Sirisian
       </emu-note>
       <emu-note>
         <ins>
-        <p>Reading a member of a UNION gives the union of that member's type across the union's members, and is a type error where ANY of them does not declare the key.</p>
+        <p>Reading a member of a UNION gives the union of that member's type across the union's members, and is a type error where <del>ANY of them does not declare the key</del><ins>SOME of them declare the key and others do not</ins>.</p>
         <p>The accessible keys are therefore the INTERSECTION of the members' keys, and the type of a read is the UNION of what each declares for it. `_c_.x` at `{ x: `int32` } | { x: `int8` }` is `int32 | int8`, so reading it AS an `int32` is an error: the program cannot know which member `_c_` holds. `_c_.x` at `{ x: `int32` } | { y: `string` }` is an error outright, and a `null` member - which declares nothing - makes every read of a nullable object one.</p>
         <p>Narrowing is how a program reads a member a single member declares (<emu-xref href="#sec-narrowto"></emu-xref>). A key EVERY member declares still reads without narrowing, which is what makes a discriminated union usable: the discriminant is readable, and reading it is what narrows.</p>
+        <p><ins>A key NO member declares is not this case either, and the distinction is the reasoning above: uncertainty about which member is held decides nothing where every member agrees the key is absent. Such a read is an ordinary absent read, governed by the note in <emu-xref href="#sec-typed-storage"></emu-xref> - it yields *undefined* on every value the union admits, exactly as it does on a single object type, and `if (`_u_`.maybe)`, `typeof `_u_`.absent` and `_u_`.absent === *undefined*` are as ordinary here as anywhere. Reading `_u_`.toString()` is the same case: no member's structure declares it, and it is reachable on every value the union admits.</ins></p>
+
         <p>An INTERSECTION is not this case. Every value of one satisfies all its members, so each member's type is known and a read of it needs nothing.</p>
         </ins>
       </emu-note>
