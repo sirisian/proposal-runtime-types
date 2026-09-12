@@ -424,7 +424,7 @@ contributors: Sirisian
         </dl>
         <emu-alg>
           1. Let _canonical_ be CanonicalizeType(_t_).
-          1. If the type-object intern table contains a Type Object _existing_ such that SameType(_existing_.[[TypeRecord]], _canonical_) is *true*, return _existing_.
+          1. If the type-object intern table contains a Type Object _existing_ such that SameTypeStructural(_existing_.[[TypeRecord]], _canonical_) is *true*, return _existing_.
           1. Let _obj_ be a new Type Object whose [[TypeRecord]] internal slot is _canonical_.
           1. Add _obj_ to the type-object intern table.
           1. Return _obj_.
@@ -506,6 +506,7 @@ contributors: Sirisian
             1. Return *false*.
           1. If _s_.[[Kind]] is ~shared~ and _t_.[[Kind]] is not ~shared~, return IsSubtype(_s_.[[Target]], _t_, _assumptions_).
           1. If _t_.[[Kind]] is ~shared~ and _s_.[[Kind]] is not ~shared~, return IsSubtype(_s_, _t_.[[Target]], _assumptions_).
+          1. If _t_.[[Kind]] is ~array~, _t_.[[Extent]] is ~dynamic~, _t_.[[Element]].[[Kind]] is ~any~, and _s_.[[Kind]] is either ~array~ or ~tuple~, return *true*.
           1. If _s_.[[Kind]] is not _t_.[[Kind]], return *false*.
           1. If _s_.[[Kind]] is ~nominal~, then
             1. If _t_.[[Declaration]] is _s_.[[Declaration]], return SameArgumentList(_s_.[[Arguments]], _t_.[[Arguments]], _assumptions_).
@@ -513,7 +514,7 @@ contributors: Sirisian
               1. Return the result of comparing _t_.[[Arguments]] against the arguments _s_ supplies to _t_.[[Declaration]] through the hierarchy, with SameArgumentList.
             1. Return *false*.
           1. If _s_.[[Kind]] is ~array~, then
-            1. If _t_.[[Extent]] is not ~dynamic~ and _t_.[[Extent]] is not _s_.[[Extent]], return *false*.
+            1. If _t_.[[Extent]] is not _s_.[[Extent]], return *false*.
             1. Return SameTypeWithAssumptions(_s_.[[Element]], _t_.[[Element]], _assumptions_).
           1. If _s_.[[Kind]] is ~tuple~, then
             1. If the minimum length of _s_ is less than the minimum length of _t_, return *false*, where a tuple's minimum length counts the elements whose [[Rest]] is *false* and [[Initial]] is ~none~.
@@ -560,7 +561,7 @@ contributors: Sirisian
             </emu-note>
           </emu-note>
 
-          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element, and a fixed-length array is a subtype of the ~dynamic~-length array of the same element, with the array whose element is `any` a supertype of every ~array~ and ~tuple~ type (<emu-xref href="#sec-the-array-family-top"></emu-xref>); a ~tuple~ is covariant position-wise, which is sound only because a store to a position is checked against the type the value carries for it (<emu-xref href="#sec-array-defaults-and-stores"></emu-xref>), as the same rule makes `[].&lt;any&gt;` a supertype of every array<ins>, and makes `Set.&lt;any&gt;` and `Map.&lt;any, any&gt;` supertypes of every instantiation of theirs</ins>; a ~reference~ is invariant in its target, as is a ~shared~ (<emu-xref href="#sec-threading-shared-modifier"></emu-xref>); a composite type is covariant in its shape, which the frozenness of every composite makes sound (<emu-xref href="#sec-composite-types"></emu-xref>). IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
+          <p>The kind-specific steps record the variance chosen by this proposal: a ~nominal~ type is a subtype along its declared inheritance; an ~array~ is invariant in its element and in its extent, a fixed-length array being neither a subtype nor a supertype of the ~dynamic~-length array of the same element (<emu-xref href="#sec-span-coercion"></emu-xref> gives `Span.&lt;`_T_`&gt;`, the one type that accepts either, and <emu-xref href="#sec-instanceof-for-type-objects"></emu-xref> states the same rule for `instanceof`), with the array whose element is `any` a supertype of every ~array~ and ~tuple~ type (<emu-xref href="#sec-the-array-family-top"></emu-xref>); a ~tuple~ is covariant position-wise, which is sound only because a store to a position is checked against the type the value carries for it (<emu-xref href="#sec-array-defaults-and-stores"></emu-xref>), as the same rule makes `[].&lt;any&gt;` a supertype of every array<ins>, and makes `Set.&lt;any&gt;` and `Map.&lt;any, any&gt;` supertypes of every instantiation of theirs</ins>; a ~reference~ is invariant in its target, as is a ~shared~ (<emu-xref href="#sec-threading-shared-modifier"></emu-xref>); a composite type is covariant in its shape, which the frozenness of every composite makes sound (<emu-xref href="#sec-composite-types"></emu-xref>). IsObjectSubtype (<emu-xref href="#sec-isobjectsubtype"></emu-xref>) applies width subtyping to properties and depth subtyping through a `readonly` one; IsFunctionSubtype (<emu-xref href="#sec-isfunctionsubtype"></emu-xref>) applies contravariant-parameter, covariant-return subtyping to signatures. An enum type is additionally a subtype of its underlying type (<emu-xref href="#sec-enums"></emu-xref>). The justification for each choice is given by the clause that introduces the corresponding feature.</p>
         </emu-note>
       </emu-clause>
 
@@ -1037,17 +1038,17 @@ contributors: Sirisian
 
       <emu-clause id="sec-keyof">
         <h1>Static Semantics of keyof</h1>
-        <p>A |KeyOfType| denotes GetTypeObject of the Type Record that KeyTypesOf returns for the Type Record its operand denotes. It is a type error if KeyTypesOf of that Record is ~empty~.</p>
+        <p>A |KeyOfType| denotes GetTypeObject of the Type Record that KeyTypesOf returns for the Type Record its operand denotes.</p>
 
         <emu-clause id="sec-keytypesof" type="abstract operation">
           <h1>
             KeyTypesOf (
               _t_: a Type Record,
-            ): either a Type Record or ~empty~
+            ): a Type Record
           </h1>
           <dl class="header">
             <dt>description</dt>
-            <dd>It returns the type of the keys of _t_, or ~empty~ where _t_ has no keys.</dd>
+            <dd>It returns the type of the keys of _t_, which is `never` where _t_ has no keys.</dd>
           </dl>
           <emu-alg>
             1. If _t_.[[Kind]] is ~object~, then
@@ -1062,24 +1063,22 @@ contributors: Sirisian
               1. Let _keys_ be a new empty List.
               1. For each element _m_ of _t_.[[Members]], do
                 1. Let _k_ be KeyTypesOf(_m_).
-                1. If _k_ is ~empty~, return ~empty~.
                 1. Append _k_ to _keys_.
               1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _keys_ }).
             1. If _t_.[[Kind]] is ~union~, then
               1. If _t_.[[Members]] is empty, return _t_.
               1. Let _first_ be KeyTypesOf(_t_.[[Members]][0]).
-              1. If _first_ is ~empty~, return ~empty~.
               1. Let _kept_ be a List of the union members of _first_: the elements of _first_.[[Members]] where _first_.[[Kind]] is ~union~, and &laquo; _first_ &raquo; otherwise.
               1. For each integer _i_ such that 1 &le; _i_ and _i_ &lt; the number of elements of _t_.[[Members]], do
                 1. Let _k_ be KeyTypesOf(_t_.[[Members]][_i_]).
-                1. If _k_ is ~empty~, return ~empty~.
                 1. Remove from _kept_ each element that is not assignable (IsAssignable) to _k_.
               1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: _kept_ }).
             1. If _t_.[[Kind]] is ~parameterized~, return KeyTypesOf(_t_.[[Base]]).
-            1. Return ~empty~.
+            1. If _t_.[[Kind]] is ~nominal~ and _t_ has a [[Structure]] field, return KeyTypesOf(_t_.[[Structure]]).
+            1. Return the Type Record { [[Kind]]: ~union~, [[Members]]: &laquo; &raquo; }.
           </emu-alg>
           <emu-note>
-            <p>These are the rules of the operator, and the only statement of them: `keyof` is a primitive of the core (<emu-xref href="#annex-standard-kit"></emu-xref>), not a spelling of a kit function, so there is no second definition to keep in step. A union's keys are the common keys, computed by keeping the first arm's keys that remain assignable to each further arm's, which is what lets the literal `'x'` survive against an arm whose keys come from a `string`-keyed index signature. An intersection's keys are the union of its members' keys. A Symbol key contributes its own literal type (<emu-xref href="#sec-literal-types"></emu-xref>), so the operation is total over the keys an object type can have. A refinement has its base's keys, so `keyof` sees through a brand and through the `where` of a dependent record type (<emu-xref href="#sec-dependent-record-types"></emu-xref>) to the properties underneath, which is the only reading on which `keyof` and the property mappers agree about a refined object. A kind with no keys is ~empty~ and a type error, matching the kit's authored throw. `keyof never` is distinct from that case: `never` is the empty ~union~, so the union step above returns it unchanged and `keyof never` is `never`, not ~empty~ and not an error. An implementation folding over the arms must include the empty-union base case, since an arm-intersection fold does not otherwise reach it.</p>
+            <p>These are the rules of the operator, and the only statement of them: `keyof` is a primitive of the core (<emu-xref href="#annex-standard-kit"></emu-xref>), not a spelling of a kit function, so there is no second definition to keep in step. A union's keys are the common keys, computed by keeping the first arm's keys that remain assignable to each further arm's, which is what lets the literal `'x'` survive against an arm whose keys come from a `string`-keyed index signature. An intersection's keys are the union of its members' keys. A Symbol key contributes its own literal type (<emu-xref href="#sec-literal-types"></emu-xref>), so the operation is total over the keys an object type can have. A refinement has its base's keys, so `keyof` sees through a brand and through the `where` of a dependent record type (<emu-xref href="#sec-dependent-record-types"></emu-xref>) to the properties underneath, which is the only reading on which `keyof` and the property mappers agree about a refined object. An interface has the keys of its structural form, for the same reason and by the same unwrapping IndexedTypeOf performs. A kind with no keys is `never`, the empty ~union~, rather than an error: the set of keys of a `uint8` is empty, which is a thing this operation can say, and saying it is what keeps `keyof T` usable in a generic whose _T_ is later bound to such a type &mdash; the alternative reported the fault inside the generic's own declaration rather than at the call that chose _T_. `keyof never` is the same answer by a different route: `never` is the empty ~union~, so the union step above returns it unchanged. A `keyof` written directly on a type with no keys is almost always a mistake and is worth flagging as one, but it is not a type error and the operator stays total. IndexedTypeOf is unaffected and still returns ~empty~ for its three failures, since indexing a type by a key it does not have is a different question. An implementation folding over the arms must include the empty-union base case, since an arm-intersection fold does not otherwise reach it.</p>
           </emu-note>
         </emu-clause>
       </emu-clause>
@@ -2952,6 +2951,7 @@ const n: uint32 = g();
             1. Let _crossed_ be Completion(ConvertParameterization(_d_, _e_, _t_.[[Metadata]])).
             1. If _crossed_ is an abrupt completion, return ~none~.
             1. Return _crossed_.[[Value]].
+          1. If _t_.[[Kind]] is ~literal~, return _t_.[[Value]].
           1. If _t_.[[Kind]] is ~nominal~ and _t_ denotes a value type class, return the instance of _t_ each of whose fields, <ins>public and private,</ins> holds the default of the field's type<ins> as that type stands for _t_</ins>, or ~none~ if any field's type has no default.
           1. Return ~none~.
         </emu-alg>
@@ -2966,7 +2966,7 @@ const n: uint32 = g();
 
       <p>The meta types and casts declared in the surrounding realm are those declared as of the operation's application, as they are for the <emu-xref href="#metadata-subtype-judgment">metadata subtype judgment</emu-xref> and for the same reason: a parameterization may be written above the declarations that govern it, so the checking pass processes a source text's `meta` declarations and its `primitive` blocks' implicit cast operators before applying this operation (<emu-xref href="#sec-type-errors"></emu-xref>), and whether a declaration needs an initializer is answered against those. Two call sites fix the realm rather than taking the current one, because in each the value is produced for a program that is not the one asking. An unwritten ThreadLocal read (<emu-xref href="#sec-threading"></emu-xref>) takes the default in the realm in which the ThreadLocal was created, so that two agents reading one storage read one value. `Reflect.defineProperty` with a `type` and no `value` (<emu-xref href="#sec-reflection-and-declared-types"></emu-xref>) takes it in the realm of the Type Object it was given, which is the only call site at which a program chooses the moment.</p>
 
-      <p>Every default above is a zero: the numeric zero, the empty String, *false*, *null*, and an array or an aggregate whose storage is zero-filled. Zero-filling is part of the semantics and not an optimization a program may opt out of, and no form of this proposal allocates without it. What is filled for an aggregate is its layout (<emu-xref href="#sec-memory-layout"></emu-xref>), padding included, so two instances of one value type class that are `===` field by field are also equal byte for byte.</p>
+      <p>Every default above is a zero, or, for a type with exactly one value, that value: the numeric zero, the empty String, *false*, *null*, the one value of a ~literal~ type, and an array or an aggregate whose storage is zero-filled. A ~literal~ type is the one case where a default is not chosen but forced &mdash; there is nothing to prefer a zero over, since no other value is of the type &mdash; and it is the reason the phrase is not simply "a zero". It takes nothing away from the fill below: a class holding a field of ~literal~ type has no layout at all, so no storage is described by it, and where a layout exists every default in it is a zero. Zero-filling is part of the semantics and not an optimization a program may opt out of, and no form of this proposal allocates without it. What is filled for an aggregate is its layout (<emu-xref href="#sec-memory-layout"></emu-xref>), padding included, so two instances of one value type class that are `===` field by field are also equal byte for byte.</p>
 
       <p>An aggregate has a default exactly where its parts do: a value type class where every field's type does, a fixed-extent array where its element's type does, and a tuple where every position it fills does. A parameterized field is the case to watch, since the step above gives a parameterization a default only where its base's zero can cross into it. A `Vector3` of three `Meter` fields is zero-fillable exactly where `float64` declares the cast into the dimensions meta type, and `let _d_: [10].&lt;Vector3&gt;;` is a type error where it does not &mdash; not because a unit has no zero, but because nothing in that program says how a bare zero becomes one. Writing that cast is what gives a design's unit types their zeros, and with it the aggregates holding them.</p>
 
@@ -3433,7 +3433,15 @@ const n: uint32 = g();
               1. If _a_.[[ThisType]] is not ~none~ or _b_.[[ThisType]] is not ~none~, return *false*.
             1. Else if SameTypeWithAssumptions(_a_.[[ThisType]], _b_.[[ThisType]], _identified_) is *false*, then
               1. Return *false*.
-            1. If SameTypeWithAssumptions(_a_.[[Return]], _b_.[[Return]], _identified_) is *false*, return *false*.
+            1. If the number of elements of _a_.[[Narrows]] is not the number of elements of _b_.[[Narrows]], return *false*.
+            1. For each integer _k_ such that 0 &le; _k_ and _k_ &lt; the number of elements of _a_.[[Narrows]], do
+              1. Let _m_ be _a_.[[Narrows]][_k_] and let _n_ be _b_.[[Narrows]][_k_].
+              1. If _m_.[[Target]] is not _n_.[[Target]], return *false*.
+              1. If SameTypeWithAssumptions(_m_.[[Type]], _n_.[[Type]], _identified_) is *false*, return *false*.
+            1. If _a_.[[Return]] is ~none~ or _b_.[[Return]] is ~none~, then
+              1. If _a_.[[Return]] is not ~none~ or _b_.[[Return]] is not ~none~, return *false*.
+            1. Else if SameTypeWithAssumptions(_a_.[[Return]], _b_.[[Return]], _identified_) is *false*, then
+              1. Return *false*.
           1. Return *true*.
         </emu-alg>
         <emu-note>
@@ -3486,6 +3494,8 @@ const n: uint32 = g();
           1. If _a_.[[ThisType]] is not ~none~, then
             1. If _b_.[[ThisType]] is ~none~, return *false*.
             1. If IsAssignable(_b_.[[ThisType]], _a_.[[ThisType]]) is *false*, return *false*.
+          1. Else if _b_.[[ThisType]] is not ~none~, then
+            1. Return *false*.
           1. For each Narrowing Record _n_ of _b_.[[Narrows]], do
             1. If _a_.[[Narrows]] contains no Narrowing Record whose [[Target]] is _n_.[[Target]] and whose [[Type]] is a subtype (IsSubtype) of _n_.[[Type]] under _assumptions_, return *false*.
           1. If _b_.[[Return]] is ~none~, return *true*.
@@ -3497,7 +3507,7 @@ const n: uint32 = g();
         </emu-alg>
         <emu-note>
           <p>The four directions a generic signature can face follow one question: could a caller reading _b_ be misled? A generic _a_ is usable where a concrete _b_ is required by INSTANTIATION &mdash; `(uint8) =&gt; uint8` holds `id.&lt;uint8&gt;` &mdash; and the bindings the relation infers are the ones the crossing specializes at (<emu-xref href="#sec-crossing-with-a-generic-function"></emu-xref>). A concrete _a_ is not usable where a generic _b_ is required, since `&lt;T&gt;(x: T) =&gt; T` promises every `T` and `(x: uint8) =&gt; uint8` would return a `uint8` for a `string`; the untyped catch-all of the first step is the one exception, as it is everywhere. A generic _a_ is usable where a generic _b_ is required when it is at least as general: the same parameters position by position, each constraint of _a_ admitting everything the corresponding constraint of _b_ admits, so `&lt;T&gt;(x: T) =&gt; T` satisfies `&lt;T extends Animal&gt;(x: T) =&gt; T` and not the reverse. The inference here never runs user code: it is the structural walk the checker already has, and the constraint check on an inferred binding is IsAssignable. A `where` on _a_'s declaration is not consulted, because a function type has none; it is checked at the specialization the crossing performs.</p>
-          <p>A parameter and a [[ThisType]] are related by <emu-xref href="#sec-isassignable"></emu-xref> and not by <emu-xref href="#sec-issubtype"></emu-xref>, because a parameter position is a BOUNDARY and `any` is bidirectional at a boundary. IsSubtype admits `any` only as its target, which is the right rule for a subtype question and the wrong one here: it made a specific parameter refuse an `any`-typed position, so `(uint8) =&gt; void` was not usable where `(any) =&gt; any` was declared although the mirror was, and gradual typing broke at the function boundary in one direction only.</p>
+          <p>A parameter and a [[ThisType]] are related by <emu-xref href="#sec-isassignable"></emu-xref> and not by <emu-xref href="#sec-issubtype"></emu-xref>, because a parameter position is a BOUNDARY and `any` is bidirectional at a boundary. IsSubtype admits `any` only as its target, which is the right rule for a subtype question and the wrong one here: it made a specific parameter refuse an `any`-typed position, so `(uint8) =&gt; void` was not usable where `(any) =&gt; any` was declared although the mirror was, and gradual typing broke at the function boundary in one direction only. The two [[ThisType]] steps refuse both mismatches, which is what <emu-xref href="#sec-this-adoption"></emu-xref> states in each direction: a signature with none is usable nowhere a `this` is required, and one that has a [[ThisType]] is usable nowhere a `this` is absent. That is what makes adoption load-bearing rather than decorative &mdash; a non-arrow function reaching a position whose signature has a [[ThisType]] is compared as if it had adopted it (<emu-xref href="#sec-isoftype"></emu-xref>), and an arrow, which adopts nothing, is refused here.</p>
           <p>A return type keeps IsSubtype, and the asymmetry is deliberate. A return is covariant and is a PROMISE the function makes rather than a position a caller supplies, so a function returning `any` may stand where a specific return is declared through IsSubtype's ordinary target rule, and nothing needs relaxing.</p>
         </emu-note>
         <emu-note>
@@ -4331,6 +4341,7 @@ const n: uint32 = g();
             <tr><td>`atan2`, `hypot`</td><td>No signature</td><td>No signature</td><td>A value of _T_, all arguments of one _T_, implementation-approximated</td><td>A value of _T_, all arguments of one _T_, implementation-approximated</td><td>No signature</td></tr>
             <tr><td>`pow`</td><td>The exact power, checked at _T_; a negative exponent throws a *RangeError* exception</td><td>BigInt::exponentiate; a negative exponent throws a *RangeError* exception</td><td>A value of _T_, implementation-approximated</td><td>A value of _T_, implementation-approximated</td><td>No signature</td></tr>
             <tr><td>`clz32`</td><td>For _N_ &le; 32: 32 less the bit length of the mathematical value taken modulo 2**32, checked at _T_</td><td>No signature</td><td>No signature</td><td>No signature</td><td>No signature</td></tr>
+            <tr><td>`clz`</td><td>_N_ less the bit length of the mathematical value taken modulo 2**_N_, checked at _T_ (<emu-xref href="#sec-counting-leading-zeros"></emu-xref>)</td><td>No signature</td><td>No signature</td><td>No signature</td><td>No signature</td></tr>
             <tr><td>`imul`</td><td>For _N_ &le; 32: the product's low 32 bits as an `int32`, whatever _T_ its arguments carry</td><td>No signature</td><td>No signature</td><td>No signature</td><td>No signature</td></tr>
             <tr><td>`fround`, `f16round`</td><td>No signature</td><td>No signature</td><td>The value rounded through binary32 or binary16, a value of _T_</td><td>No signature</td><td>No signature</td></tr>
             <tr><td>`sumPrecise`</td><td>No signature</td><td>No signature</td><td>For an iterable of values of one _T_: the exact sum, rounded once to _T_</td><td>No signature</td><td>No signature</td></tr>
@@ -5228,8 +5239,8 @@ const n: uint32 = g();
           1. Else if _p_.[[Default]] is ~none~ and _named_ contains no Record whose [[Parameter]] is _p_, append a fixed slot to _slots_.
           1. Else, append an optional slot to _slots_.
         1. Let _prefix_ be the elements of _params_ before the first whose [[Variadic]] is *true*, or all of _params_ if there is none.
-        1. Let _admits_ be a new Abstract Closure with parameters (_j_, _k_) that captures _params_, _named_, _positional_, and _prefix_ and performs the following steps when called:
-          1. Let _p_ be _params_[_j_].
+        1. Let _admits_ be a new Abstract Closure with parameters (_index_, _which_) that captures _params_, _named_, _positional_, and _prefix_ and performs the following steps when called:
+          1. Let _p_ be the parameter _which_ stands for.
           1. If _p_.[[Variadic]] is *false*, return *true*.
           1. If _named_ contains a Record whose [[Parameter]] is _p_, return *false*.
           1. If _p_.[[Constraint]] is ~none~, return *true*.
@@ -5237,7 +5248,7 @@ const n: uint32 = g();
           1. Let _bound_ be the Type Record that |Type| denotes, evaluated over the bindings of the elements of _prefix_ to the corresponding leading elements of _positional_, as the binding loop below binds them.
           1. If _bound_ is not an ~array~ or ~tuple~ Type Record, return *true*.
           1. Let _element_ be the element type of _bound_ (<emu-xref href="#sec-type-annotations"></emu-xref>).
-          1. Let _v_ be the Type Record _positional_[_k_] denotes.
+          1. Let _v_ be the Type Record _positional_[_index_] denotes.
           1. Return IsSubtype(_v_, _element_, a new empty List).
         1. Let _counts_ be SequenceAssignment(_slots_, the number of elements of _positional_, _admits_).
         1. If _counts_ is ~unmatched~, throw a *TypeError* exception.
@@ -6718,7 +6729,7 @@ const n: uint32 = g();
 
       <emu-note>
         <p>These are properties of an interned Type Object rather than a `sizeof` operator, which is why they need no grammar and work wherever a type does, including on the result of `Reflect.typeOf`. The layout they report is the declared one, so the controls of <emu-xref href="#sec-layout-control"></emu-xref> are accounted for in it: `byteLength` is what the program asked for, not what an implementation would have chosen.</p>
-        <p>The alignment of a named numeric type is its `byteLength`. For an `int.&lt;N&gt;` or `uint.&lt;N&gt;` of a width no named type has, the alignment is the smallest power of two that is at least the bits rounded up to a byte, and at most 8; the design fixes only `uint.&lt;4&gt;`, whose `byteLength` is 1, and this rule agrees with it and with every named width. A width above 64 therefore aligns to 8 and pads to a multiple of it, which is the only reading on which an array of them stays aligned.</p>
+        <p>The alignment of a named numeric type is its `byteLength`. For an `int.&lt;N&gt;` or `uint.&lt;N&gt;` of a width no named type has, the alignment is the smallest power of two that is at least the bits rounded up to a byte; the design fixes only `uint.&lt;4&gt;`, whose `byteLength` is 1, and this rule agrees with it and with every named width. It is the general rule above restated for the widths no name covers, and it is uncapped for the reason that rule gives: an `int.&lt;96&gt;` aligns to 16 and pads to a multiple of it, which is the only reading on which an array of them stays aligned and the only one on which two types of one width do not disagree.</p>
       </emu-note>
     </emu-clause>
 
@@ -7130,7 +7141,12 @@ const n: uint32 = g();
       that encode alike would be one key. The digest is fixed alongside the encoding rather
       than left open: a shared input with an unshared digest is half a guarantee, and two
       implementations would then agree on what to hash and still not read each other’s
-      artifacts. Replacing the digest later is a change of version, which a reader already
+      artifacts. The key is written as the ASCII text `sha256:` followed by the digest in
+      lowercase hexadecimal, for the same reason and to the same end: a reader compares keys
+      as text, so a form left to the producer is a mismatch reported as staleness. Nothing
+      precedes the entries &mdash; no count and no version &mdash; since the entries are
+      self-delimiting and a version belongs to the artifact rather than to the graph it keys.
+      Replacing the digest later is a change of version, which a reader already
       declines.</p>
       <p>What is not fixed here is what carries the bytes and how a producer finds a module
       graph. Neither affects whether two artifacts are mutually readable, which is the whole
@@ -8257,6 +8273,9 @@ const n: uint32 = g();
       <li>An `if` statement diverges when it has an `else` and both branches diverge.</li>
       <li>A `switch` statement diverges when it is exhaustive - every enumerator, every direct subclass, or a `default` - and every clause diverges.</li>
       <li>`while (true)` and `for (;;)` diverge when no `break` targets them.</li>
+      <li>A `do` statement diverges when its body does and no `break` targets it, whatever its condition, since the body runs before the condition is read.</li>
+      <li>A `try` statement diverges when its `finally` block diverges; otherwise, when its `try` block diverges and, where it has one, its `catch` block diverges too. A `try` block that diverges says nothing on its own, since the path that threw reaches the handler.</li>
+      <li>A labelled statement diverges when the statement it labels diverges and no `break` targets the label.</li>
     </ul>
     <p>Two consequences follow, both of which the design states. A `switch` clause whose body diverges needs no `break` and is not a fallthrough; and a function whose body diverges satisfies a non-~void~ return type with no trailing `return`.</p>
     <emu-note>
