@@ -6746,7 +6746,8 @@ const n: uint32 = g();
             <tr><td>A fixed-length `SoA.&lt;T, `_N_`&gt;`</td><td>Yes, but not `T`'s: each field of `T` is a column of _N_ elements, padded and aligned on its own, and the size is the sum of the columns. An element's fields are not adjacent, so there is no interior padding between them and the size may be smaller than the `[`_N_`].&lt;T&gt;` of the same `T`.</td></tr>
             <tr><td>A parameterized type</td><td>Yes, its [[Base]]'s exactly (<emu-xref href="#sec-parameterized-types"></emu-xref>).</td></tr>
             <tr><td>`bigint`, `string`, `any`</td><td>No. The size is a property of the value and not of the type.</td></tr>
-            <tr><td>A reference type, including a nullable union of a value type class</td><td>No. A reference's width is the implementation's business.</td></tr>
+            <tr><td>A reference type, and a nullable union of one</td><td>No. A reference's width is the implementation's business.</td></tr>
+            <tr><td>`_T_ | *null*` where _T_ is a value type with a layout</td><td>Yes, the inline optional of <emu-xref href="#sec-optional-values"></emu-xref>.</td></tr>
             <tr><td>A dynamic-length array `[].&lt;T&gt;`</td><td>No as a type. An instance has a `byteLength`, its length times its element's.</td></tr>
             <tr><td>A window `Span.&lt;T&gt;`</td><td>No. A window names a run of elements in storage it does not own (<emu-xref href="#sec-span-liveness"></emu-xref>), so it is a reference and its width is the implementation's business.</td></tr>
             <tr><td>A class with an untyped field, or one declared `dynamic`</td><td>No.</td></tr>
@@ -6887,11 +6888,13 @@ const n: uint32 = g();
 
     <emu-clause id="sec-optional-values">
       <h1>Optional Values</h1>
-      <p>A field or an element whose type is `_T_ | *null*` for a value type class _T_ is laid out INLINE: a discriminant of one byte, placed so that the payload begins at _T_'s alignment, followed by _T_'s layout. The alignment of such a type is _T_'s, and its byte length is _T_'s byte length plus the discriminant, rounded up to that alignment. No storage is allocated for it separately and it is reached without indirection.</p>
+      <p>A field or an element whose type is `_T_ | *null*` for a _T_ that is a value type with a layout is laid out INLINE: a discriminant of one byte, placed so that the payload begins at _T_'s alignment, followed by _T_'s layout. The alignment of such a type is _T_'s, and its byte length is _T_'s byte length plus the discriminant, rounded up to that alignment. No storage is allocated for it separately and it is reached without indirection.</p>
 
       <p>*null* is the discriminant's zero, so a zero-filled allocation is a run of empty optionals and a typed declaration without an initializer needs no fill pass of its own.</p>
 
-      <p>The discriminant is a declared byte rather than a spare bit pattern of _T_, EXCEPT where _T_'s declaration excludes a pattern: a primitive whose `bounds` metadata (<emu-xref href="#sec-primitive-metadata"></emu-xref>) refuses a value, or a type that is a reference and so cannot hold *null*. Where such a pattern exists it is the discriminant, and the optional is the width of _T_.</p>
+      <p>The discriminant is a declared byte rather than a spare bit pattern of _T_, EXCEPT where _T_'s declaration excludes a pattern: an integer primitive whose `bounds` metadata (<emu-xref href="#sec-primitive-metadata"></emu-xref>) refuses a value its base could otherwise hold, or a type that is a reference and so cannot hold *null*. Where such a pattern exists it is the discriminant, and the optional is the width of _T_.</p>
+
+      <p>A `bounds` range excludes a pattern where an endpoint is open, which excludes its own value, or where a closed endpoint does not reach the corresponding extreme of the base. A range with neither endpoint, or one whose closed endpoints reach both extremes, excludes nothing and declares no niche. Only an integer base is read: a floating-point type has no next representable value to reason about without rounding, so it declares no niche whatever its bounds.</p>
 
       <emu-note>
         <p>This is `Option&lt;T&gt;` in Rust and in Swift, `std::optional&lt;T&gt;` in C++, and `Nullable&lt;T&gt;` in C#. All four lay the payload out inline and all four reserve a separate spelling for the case reached through a pointer.</p>
