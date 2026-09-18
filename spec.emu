@@ -3981,7 +3981,12 @@ const n: uint32 = g();
       <h1>Typed Classes</h1>
       <p>A class is <dfn id="typed-class">typed</dfn> when at least one of its public or private fields<ins>, declared or inherited,</ins> carries a type annotation. <ins>Inherited counts because a subclass is a subtype: a typed class is automatically sealed, so a subclass that declared nothing and was therefore untyped would have EXTENSIBLE instances where its base has sealed ones, and those instances would still satisfy the base type. A class whose base is itself untyped is unaffected, and an untyped field or a `dynamic` modifier disqualifies a subclass exactly as it does a base.</ins> A typed class is automatically sealed and its prototype frozen, as <emu-xref href="#sec-typed-storage"></emu-xref> specifies. A class declared `dynamic` is not sealed and is not a value type.</p>
 
-      <p>A typed class is a <dfn id="value-type-class">value type class</dfn> when every one of its fields has a type that is a value type. Instances of a value type class are values in the sense of <emu-xref href="#sec-value-types"></emu-xref>: they are laid out contiguously, they are stored inline in a field or an array element of that type, and assigning one copies it. It is a type error for a value type class to contain itself, directly or through a cycle of value type fields, since the layout would have no finite size (<emu-xref href="#sec-layout-finiteness"></emu-xref>). A field that closes such a cycle is written `T | null`, which is a reference.</p>
+      <p>A typed class is a <dfn id="value-type-class">value type class</dfn> when every one of its fields has a type that is a value type. Instances of a value type class are values in the sense of <emu-xref href="#sec-value-types"></emu-xref>: they are laid out contiguously, they are stored inline in a field or an array element of that type, and assigning one copies it. It is a type error for a value type class to contain itself, directly or through a cycle of value type fields, since the layout would have no finite size (<emu-xref href="#sec-layout-finiteness"></emu-xref>). A field that closes such a cycle is written with a type that is a reference (<emu-xref href="#sec-reference-classes"></emu-xref>).</p>
+
+      <emu-note>
+        <p>This clause once said that a field written `T | null` is a reference, which read against <emu-xref href="#sec-value-type-copying"></emu-xref> as a claim about aliasing and is not one. A field declared `A | null` holding an `A` is reached by both sentences: this one calls it a reference, and the copying rule copies into a field of that type. They agree once the two are read as answering different questions - this one names a layout obligation, that the recursion stops rather than descending, while the copying rule names what a store does.</p>
+        <p>What a store does is copy. A value type class in such a field is unshared in every channel a program can reach: storing into it copies, reading out of it copies, `===` compares fields rather than references, and the value cannot be held weakly (<emu-xref href="#sec-weak-references-and-typed-objects"></emu-xref>). Aliasing would require an identity, and <emu-xref href="#sec-value-types"></emu-xref> has already given identity up for these values; a value cannot alias without one. Sharing is reached through a reference type instead, which has an identity precisely so that it can.</p>
+      </emu-note>
 
       <p><ins>An instance of a value type class REMAINS AN OBJECT. `typeof` reports *"object"* for one, and it has the identity an Object has: <emu-xref href="#sec-value-types"></emu-xref>'s "values that are not Objects" describes the types that clause ADDS, and this clause extends value SEMANTICS - copying and inline layout - to a class of Objects without removing them from the object type. A program that reads `typeof` sees what it saw before.</ins></p>
 
@@ -4205,13 +4210,27 @@ const n: uint32 = g();
 
     <emu-clause id="sec-sealed-classes">
       <h1>Sealed Classes</h1>
-      <p>A class declared `sealed` may not be extended outside the module that declares it, so its subclasses are a fixed and known set. A sealed class is a reference type rather than a value type, so a field of a sealed type holds an instance of any of its subclasses directly rather than through a nullable union.</p>
+      <p>A class declared `sealed` may not be extended outside the module that declares it, so its subclasses are a fixed and known set. A sealed class is a reference type (<emu-xref href="#sec-reference-classes"></emu-xref>) rather than a value type, so a field of a sealed type holds an instance of any of its subclasses directly rather than through a nullable union.</p>
 
       <p>A `sealed abstract` class can be neither instantiated nor extended outside its module. Its concrete subclasses are therefore a closed set with no case among them for the base, and a `switch` over a value of its type is exhaustive when it has a case for each subclass.</p>
 
       <emu-note>
         <p>This is the algebraic data type, assembled from parts the proposal has for other reasons rather than from a new construct. The cases are the subclasses, the case labels are their type objects, which are values because types are values, and the match is the `switch` the control structures section already defines. What makes it work is that the set is closed: exhaustiveness is a claim about a hierarchy no other module can extend, which is why it is reserved to a sealed class and an enum and is deliberately not available for a union of literal types, whose members are not a declaration anyone owns.</p>
         <p>That a sealed class is a reference type is what lets a field hold a subclass instance polymorphically. A value type class cannot, since its field embeds the base slice of the layout and has no room for a subclass, which is why the two forms differ and why holding a value type class polymorphically is spelled `T | null`.</p>
+      </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-reference-classes">
+      <h1>Reference Classes</h1>
+      <p>A class declared `reference` is a <dfn id="reference-type">reference type</dfn>. Its instances are held and passed by reference: assigning one aliases rather than copies it, `===` on two of them compares references rather than fields, a field declared with its type holds a reference of the implementation's width, and a field of that type may hold an instance of any of its subclasses.</p>
+
+      <p>A class declared `sealed` or `abstract` is a reference type for its own reasons (<emu-xref href="#sec-sealed-classes"></emu-xref>), so neither needs the modifier. The kind is inherited: a class whose base chain reaches a reference type is one.</p>
+
+      <p>Because a reference type is reached through a reference, a field of one closes a cycle that would otherwise have no finite layout (<emu-xref href="#sec-layout-finiteness"></emu-xref>), and a reference type has no layout to report (<emu-xref href="#table-layout-by-type"></emu-xref>) though a field of one occupies a reference's width.</p>
+
+      <emu-note>
+        <p>Two things need this modifier, and neither is served by the reference types that already exist. A class that contains itself has no finite inline layout, and `sealed` is the only existing way to say so - which forbids the extension an open class exists to offer. And a typed class meant to be subclassed by other modules is a value type class, so a field declared with its type embeds only the base slice and an instance of a subclass assigned to one loses everything the subclass added; such a class has always needed to be a reference type with no way to say it.</p>
+        <p>The decision is made once at the declaration rather than at each use, which is what `struct` and `class` are in C# and in Swift. A per-use spelling, as Rust's `Box&lt;T&gt;`, `&amp;T` and `Rc&lt;T&gt;` are, does not survive this specification's two commitments: an owned box would have to copy on store, since there is no move that leaves a source invalid (<emu-xref href="#sec-value-type-copying"></emu-xref>), and a linked structure built from copying boxes copies its whole tail at every link; a box that instead aliased would have acquired an identity, and would be handing one to a value whose `===` this specification defines as structural. Rust can offer the use-site choice because it has no collector and ownership must therefore be written down. A language whose collector owns lifetime has one kind of reference, so the only question left is whether a given class is reached through one, which is a property of the class.</p>
       </emu-note>
     </emu-clause>
 
@@ -6729,6 +6748,7 @@ const n: uint32 = g();
             <tr><td>`bigint`, `string`, `any`</td><td>No. The size is a property of the value and not of the type.</td></tr>
             <tr><td>A reference type, including a nullable union of a value type class</td><td>No. A reference's width is the implementation's business.</td></tr>
             <tr><td>A dynamic-length array `[].&lt;T&gt;`</td><td>No as a type. An instance has a `byteLength`, its length times its element's.</td></tr>
+            <tr><td>A window `Span.&lt;T&gt;`</td><td>No. A window names a run of elements in storage it does not own (<emu-xref href="#sec-span-liveness"></emu-xref>), so it is a reference and its width is the implementation's business.</td></tr>
             <tr><td>A class with an untyped field, or one declared `dynamic`</td><td>No.</td></tr>
             <tr><td>A union of value types</td><td>No. It has no one layout.</td></tr>
           </tbody>
@@ -6782,6 +6802,12 @@ const n: uint32 = g();
         <p>The order of the first two steps is the substance: a refinement narrows what a type admits, so a narrowed type reports the narrowed answer, and a program asking what values a type holds gets one answer from one member whether the constraint came from the width or from the declaration. Without it, every reader that wants the question answered keeps a table of widths beside the code that reads the metadata, and the two say the same thing in two places.</p>
         <p>These are `min` and `max` and not `MIN_VALUE` and `MAX_VALUE`, though the Number properties of those names are the nearest existing thing, because `Number.MIN_VALUE` is the least POSITIVE Number rather than the least: the most negative is `-Number.MAX_VALUE`. A `float32.MIN_VALUE` would have two defensible readings and no way for a reader to tell which was meant, and the integer and floating-point families would disagree about what the one name said. The lowercase names also match the members already on a Type Object, which are facts about the type rather than constants of a namespace, and `minPositive` gives the other reading a name of its own.</p>
         <p>`min` and `max` report values and carry no exclusivity of their own. A program that needs the endpoints as they were WRITTEN, which a schema emitter does in order to distinguish an exclusive bound from an inclusive one over the value below it, reads the range from the `bounds` metadata, where it remains whole. The two are not alternatives: the members are a projection for the reader who wants the extremes, and the metadata is there for the reader who wants the range.</p>
+      </emu-note>
+
+      <emu-note>
+        <p>A Type Object also has an `isPlainData` property, *true* where the type has a layout and no position within it at any depth holds a reference, and *false* otherwise. Only such a type may be reinterpreted as bytes: viewed through a buffer (<emu-xref href="#sec-span-type"></emu-xref>), copied wholesale, overlapped at an explicit offset, or written to a wire format by offset. Like `hasLayout` it asks rather than asserts, so it never throws; a type with no layout is simply not plain data.</p>
+        <p>`isPlainData` and `hasLayout` answer different questions and neither implies the other in the direction a program needs. A class every one of whose fields is typed `string` is a value type class with no layout, and a class holding a field typed `D | null` for a `dynamic` class `D` has a layout - a reference's - and is no value type at all. Reading "contains no references" off `hasLayout` therefore reaches the wrong answer in exactly the case that matters, the one whose layout is a reference's width, and a program that laid such a type over bytes it controls would read a forged reference back out of them and disclose a real one writing them the other way.</p>
+        <p>A third question, whether a type is a value type (<emu-xref href="#sec-value-types"></emu-xref>), is answered by the type universe rather than by a Type Object property, `value` being the type every value type is assignable to. The three are separate because they vary independently, and the pair a given position needs differs: an array stride needs a layout, an assignment needs value-ness, and a byte view needs plain data.</p>
       </emu-note>
 
       <emu-note>
@@ -6853,9 +6879,27 @@ const n: uint32 = g();
     <emu-clause id="sec-layout-finiteness">
       <h1>Finiteness</h1>
       <p>The layout of a value type class is defined exactly where the rule of <emu-xref href="#sec-typed-classes"></emu-xref> holds, that a value type class may not contain itself, directly or through a cycle of value type fields. The two are one condition. Computing a layout recurses from a class into the type of each of its fields; the recursion terminates exactly where that field relation is acyclic; and every field contributes a size of at least zero and at least one field of a cycle contributes more, so a cycle admits no finite fixpoint and every acyclic graph reaches one in as many steps as it has edges. The rule is therefore not a restriction placed on top of the layout but a statement of when the layout exists, and the diagnostic a program gets names the cycle rather than a size that could not be computed.</p>
-      <p>A field written `T | null` closes a cycle because it is a reference, which <emu-xref href="#table-layout-by-type"></emu-xref> gives no layout and whose width is the implementation's; the recursion stops there rather than descending, which is why a linked list is expressible and a class containing itself by value is not.</p>
+      <p>A field whose type is a reference (<emu-xref href="#sec-reference-classes"></emu-xref>) closes a cycle, which <emu-xref href="#table-layout-by-type"></emu-xref> gives no layout and whose width is the implementation's; the recursion stops there rather than descending, which is why a linked list is expressible and a class containing itself by value is not.</p>
+
+      <p>A field written `T | null` for a value type class _T_ does NOT close a cycle, being laid out inline (<emu-xref href="#sec-optional-values"></emu-xref>). A class that contains itself through one therefore has no finite layout, and is a type error like any other cycle of value type fields; the class is declared `reference` to close it.</p>
     </emu-clause>
   </emu-clause>
+
+    <emu-clause id="sec-optional-values">
+      <h1>Optional Values</h1>
+      <p>A field or an element whose type is `_T_ | *null*` for a value type class _T_ is laid out INLINE: a discriminant of one byte, placed so that the payload begins at _T_'s alignment, followed by _T_'s layout. The alignment of such a type is _T_'s, and its byte length is _T_'s byte length plus the discriminant, rounded up to that alignment. No storage is allocated for it separately and it is reached without indirection.</p>
+
+      <p>*null* is the discriminant's zero, so a zero-filled allocation is a run of empty optionals and a typed declaration without an initializer needs no fill pass of its own.</p>
+
+      <p>The discriminant is a declared byte rather than a spare bit pattern of _T_, EXCEPT where _T_'s declaration excludes a pattern: a primitive whose `bounds` metadata (<emu-xref href="#sec-primitive-metadata"></emu-xref>) refuses a value, or a type that is a reference and so cannot hold *null*. Where such a pattern exists it is the discriminant, and the optional is the width of _T_.</p>
+
+      <emu-note>
+        <p>This is `Option&lt;T&gt;` in Rust and in Swift, `std::optional&lt;T&gt;` in C++, and `Nullable&lt;T&gt;` in C#. All four lay the payload out inline and all four reserve a separate spelling for the case reached through a pointer.</p>
+        <p>The representation was a reference, and the change is a layout decision rather than a semantic one because the indirection was never observable: storing into such a field copies, reading out of it copies, `===` compares fields, and the value cannot be held weakly. Those are the channels through which a separate allocation makes itself known, and each is closed, so what remains is the layout this clause defines. A one-byte payload cost a reference's width and an allocation carrying an implementation's header; it now costs two bytes, and an array of a thousand of them one allocation rather than a thousand and one.</p>
+        <p>An inferred niche, as Rust performs one, is deliberately not taken. `byteLength` is a compile-time constant this specification lets a program compute with, place in an array extent, and assert; a size that depended on whether some nested field's value range happened to have a hole would let a new enum member resize a structure declared elsewhere. A DECLARED exclusion does not have that property, being written in the type and checked at every boundary the value crosses, which is why it is the half taken - the same half Rust guarantees through `NonZeroU32` rather than through inference.</p>
+        <p>A cycle is not broken automatically. An inference that laid out inline where it could and indirected where it could not would have to choose an edge in a mutual cycle, and any choice makes one of those layouts a function of declaration order or of the order an implementation walks the graph; worse, it would make the choice invisible, so that a program adding a field that completes a cycle would find a structure elsewhere quietly grow. Rust and C++ both refuse the recursive declaration and require the author to name the indirection, and <emu-xref href="#sec-reference-classes"></emu-xref> is where it is named here.</p>
+      </emu-note>
+    </emu-clause>
 
             <emu-clause id="sec-span-type">
         <h1>The Span Type</h1>
