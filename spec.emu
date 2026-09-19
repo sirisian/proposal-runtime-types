@@ -1616,6 +1616,8 @@ contributors: Sirisian
         </table>
       </emu-table>
 
+      <p>An arithmetic result whose exponent falls outside the range of its type is a *RangeError* exception. This is where a decimal parts company with a binary float, which saturates to an infinity instead: a decimal's range is a property of the TYPE rather than of the format, so a result the type cannot hold has no value of the type to be, and an infinity would claim the operation merely grew large rather than left the type behind. The same rule governs a conversion into a decimal (<emu-xref href="#table-numeric-conversions"></emu-xref>), so a value arrives out of range by no route.</p>
+
       <p>Two finite values of a decimal type that have the same numerical value but different exponents are <em>distinct values</em> of the type. The values written `1.0`, `1.00`, and `1.000` are three values of `decimal128`, one for each exponent, and a decimal type therefore preserves the significance of the quantity it was given. IEEE 754 calls such a set of values a cohort.</p>
 
       <emu-note>
