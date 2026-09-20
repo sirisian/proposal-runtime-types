@@ -9340,6 +9340,9 @@ const n: uint32 = g();
           1. If _type_ is the `boolean` type, then
             1. If _value_ is not a Boolean, throw a *TypeError* exception.
             1. Return _value_.
+          1. If _type_ is the `null` type, then
+            1. If _value_ is not *null*, throw a *TypeError* exception.
+            1. Return _value_.
           1. Throw a *TypeError* exception.
         1. If _type_.[[Kind]] is ~literal~, then
           1. If SameValue(_value_, _type_.[[Value]]) is *true*, return _value_.
@@ -9419,7 +9422,7 @@ const n: uint32 = g();
     </emu-clause>
     <emu-note>
       <p>The physical form the extension describes, writing straight into contiguous typed storage with no intermediate graph, is an implementation strategy and not observable, so an implementation that parses to the untyped JSON value and then converts it conforms.</p>
-      <p>The conversions this operation does not perform are the deferred part of the extension: a class target that fills a sealed layout without running its constructor, the exact wide numeric types (the 64-bit integers, `decimal128`, and `bigint`) whose digits must convert without first rounding through a Number, and the enforcement of the built-in refinement judgments, which parameterized validation consults but which are themselves specified with the primitive metadata they belong to. An ~intersection~ target is deferred with them, and deliberately: coercion must produce one value, so an intersection of object types needs a rule merging its members into the single shape the walk fills, including what a key both members declare converts to, and that rule belongs with the objects work rather than with serialization. A ~function~ target throws, since no JSON value denotes a function, and the remaining kinds cannot reach a specialized type.</p>
+      <p>The conversions this operation does not perform are the deferred part of the extension: a class target that fills a sealed layout without running its constructor, the exact wide numeric types (the 64-bit integers, `decimal128`, and `bigint`) whose digits must convert without first rounding through a Number, the `complex` types, for which JSON has no syntax at all — a number carries no imaginary part, so admitting one would be a decision about what the absent part means rather than a conversion, and the enforcement of the built-in refinement judgments, which parameterized validation consults but which are themselves specified with the primitive metadata they belong to. An ~intersection~ target is deferred with them, and deliberately: coercion must produce one value, so an intersection of object types needs a rule merging its members into the single shape the walk fills, including what a key both members declare converts to, and that rule belongs with the objects work rather than with serialization. A ~function~ target throws, since no JSON value denotes a function, and the remaining kinds cannot reach a specialized type.</p>
     </emu-note>
   </emu-clause>
 
