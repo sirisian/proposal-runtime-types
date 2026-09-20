@@ -6744,6 +6744,14 @@ const n: uint32 = g();
     <h1>Memory Layout</h1>
     <p>A value type has a defined layout in memory, and this clause defines it. It is what makes a `[`_N_`].&lt;T&gt;` a contiguous buffer rather than a list of references, what gives <emu-xref href="#sec-default-values"></emu-xref>'s zero-fill something to fill, and what a serializer, a placement construction over existing bytes, or a vertex descriptor reads. The default is the rule C, C++, and Rust follow, so a value type class is laid out as the same declaration is in those languages, and the controls below are their `repr` attributes together with the field offsets those languages keep to themselves.</p>
 
+    <p>EVERY REFLECTIVE QUANTITY THIS CLAUSE DEFINES IS A `uint64`: a type's `byteLength` and `alignment`, an array's `length`, `byteOffset` and `byteLength`, and a window's `length`. They are the same kind of quantity and combine with one another, so `_a_.length * _V_.byteLength` is the size of a run and needs no conversion.</p>
+
+    <emu-note>
+      <p>They are typed rather than Numbers because a length and a stride are the operands of exactly the arithmetic the type system exists to check, and because a surface half of which was typed could not be combined with the other half at all.</p>
+
+      <p>An exact width is still required of the OTHER operand: `_count_ * _V_.byteLength` where _count_ is a `uint8` is refused, as any mixing of widths is (<emu-xref href="#sec-numeric-types"></emu-xref>), and a program counting in a narrower type writes the conversion. Typing these quantities makes them combinable with each other; it does not and should not make the numeric family permissive.</p>
+    </emu-note>
+
     <emu-clause id="sec-layout-properties">
       <h1>Layout Properties</h1>
       <p>A Type Object whose type has a layout has three own properties. `bitLength` is the size in bits, which is what an arbitrary-width integer needs in order to describe itself; `byteLength` is the laid-out size in bytes, the bits rounded up to a byte and then to the type's alignment, so that every element of an array of the type is aligned; and `alignment` is the byte alignment. Each has the attributes { [[Writable]]: *false*, [[Enumerable]]: *false*, [[Configurable]]: *false* }, and each is compile-time evaluable (<emu-xref href="#sec-compile-time-evaluability"></emu-xref>), so `[Vertex.byteLength * 1024].&lt;uint8&gt;` is an array extent and `T.byteLength` inside a generic is a constant once `T` is specialized.</p>
