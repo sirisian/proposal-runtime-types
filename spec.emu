@@ -1262,6 +1262,12 @@ contributors: Sirisian
         <h1>Function Types</h1>
         <p>A function type is a parameter list and a return type. Its parameters may be named or unnamed, and may carry the `ref` and rest modifiers a declaration's parameters carry.</p>
 
+        <p><ins>A signature does not establish whether its function value can be constructed. It is a type error to construct a statically identified typed arrow, generator, async function, or async generator, and it is a type error to invoke a statically identified typed class constructor without `new`, including through an optional call or a tagged template. Ordinary function construction remains admitted. A function participates in this judgment through its parameter or return annotations, reference parameters, type parameters, or a non-~any~ annotation on the binding holding it. A class participates through its typed members, declared operators, type parameters, class modifiers, or implemented interfaces. An annotation elsewhere in the enclosing body does not make an unrelated invocation participate.</ins></p>
+
+        <p><ins>Identification uses the function or class expression itself, or a lexical binding whose value origin is established. Parentheses and immutable aliases preserve that origin. A mutable origin is usable only while replacement is excluded; assignments, including assignment patterns and captured writes, and direct `eval` withdraw an otherwise unproved origin. Shadowing uses the binding's lexical identity. An open property, an unknown function value, a signature alone, an overload dispatcher of unknown invocation kind, or a decorator that can replace a class supplies no negative capability proof. These facts are separate from signature identity and subtyping. A class constructor has [[Call]], whose class-constructor guard rejects ordinary invocation; it is not classified as an object lacking [[Call]].</ins></p>
+
+        <p><ins>These are typed-source judgments under <emu-xref href="#sec-type-errors"></emu-xref>. Pure JavaScript such as `new (() =&gt; 1)()` retains its runtime exception, as do unknown values and values deliberately exposed through ~any~. The checking pass does not execute a function, decorator or property getter to determine an invocation capability.</ins></p>
+
         <emu-grammar type="definition">
           <ins>FunctionType[Yield, Await] :
             TypeParameters[?Yield, ?Await]? FunctionTypeParameters[?Yield, ?Await] `=&gt;` Type[?Yield, ?Await]
@@ -2766,7 +2772,7 @@ contributors: Sirisian
             <tr><td>The initializer or assigned value of a binding with a declared type _t_, INCLUDING a binding that is an element of a destructuring pattern</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>An argument passed to a parameter of declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>The operand of a `return` in a function with a declared return type _t_, or with a published inferred return type _t_ (<emu-xref href="#sec-inferred-return-types"></emu-xref>)</td><td>RequireType(_value_, _t_)</td></tr>
-            <tr><td>A value stored to a property or field of declared type _t_</td><td>RequireType(_value_, _t_)</td></tr>
+            <tr><td>A value stored to a property or field of declared type _t_, including the initializer of an explicitly typed own property</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>A value stored to an element of an array of element type _t_</td><td>RequireType(_value_, _t_)</td></tr>
             <tr><td>A value read from a position of the `any` type into an operator whose operands are typed</td><td>RequireType(_value_, _t_) for the operand type _t_ the operator requires</td></tr>
             <tr><td>A value crossing into a typed position through reflection, including `Reflect.set` and `Reflect.defineProperty`</td><td>RequireType(_value_, _t_)</td></tr>
@@ -3322,6 +3328,10 @@ const n: uint32 = g();
       <p>Unary `-` applies _T_::unaryMinus for the numeric type _T_ of its operand. For an unsigned integer type of width _N_, the result is 2**_N_ minus the operand, modulo 2**_N_, so unary minus on an unsigned value wraps rather than raising an error.</p>
 
       <p>Unary `+` returns its operand unchanged when the operand is a value of a numeric type of this proposal. It continues to throw a *TypeError* for a BigInt, and continues to apply ToNumber otherwise.</p>
+
+      <p><ins>After applicable user-defined operator dispatch, it is a type error to apply unary `+` to an operand whose participating Static Type establishes only BigInt or Symbol values, or unary `-` or `~` to one establishing only Symbol values. Participation here is an operand contract: an annotation, a declared member, a declared or published return, or an inferred contribution carrying such a contract through a constant, pattern, iteration binding or enclosing value expression. An unrelated typed condition or annotation in the surrounding body contributes no operand contract. A union proves this error only when every alternative is forbidden by the operator; ~any~ and unresolved alternatives retain the runtime check.</ins></p>
+
+      <p><ins>Knowledge of an ordinary JavaScript literal or intrinsic result is not such participation: `+1n`, `+Symbol()`, `+BigInt(1)`, and aliases or patterns derived solely from those untyped values retain their runtime exception timing. An ordinary unannotated mutable binding does not acquire a permanent contract from its initializer. A rejected typed unary-plus expression does not publish a BigInt result. This rule changes no conversion semantics: BigInt still admits unary minus and bitwise NOT, the proposal's numeric types keep their own operations, and declared operators are resolved before the built-in domain is tested. No reference permission or liveness rule changes.</ins></p>
 
       <emu-note>
         <p>Unary minus on an unsigned value is defined rather than rejected because the alternative is worse: an unsigned type is a bit pattern as much as a count, and `-x` on it is the two's complement negation the hardware computes. Casting to the signed type first is usually clearer, and a program that wants the error uses the checked form.</p>
@@ -3907,6 +3917,16 @@ const n: uint32 = g();
 
     <emu-clause id="sec-object-types-semantics">
       <h1>Object Types</h1>
+
+      <emu-clause id="sec-typed-own-property-initializers">
+        <h1><ins>Typed Own-Property Initializers</ins></h1>
+        <emu-grammar type="definition">
+          PropertyDefinition[Yield, Await] :
+            <ins>`(` PropertyName[?Yield, ?Await] TypeAnnotation[?Yield, ?Await] `)` `:` AssignmentExpression[+In, ?Yield, ?Await]</ins>
+        </emu-grammar>
+        <p><ins>The annotation in `{ (x: uint8): 1 }` declares the own property's storage type and supplies the contextual type of its initializer. It is a type error if the initializer's Static Type, after contextual literal propagation, is known and is not assignable to that declared type. The literal-fit and metadata rules of the declared type apply at this boundary. The judgment belongs to each definition independently of an outer object annotation or the final inferred shape, including when a later definition or spread overwrites the property, when the literal is discarded, and when it supplies a `Composite`.</ins></p>
+        <p><ins>At evaluation the property key and initializer are evaluated once, in their ordinary property-definition order. The value crosses the declared property boundary of <emu-xref href="#table-check-sites"></emu-xref> before the property is installed. An ~any~-typed initializer is checked there at runtime. The checking pass does not evaluate an ordinary computed key or initializer to decide assignability. The definition's context also governs decimal, rational and other representation-sensitive literal processing; inferring the final object shape does not replace that processing.</ins></p>
+      </emu-clause>
       <p>A <dfn id="property-type-record">Property Type Record</dfn> describes one member of an ~object~ type. It has a [[Key]] (a property key), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean), a [[Readonly]] field (a Boolean), and an [[Initial]] field (an ECMAScript language value or ~none~, the member's declared default).</p>
 
       <p>An <dfn id="index-signature-record">Index Signature Record</dfn> has a [[KeyType]] and a [[ValueType]], each a Type Record. No production of the type grammar writes one: an object type acquires index signatures through construction (<emu-xref href="#sec-reflect-maketype"></emu-xref>), they take part in identity below and in `keyof` (<emu-xref href="#sec-keyof"></emu-xref>), and their membership and subtype rules are parked with the objects work that will write the source syntax.</p>
@@ -7206,6 +7226,8 @@ const n: uint32 = g();
 
     <emu-clause id="sec-range-literals">
       <h1>Range Literals</h1>
+
+      <p><ins>It is a type error to use a value statically known to be a built-in range as a range endpoint, or as an operand on the built-in path of `&lt;`, `&lt;=`, `&gt;`, or `&gt;=`. A range's endpoints being ordered does not make the range itself ordered. A range literal has the corresponding range Static Type even when no outer contextual type is supplied; parentheses and participating constant aliases preserve it. Applicable declared and derived operators are considered first, so a declared comparison may accept a range argument. A union proves rejection only when every possible dispatch path establishes the prohibited built-in operation; an unknown left operand can still supply an applicable operator. Equality, containment and other interval operations are unaffected. The judgment uses the resolved built-in identity, not a user class's spelling, and dynamic failures retain their runtime checks.</ins></p>
       <p>A range is written with a member of the `..` family. The four two-endpoint forms `a..&lt;b`, `a..=b`, `a&lt;..&lt;b`, and `a&lt;..=b` produce the half-open, the inclusive, the open, and the open-start inclusive-end interval, and the open-ended forms `a..`, `a&lt;..`, `..&lt;b`, `..=b`, and `..` omit an endpoint. A range that has an end always marks whether it includes it, and a range marks its start only where the start is exclusive, so there is no `a..b` and no `..b`: a bare `..` appears only where the endpoint it faces is absent and has no inclusivity to state.</p>
 
       <p>The family is six tokens, `..`, `..&lt;`, `..=`, `&lt;..`, `&lt;..&lt;`, and `&lt;..=`, each taken whole by longest match and each decided by a fixed lookahead. At a `.` the second character separates the type argument list `.&lt;` from the rest of the family and the third separates the spread `...`, `..&lt;`, and `..=` from `..`; at a `&lt;` the second character separates `&lt;&lt;` and `&lt;=` from the family and the fourth separates `&lt;..&lt;` and `&lt;..=` from `&lt;..`. The `.&lt;` that opens a type argument list and the `..&lt;` of a range are therefore told apart by their second character, before a third is read, and no input reaches a state where both are live. Claiming `&lt;..` costs the grammar one reading, a relational comparison whose right operand begins a range, and costs it nothing else, because generic application is spelled `.&lt;` and a bare `&lt;` is always relational or a shift.</p>
@@ -8458,6 +8480,10 @@ const n: uint32 = g();
 
   <emu-clause id="sec-iteration-types">
     <h1>The Iteration Types</h1>
+
+    <p><ins>It is a type error to consume a value through an iteration protocol when its effective declared entry-hook type proves that every possible selected hook is invalid. This applies to `for`-`of`, `for await`, array spreads, array binding and assignment patterns, and `yield*`, using each consumer's synchronous or asynchronous protocol. The proof uses the actual well-known Symbol key and the effective member contract, including inherited and specialized members. A known non-object hook value is non-callable; an open object-shaped hook does not prove non-callability merely by lacking a declared call signature.</ins></p>
+
+    <p><ins>A nullish synchronous hook supplies no iterator. For asynchronous selection a nullish async hook instead selects the synchronous fallback, while a present non-callable async hook fails without fallback. Optional and union members are judged over these selection paths. A missing declaration on an open object, an unrelated Symbol, a Symbol index signature alone, or an unknown alternative supplies no proof of failure. The checker does not call a getter or an iterator to answer the judgment. Argument spread's separate named-property protocol is unaffected: an invalid iterator alone does not disqualify an object from named argument spreading. Reference iteration retains its separate index-based rules.</ins></p>
     <p>This clause is owed to the iteration protocols the core already defines, not to any extension. `for`-`of` asks whether `[Symbol.iterator]` is callable and never asks what a value declared; the design writes `Iterator.&lt;T&gt;` throughout and this specification has named no such type, so what a helper returns and what a hand-written iterator satisfies have both been undescribable. It precedes <emu-xref href="#sec-generator-types"></emu-xref> because the generator types are stated in terms of it.</p>
 
     <p>The <dfn>iteration result type</dfn> `IteratorResult.&lt;`_T_`, `_R_`&gt;` is the ~union~ of two ~object~ Type Records, one with members `value` of _T_ and `done` of the literal type *false*, the other with `value` of _R_ and `done` of the literal type *true*. It is discriminated by `done`, so a `match` over an iteration result binds `value` at _T_ in one arm and at _R_ in the other (<emu-xref href="#sec-match-exhaustiveness"></emu-xref>), and reading one requires no narrowing rule of its own.</p>
