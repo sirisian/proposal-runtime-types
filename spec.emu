@@ -2412,7 +2412,7 @@ contributors: Sirisian
         <h1>
           PrimitiveConvert (
             _value_: an ECMAScript language value,
-            _to_: a Type Record for `string`,
+            _to_: a Type Record for `string` or for `boolean`,
           ): either a normal completion containing a value of the type _to_ or a throw completion
         </h1>
         <dl class="header">
@@ -2420,10 +2420,15 @@ contributors: Sirisian
           <dd>It converts _value_ to one of the ordinary primitive types, where a conversion for its source is defined.</dd>
         </dl>
         <emu-alg>
-          1. Assert: _to_ is `string`.
+          1. Assert: _to_ is `string` or _to_ is `boolean`.
+          1. If _to_ is `boolean`, return ToBoolean(_value_).
           1. If <emu-xref href="#table-string-conversion-sources"></emu-xref> gives no conversion for _value_, throw a *TypeError* exception.
           1. Return ? ToString(_value_).
         </emu-alg>
+        <emu-note>
+          <p>The `boolean` target is reachable only from <emu-xref href="#sec-convertvalue"></emu-xref>, which is the EXPLICIT conversion: `v := boolean` asks for a truth value and `ToBoolean` is total, so it cannot fail. <emu-xref href="#sec-requiretype"></emu-xref>, the boundary an untyped value crosses, passes only `string`, so `let b: boolean = v` for a `v` of the ~any~ type is a *TypeError* rather than a truthiness test — a boundary reports what a value IS, and every value would pass a truthiness test.</p>
+          <p>The signature and the assertion named `string` alone while <emu-xref href="#sec-convertvalue"></emu-xref> passed either, so the operation refused an argument its own caller was written to supply.</p>
+        </emu-note>
       </emu-clause>
 
       <emu-table id="table-string-conversion-sources" caption="Conversion Sources for the String Type">
@@ -6945,7 +6950,7 @@ const n: uint32 = g();
 
     <emu-clause id="sec-layout-control">
       <h1>Explicit Control</h1>
-      <p>Seven reserved names control the layout above. Each is a property-descriptor key and each has a decorator of the same name that sets it, so a program may write either and a tool that generates classes need not write decorators.</p>
+      <p>Seven reserved names control the layout above. Each is a property-descriptor key and each has a decorator of the same name that sets it, so a program may write either and a tool that generates classes need not write decorators. A control's argument is a numeric literal: a layout is fixed at the declaration and `byteLength` is a constant a program may assert against, so the value has to be known there, and a literal is the form that guarantees it without bringing an evaluation order to a type position. This is `#[repr(align(N))]`'s rule in Rust for the same reason.</p>
 
       <emu-table id="table-layout-controls" caption="Layout Controls">
         <table>
