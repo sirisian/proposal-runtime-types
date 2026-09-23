@@ -1419,7 +1419,115 @@ contributors: Sirisian
             <p>A capture is declared once and may then be used any number of times, as a bare reference, and each further use requires the argument in its position to be the same: SameType for a type and SameValue for a value. Two declarations of one name are refused rather than read as an equality, since a reader could not tell whether equality or two unrelated bindings was meant. A capture's scope is the whole list, the specialized signature or heritage, and the body, so a use may precede its declaration, which keeps `Map.&lt;V: T, K: const T&gt;` meaning `Map.&lt;K: const T, V: T&gt;`.</p>
           </emu-note>
         </emu-clause>
-        <p>How an application selects among a family's specializations, how a specialized callable relates to an owner of its name, and what a specialization must preserve of its primary are not yet specified here. Until they are, an implementation reports a specialization list it cannot select as an error rather than accepting it and ignoring it.</p>
+<emu-clause id="sec-capture-scope">
+          <h1>Capture Scope</h1>
+          <p>The captures of a specialization list are collected before anything in it is resolved. Their scope is the whole list, the specialized declaration's signature or heritage, its constraints and `where` clauses, and its body, under the ordinary rules for class and static scope. Within that scope a bare |IdentifierReference| whose StringValue names a collected capture is a <dfn id="capture-reference">capture reference</dfn>, including where it precedes the capture's declaration, and a capture shadows any outer binding of its name throughout the scope. The declared name, `Pair` in `class Pair&lt;const T, T&gt;`, is resolved before the capture scope is entered. A nested constructor, `Map` in `Map.&lt;string, const E&gt;`, is resolved within it, so a first-order capture named `Map` makes that application a type error rather than a lookup that falls back.</p>
+          <emu-clause id="sec-collectcaptures" type="abstract operation">
+            <h1>
+              CollectCaptures (
+                _list_: a |TypeParameters| Parse Node or a type-subject pattern,
+              ): a List of Capture Records
+            </h1>
+            <dl class="header">
+            </dl>
+            <emu-alg>
+              1. Let _captures_ be a new empty List.
+              1. For each |CaptureBinding| _c_ contained in _list_, in source text order, do
+                1. Let _variadic_ be *true* if _c_ is the |CaptureBinding| of a `...` |CaptureBinding| form, and *false* otherwise.
+                1. Append the Capture Record { [[Name]]: the StringValue of the |BindingIdentifier| of _c_, [[Declaration]]: _c_, [[Variadic]]: _variadic_ } to _captures_.
+              1. Return _captures_.
+            </emu-alg>
+          </emu-clause>
+          <p>A capture's domain is the domain of the position it declares, as <emu-xref href="#sec-specialization-lists"></emu-xref> says: the primary declaration's parameter at the top level, and the resolved nested constructor's parameter within an application. It is a type error, at the declaration, for a written |TypeParameterDomain| to denote a type other than that domain, except in a metadata position; for a capture to stand in the arguments of a builder call or any other position that exposes no component; or for a capture of kind ~constructor~ to occupy a first-order position.</p>
+        </emu-clause>
+
+        <emu-clause id="sec-matching-specialization-lists">
+          <h1>Matching a Specialization List</h1>
+          <p>Matching compares a specialization list with the ordered bindings BindTypeArguments (<emu-xref href="#sec-generic-parameters-as-values"></emu-xref>) produced for an application of the primary declaration. The primary is bound first, by explicit, named, and spread arguments, then the expected type, the value arguments, and the defaults, and the list is then matched against that result. So a capture's name is never an argument a caller can supply, and `Box.&lt;uint32, N: 8&gt;` and `Box.&lt;uint32, 8&gt;` meet the same specializations. Matching evaluates no capture as an argument and runs no code other than the forward computations described below. A match that fails binds nothing, and the next candidate starts from an empty environment.</p>
+          <emu-clause id="sec-matchspecializationlist" type="abstract operation">
+            <h1>
+              MatchSpecializationList (
+                _list_: a |TypeParameters| Parse Node,
+                _bindings_: a List of Records with fields [[Declaration]] and [[Value]],
+              ): either a normal completion containing either a List of Records with fields [[Capture]] (a Capture Record) and [[Value]] (a Type Record) or ~no-match~, or a throw completion
+            </h1>
+            <dl class="header">
+            </dl>
+            <emu-alg>
+              1. Let _env_ be a new empty List.
+              1. Let _deferred_ be a new empty List.
+              1. Let _entries_ be the |GenericEntry| Parse Nodes of _list_, in order.
+              1. For each integer _k_ such that 0 &le; _k_ &lt; the number of elements of _bindings_, in ascending order, do
+                1. If _k_ &lt; the number of elements of _entries_, let _pattern_ be _entries_[_k_]; otherwise, let _pattern_ be the |Type| of the primary parameter's |TypeParameterDefault|, evaluated over _bindings_.
+                1. Let _r_ be ? MatchSpecializationPattern(_pattern_, _bindings_[_k_].[[Value]], _env_, _deferred_, ~specialization~).
+                1. If _r_ is ~no-match~, return ~no-match~.
+              1. For each Parse Node _d_ of _deferred_, do
+                1. Let _computed_ be ? the Type Record _d_ denotes, evaluated over _env_ by <emu-xref href="#sec-compile-time-evaluability"></emu-xref>.
+                1. If SameType(_computed_, the subject recorded with _d_) is *false*, return ~no-match~.
+              1. For each Record _b_ of _env_, do
+                1. If _b_.[[Capture]].[[Declaration]] has a |TypeParameterConstraint|, then
+                  1. Let _bound_ be ? the Type Record its |Type| denotes, evaluated over _env_.
+                  1. If IsAssignable(_b_.[[Value]], _bound_) is *false*, return ~no-match~.
+              1. Return _env_.
+            </emu-alg>
+            <emu-note>
+              <p>An omitted trailing entry stands for the primary's default at that position, not for a wildcard, so with `class FixedBuffer&lt;T: type = uint8, N: uint32 = 16&gt;` the list `&lt;uint8&gt;` matches only an extent of 16. Structural positions are matched first and computations over captures are checked afterwards, which is why a computation may read a capture bound at a later position. A computation that throws, or that exhausts the evaluation budget, is an error, not a failed match.</p>
+            </emu-note>
+          </emu-clause>
+          <emu-clause id="sec-matchspecializationpattern" type="abstract operation">
+            <h1>
+              MatchSpecializationPattern (
+                _pattern_: a Parse Node,
+                _subject_: a Type Record,
+                _env_: a List of Records with fields [[Capture]] and [[Value]],
+                _deferred_: a List of Parse Nodes,
+                _mode_: ~specialization~ or ~type-subject~,
+              ): either a normal completion containing either ~matched~ or ~no-match~, or a throw completion
+            </h1>
+            <dl class="header">
+              <dt>description</dt>
+              <dd>It matches one position. _mode_ is ~type-subject~ for a slotted type-subject pattern (<emu-xref href="#sec-pattern-matching"></emu-xref>), which shares this operation and differs only in how a fixed leaf is compared.</dd>
+            </dl>
+            <emu-alg>
+              1. If _pattern_ is the wildcard `_`, return ~matched~.
+              1. If _pattern_ is a |CaptureBinding| or a capture reference, then
+                1. Let _c_ be the Capture Record the capture scope associates with _pattern_.
+                1. If _env_ contains a Record whose [[Capture]] is _c_, then
+                  1. Let _b_ be that Record.
+                  1. If SameType(_subject_, _b_.[[Value]]) is *true*, return ~matched~.
+                  1. If _subject_ is a literal type, _b_.[[Value]] is a literal type, and SameValue(_subject_.[[Value]], _b_.[[Value]].[[Value]]) is *true*, return ~matched~.
+                  1. Return ~no-match~.
+                1. If _c_ is declared in a metadata position with a written |TypeParameterDomain|, then
+                  1. Let _M_ be the meta type that |TypeParameterDomain| names.
+                  1. If _subject_ carries no metadata of _M_, return ~no-match~.
+                  1. Set _subject_ to the metadata of _M_ that _subject_ carries.
+                1. Append the Record { [[Capture]]: _c_, [[Value]]: _subject_ } to _env_.
+                1. Return ~matched~.
+              1. If _pattern_ is an application whose arguments contain a |CaptureBinding| or a capture reference, then
+                1. Let _C_ be the declaration the application's constructor denotes, resolved in the capture scope.
+                1. If _subject_ is not an application of _C_, return ~no-match~.
+                1. Let _slots_ be the arguments of _pattern_ assigned to _C_'s parameters by the positional, named, and variadic rules of BindTypeArguments, with each omitted parameter taking its default and with no |CaptureBinding| or capture reference evaluated.
+                1. For each parameter position _q_ of _C_, in order, do
+                  1. Let _r_ be ? MatchSpecializationPattern(_slots_[_q_], the argument of _subject_ at _q_, _env_, _deferred_, _mode_).
+                  1. If _r_ is ~no-match~, return ~no-match~.
+                1. Return ~matched~.
+              1. If _pattern_ is an array or tuple type whose extent or elements contain a |CaptureBinding| or a capture reference, then
+                1. If _subject_ is not an array or tuple Type Record of the same form with a stated extent, return ~no-match~.
+                1. Match the extent and each element of _pattern_ against those of _subject_ by MatchSpecializationPattern, a `...` |CaptureBinding| binding the tuple of the elements its run covers under the variadic rules of BindTypeArguments, and return ~no-match~ if any does not match.
+                1. Return ~matched~.
+              1. If _pattern_ reads a capture, append _pattern_ to _deferred_, recording _subject_ with it, and return ~matched~.
+              1. Let _fixed_ be ? the Type Record _pattern_ denotes.
+              1. If _mode_ is ~type-subject~, return ~matched~ if _subject_ matches _fixed_ by <emu-xref href="#sec-structural-matching"></emu-xref>, and ~no-match~ otherwise.
+              1. If SameType(_subject_, _fixed_) is *true*, return ~matched~.
+              1. Return ~no-match~.
+            </emu-alg>
+            <emu-note>
+              <p>A fixed position compares by identity and not by assignability: `Pair&lt;uint32, _&gt;` matches `Pair.&lt;uint32, string&gt;` and not a `Pair` whose first argument is a refinement of `uint32`, and `any` in a list is the exact argument `any`. A repeated capture is an equality under SameType, so `Pair&lt;const T, T&gt;` matches `Pair.&lt;uint8, uint8&gt;` and not `Pair.&lt;uint8, uint16&gt;`, and a repeated value capture compares by SameValue, so `NaN` repeats and `0` and `-0` do not. A repeated pack requires the same length and elementwise identity. Only structural positions expose a component: a builder is never run backwards to find a capture, and is instead evaluated forward, as a deferred check, from captures bound elsewhere.</p>
+            </emu-note>
+          </emu-clause>
+        </emu-clause>
+
+        <p>Which of several matching specializations an application selects, how a specialized callable relates to an owner of its name, and what a specialization must preserve of its primary are not yet specified. Until they are, an implementation reports a specialization it cannot select as an error rather than accepting it and ignoring it.</p>
       </emu-clause>
 
       <emu-clause id="sec-parameter-kinds">
