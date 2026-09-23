@@ -2522,10 +2522,13 @@ contributors: Sirisian
             <tr><td>An arithmetic expression every operand of which is compile-time evaluable (<emu-xref href="#sec-iscompiletimeevaluable"></emu-xref>) and integer-valued</td><td>The contextual type of the expression, applied to the expression's mathematical value: the expression is folded to that value exactly, as a literal is read exactly, and the value takes the type as a literal does. So `9007199254740992 + 9007199254740993` at a `uint64` is `18014398509481985`, and `200 + 100` at a `uint8` is a type error, the value 300 not being a value of the type. The folding precedes the typing: the expression's value is what takes the type, not each operand's, so the typed arithmetic's wrapping never applies to it and `300 - 100` at a `uint8` is 200. A `const` whose initializer is such an expression behaves as if inlined, and a reference to it is such an expression.</td></tr>
             <tr><td>An element of an array or tuple literal in a position of a known array or tuple type</td><td>The element type of that position.</td></tr>
             <tr><td>The operand of an explicit conversion to _T_</td><td>~none~. A conversion converts a value, so its operand is typed on its own.</td></tr>
+            <tr><td>The iterable of a `for`-`of` head whose binding has a |TypeAnnotation|, where that iterable is a range literal or an array literal, possibly parenthesized</td><td>For a range literal, the range type whose element type is the annotated type; for an array literal, the array type whose element type is the annotated type.</td></tr>
             <tr><td>Any other position</td><td>~none~.</td></tr>
           </tbody>
         </table>
       </emu-table>
+
+      <p>The `for`-`of` row reaches only a literal written as the iterable. An iterable that is a call, a binding, or any other expression keeps its own Static Type, and the annotation constrains the elements it produces as for any iterable; the row is what lets `for (const b: uint8 of 0..&lt;256)` read its range as `let r: ClosedOpenRange.&lt;uint8&gt; = 0..&lt;256` reads it, and the range is then judged by the element rule of <emu-xref href="#sec-range-literals"></emu-xref>.</p>
 
       <emu-note>
         <p>An argument of an overloaded call has no single contextual type until an overload is chosen, and the choice depends on the argument. The literal ranking of <emu-xref href="#sec-literal-overload-ranking"></emu-xref> is what resolves that circularity for a literal argument. <emu-xref href="#sec-overload-resolution"></emu-xref> specifies the rest of overload resolution.</p>
