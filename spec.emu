@@ -1382,7 +1382,11 @@ contributors: Sirisian
           <li>It is a Syntax Error if this |TypeParameters| is not a parameter list and it belongs to a function type, a call or method signature of an interface or object type, a function, arrow, or class EXPRESSION, a |MetaDeclaration|, or the declaration of a variable, a constructor, an accessor, or an enumeration.</li>
           <li>It is a Syntax Error if this |TypeParameters| is a parameter list and it belongs to a `partial` class or interface declaration or to a primitive operator block (<emu-xref href="#sec-primitive-operator-blocks"></emu-xref>).</li>
           <li>It is a Syntax Error if the BoundNames of two |TypeParameter|s of the list are the same.</li>
+          <li>It is a Syntax Error if this |TypeParameters| belongs to a function declaration, a method definition, or an operator definition and any element of the BoundNames of its |TypeParameter|s also occurs in the BoundNames of that definition's formal parameters, or in the LexicallyDeclaredNames or the VarDeclaredNames of its body.</li>
         </ul>
+        <emu-note>
+          <p>The last rule is the rule ECMAScript gives an ordinary parameter, `function f(a) { let a; }`, closed over the one case it leaves open. A `var` of a parameter's name aliases the parameter's binding, which is why ECMAScript permits it; a type parameter has no binding to alias, so a `var` of its name, hoisting to the top of the body from any block, would replace it for the whole body, lines above the `var` included. A scope nested in the body may shadow a type parameter as it may shadow an ordinary parameter: `{ let T = 5; }`, a callback `(V, K) =&gt; V` inside `class M&lt;K: type, V: type&gt;`, or a nested function's own declarations. A type written in the shadowing scope reads the shadowing binding too, since a type name resolves lexically, so a name keeps one meaning at each level. A class's type parameters need no such rule, since a class body binds no names.</p>
+        </emu-note>
         <emu-note>
           <p>The first rule is the trailing-defaults rule stated per <em>run</em>: a variadic parameter counts as defaulted, since an application may leave it empty, and it ends the run, so `&lt;...A: [].&lt;uint32&gt;, N: uint32&gt;` is legal with `N` required &mdash; the parameter after a pack is what stops the pack's run positionally, and is otherwise reached by name. The second is the syntactic half of the rest-parameter sentence "two rests with nothing typed between them are an error": a pack of types with no bound admits everything, so a pack adjacent to it could never receive an argument positionally. The half that needs a domain or bound resolved &mdash; one that resolves to `[].&lt;any&gt;` admits everything too &mdash; is the type error of <emu-xref href="#sec-variadic-parameters"></emu-xref>.</p>
           <p>The mixed-list rules place selector-prefixed overloads. A function, method, or operator may mix fixed arguments with parameters, `write&lt;float32, maximum: float32, bits: uint32&gt;(value: float32)`, and the list is then its own overload whose fixed positions are unnamed; a class, interface, alias, partial, or primitive block has one primary per family and may not, so `class Box&lt;uint32, N: 8&gt; {}` is refused where `class Box&lt;uint32, 8&gt; {}` was meant. A capture at the top level of a mixed list would observe nothing a caller could not already name, so it is refused in favour of a parameter.</p>
@@ -1545,7 +1549,10 @@ contributors: Sirisian
 
       <emu-clause id="sec-parameter-kinds">
         <h1>Parameter Kinds</h1>
-        <p>A parameter's kind is decided by the meaning of its domain, never by how the domain is spelled, so an alias of `type` declares a type parameter as `type` does.</p>
+        <p>A parameter's kind is decided by how its domain is written: the |Type| `type` declares a type parameter, `[].&lt;type&gt;` on a parameter of the `...` form a pack of types, and |TypeParameterHoles| a constructor. Any other domain declares a value parameter, and is judged by what it denotes, so an alias of a value type is a value domain as that type is. An alias of `type` is refused rather than read as `type`.</p>
+        <emu-note>
+          <p>The kind decides how an argument binds, a type or a constant, so it is read where it is written: a reader, a tool, or an implementation knows it from the declaration alone, without resolving a name that may be declared later or imported from a module not yet linked. Rust marks a value parameter syntactically, `const N: usize`, and C++ distinguishes `typename T` from `int N` the same way. The diagnostic for an alias of `type` offers the spelling, `T: type` or `...Ts: [].&lt;type&gt;`.</p>
+        </emu-note>
         <emu-clause id="sec-parameterkind" type="abstract operation">
           <h1>
             ParameterKind (
@@ -1557,14 +1564,17 @@ contributors: Sirisian
             <dd>It is evaluated once, at the declaration; a domain that reads an earlier parameter is evaluated as a deferred application (<emu-xref href="#sec-deferred-applications"></emu-xref>) and classified by its operator.</dd>
           </dl>
           <emu-alg>
-            1. Let _d_ be ? the Type Record the |Type| of the |TypeParameterDomain| of _p_ denotes.
+            1. Let _written_ be the |Type| of the |TypeParameterDomain| of _p_.
             1. If _p_ has a |TypeParameterHoles|, then
-              1. If _d_ is not the `type` type, throw a *TypeError* exception.
+              1. If _written_ is not the |Type| `type`, throw a *TypeError* exception.
               1. Return ~constructor~.
+            1. If _p_ is of the `...` form and _written_ is the |Type| `[].&lt;type&gt;`, return ~type~.
+            1. If _p_ is not of the `...` form and _written_ is the |Type| `type`, return ~type~.
+            1. Let _d_ be ? the Type Record _written_ denotes.
             1. If _p_ is of the `...` form, then
               1. If _d_ is not an ~array~ or ~tuple~ Type Record, throw a *TypeError* exception.
               1. Set _d_ to the element type of _d_.
-            1. If _d_ is the `type` type, return ~type~.
+            1. If _d_ is the `type` type, throw a *TypeError* exception.
             1. If IsPermittedValueDomain(_d_) is *true*, return ~value~.
             1. Throw a *TypeError* exception.
           </emu-alg>
@@ -5636,7 +5646,7 @@ const n: uint32 = g();
     <emu-clause id="sec-generic-parameters-as-values">
       <h1>Parameters as Types and as Values</h1>
       <p>A generic parameter is a ~parameter~ Type Record whose [[Declaration]] is its |TypeParameter|. A type parameter, one whose domain is `type` (<emu-xref href="#sec-parameter-kinds"></emu-xref>), denotes that Record in a type position and, in an expression position, the Type Object bound to it, exactly as a type name does. A value parameter, one whose domain is a value domain, is the <dfn id="value-generic-parameter">value generic parameter</dfn> of the design: its argument is a value of the named type rather than a type, and this specification binds it to the literal type of that value (<emu-xref href="#sec-literal-types"></emu-xref>) with the value recoverable as that type's one value. The literal-type binding is primitive and the value is its view, the decision <emu-xref href="#sec-computed-constraints"></emu-xref> records: a body that reads `V` where a value is required, as `2 ** V`, reads the [[Value]] of the literal type, and a body that reads `V` where a type is required, as `Reflect.typeOf(V)`, reads the type itself.</p>
-      <p>A generic declaration's type parameters are in scope, lexically, for its signature and body, including every function and class the body contains. Resolving an |IdentifierReference| in that scope reaches a type parameter after every binding the body or its parameter list declares and before every binding of the environment that encloses the declaration, and so before the built-in type names of <emu-xref href="#sec-type-names"></emu-xref>, which are consulted only when the scope chain is exhausted. A parameter named after a predefined type, `uint32: type`, therefore shadows that type in the body as it does in the signature, and `let T` outside `function f&lt;T: type&gt;()` does not reach its body. For a class the scope is its class scope, where the class binding is.</p>
+      <p>A generic declaration's type parameters are in scope, lexically, for its signature and body, including every function and class the body contains. Resolving an |IdentifierReference| in that scope reaches a type parameter after every binding of a scope nested in the body, the body's own top level and its parameter list being unable to bind the name (<emu-xref href="#sec-type-parameters-static-semantics-early-errors"></emu-xref>), and before every binding of the environment that encloses the declaration, and so before the built-in type names of <emu-xref href="#sec-type-names"></emu-xref>, which are consulted only when the scope chain is exhausted. A parameter named after a predefined type, `uint32: type`, therefore shadows that type in the body as it does in the signature, and `let T` outside `function f&lt;T: type&gt;()` does not reach its body. For a class the scope is its class scope, where the class binding is.</p>
       <emu-note>
         <p>Two applications name one specialization when their arguments are pairwise the same: a type argument under SameType, and a value argument under SameValue, which is the identity the literal type already has, so `A.&lt;0&gt;` and `A.&lt;-0&gt;` are distinct and `A.&lt;NaN&gt;` is usable, following from identity rather than as special cases. A reference value cannot be an argument, since specialization identity would then turn on object identity; the permitted value types are the primitive value types the design lists.</p>
       </emu-note>
