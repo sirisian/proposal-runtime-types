@@ -1569,12 +1569,16 @@ contributors: Sirisian
           </dl>
           <emu-alg>
             1. If _d_ is a ~primitive~ Type Record other than the `type` type, return *true*.
-            1. If _d_ is an enumeration type, a ~literal~ Type Record, or the Type Record of a union whose every member is a ~literal~ Type Record, return *true*.
+            1. If _d_ is an enumeration type or a ~literal~ Type Record, return *true*.
+            1. If _d_ is the Type Record of a union, then
+              1. For each member _m_ of _d_, if IsPermittedValueDomain(_m_) is *false*, return *false*.
+              1. Return *true*.
             1. If _d_ is a meta type's constraint shape, or an application of one (<emu-xref href="#sec-meta-declarations"></emu-xref>), return *true*.
             1. Return *false*.
           </emu-alg>
           <emu-note>
             <p>A meta type is the one record-shaped value domain: its values are the normalized, immutable metadata records its hooks accept, compared by that facility's identity rather than by object identity, which is why `decimal128.&lt;{ currency: To }&gt;` names one type however the record is spelled. No other object type is a value domain, since a generic argument's identity would then turn on object identity.</p>
+            <p>A union is a value domain when each of its members is one, so `V: uint8 | string` declares a parameter over constants of either type, the case C++ writes `template&lt;auto V&gt;`. `any` is not a value domain: it admits Type Objects, which would make a binding from an argument ambiguous between the argument's type and its value, and it admits objects, which no generic argument can be. Neither is `type | uint32`, for the first reason. A parameter over types is written `T: type`, and one over several kinds of constant is written as the union of their types.</p>
           </emu-note>
         </emu-clause>
         <emu-clause id="sec-effectiveconstraint" type="abstract operation">
