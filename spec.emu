@@ -1939,12 +1939,13 @@ contributors: Sirisian
 
     <emu-clause id="sec-vector-types">
       <h1>Vector Types</h1>
-      <p>For a value type _T_ that is an integer, binary floating-point, or vector type, and a positive integer _N_, `vector.&lt;T, N&gt;` is a value type whose values are the sequences of exactly _N_ values of _T_. _T_ is the lane type and _N_ the lane count. The number of values of `vector.&lt;T, N&gt;` is the number of values of _T_ raised to the power _N_.</p>
+      <p>For a value type _T_ that is an integer, binary floating-point, or vector type, or a metadata parameterization of one, and a positive integer _N_, `vector.&lt;T, N&gt;` is a value type whose values are the sequences of exactly _N_ values of _T_. _T_ is the lane type and _N_ the lane count. The number of values of `vector.&lt;T, N&gt;` is the number of values of _T_ raised to the power _N_.</p>
 
       <emu-note>
         <p>A vector's lane type may itself be a vector, which is how the boolean vectors of the design are built: `boolean8` is `vector.&lt;boolean1, 8&gt;`, where `boolean1` is the design's name for `uint.&lt;1&gt;`, eight one-bit lanes, and `boolean8x16` is `vector.&lt;boolean8, 16&gt;`. The lane counts an implementation can hold in a register are a matter for the SIMD extension; the type exists for every positive _N_.</p>
 
         <p>It is a type error to form `vector.&lt;T, N&gt;` where _T_ is not a lane type or _N_ is not a positive integer, since neither denotes a vector type. Where the lane type is itself a vector, this applies to it in turn.</p>
+        <p>A parameterized lane type is how a vector's lanes carry metadata: `vector.&lt;float32.&lt;{ m: 1 }&gt;, 3&gt;` is a vector of meters, its lanes read as `float32.&lt;{ m: 1 }&gt;`, and it has the representation of `vector.&lt;float32, 3&gt;`, since a parameterization has exactly the representation of its base. A lane enters the parameterization as a scalar does, through a declared cast. Such a vector is a subtype of the vector of the same count over its lane's base, as the lane is a subtype of its base, so a vector of meters is accepted where a `float32x3` is; a lane type that differs in representation, `uint8` against `uint16`, relates no vectors.</p>
 
       </emu-note>
     </emu-clause>
