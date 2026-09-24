@@ -4893,15 +4893,17 @@ const n: uint32 = g();
 
       <emu-table id="table-numeric-predicates" caption="The Numeric Predicates">
         <table>
-          <thead><tr><th>Predicate</th><th>Integer types</th><th>`bigint`</th><th>Binary float types</th><th>Decimal types</th><th>Rational types</th></tr></thead>
+          <thead><tr><th>Predicate</th><th>Integer types</th><th>`bigint`</th><th>Binary float types</th><th>Decimal types</th><th>Rational types</th><th>Complex types</th></tr></thead>
           <tbody>
-            <tr><td>`isNaN`, `Number.isNaN`</td><td>*false*</td><td>*false*, at `isNaN`; none declared for `Number.isNaN`, which answers *false* as it does today</td><td>*true* where the value is the NaN of _T_</td><td>*true* where the value is the NaN of _T_</td><td>*false*</td></tr>
-            <tr><td>`isFinite`, `Number.isFinite`</td><td>*true*</td><td>*true*, at `isFinite`; none declared for `Number.isFinite`, which answers *false* as it does today</td><td>*true* where the value is finite</td><td>*true* where the value is finite</td><td>*true*</td></tr>
-            <tr><td>`Number.isInteger`</td><td>*true*</td><td>none declared; `Number.isInteger` answers *false* as it does today</td><td>*true* where the mathematical value is integral</td><td>*true* where the numerical value is integral; `1.00` is integral</td><td>*true* where the denominator is 1</td></tr>
-            <tr><td>`Number.isSafeInteger`</td><td>*true* where the mathematical value's magnitude is at most 2**53 - 1; constant *true* for _N_ &le; 53</td><td>none declared; `Number.isSafeInteger` answers *false* as it does today</td><td>*true* where the mathematical value is integral with magnitude at most 2**53 - 1</td><td>*true* where the numerical value is integral with magnitude at most 2**53 - 1</td><td>*true* where the denominator is 1 and the magnitude is at most 2**53 - 1</td></tr>
+            <tr><td>`isNaN`, `Number.isNaN`</td><td>*false*</td><td>*false*, at `isNaN`; none declared for `Number.isNaN`, which answers *false* as it does today</td><td>*true* where the value is the NaN of _T_</td><td>*true* where the value is the NaN of _T_</td><td>*false*</td><td>*true* where either component is NaN</td></tr>
+            <tr><td>`isFinite`, `Number.isFinite`</td><td>*true*</td><td>*true*, at `isFinite`; none declared for `Number.isFinite`, which answers *false* as it does today</td><td>*true* where the value is finite</td><td>*true* where the value is finite</td><td>*true*</td><td>none declared; `isFinite` performs ToNumber, which throws a *TypeError* for a complex, and `Number.isFinite` answers *false* as it does today</td></tr>
+            <tr><td>`Number.isInteger`</td><td>*true*</td><td>none declared; `Number.isInteger` answers *false* as it does today</td><td>*true* where the mathematical value is integral</td><td>*true* where the numerical value is integral; `1.00` is integral</td><td>*true* where the denominator is 1</td><td>none declared; `Number.isInteger` answers *false* as it does today</td></tr>
+            <tr><td>`Number.isSafeInteger`</td><td>*true* where the mathematical value's magnitude is at most 2**53 - 1; constant *true* for _N_ &le; 53</td><td>none declared; `Number.isSafeInteger` answers *false* as it does today</td><td>*true* where the mathematical value is integral with magnitude at most 2**53 - 1</td><td>*true* where the numerical value is integral with magnitude at most 2**53 - 1</td><td>*true* where the denominator is 1 and the magnitude is at most 2**53 - 1</td><td>none declared; `Number.isSafeInteger` answers *false* as it does today</td></tr>
           </tbody>
         </table>
       </emu-table>
+
+      <p>A complex answers `isNaN` by its components, because a complex can be NaN through either part: the predicate is *true* exactly when the real part or the imaginary part is NaN, as Python's `cmath.isnan` answers. It declares no other predicate. A complex has no Number value, so `isFinite`, which performs ToNumber, refuses it, and the `Number` statics, which do not coerce, answer *false* for it as they do for any value that is not a Number.</p>
 
       <p>The complex numbers extension declares its family's rows for all four predicates. The expected shape is the componentwise one: a complex value is NaN where either component is, and finite where both are.</p>
 
