@@ -2623,6 +2623,8 @@ contributors: Sirisian
       <h1>Explicit Conversion</h1>
       <p>An explicit conversion is written as a call on the type, `uint8(v)`, or with the conversion operator after the value, `v := uint8` (<emu-xref href="#sec-types-in-expression-position"></emu-xref>). The two are the same operation. A conversion is an instruction to discard information: it truncates, wraps, or rounds as the target requires, and does not fail merely because information is lost.</p>
 
+      <p>A value of a `decimal`, `rational` or `complex` type has no Number value. ToNumber of one throws a *TypeError*, so no such value reaches a Number through an implicit conversion, in `Number(x)`, in a `Math` function that is not overloaded for its type, or in a comparison with a Number. A program that wants a Number writes the conversion by name: `float64(x)` for a `decimal` or a `rational`, and `.real` for the real part of a `complex`. A Number answer would either round through the binary double a `decimal` or `rational` exists to avoid, or discard the imaginary part of a `complex`, and a value that looks right and is not is worse than an error.</p>
+
       <emu-clause id="sec-convertvalue" type="abstract operation">
         <h1>
           ConvertValue (
