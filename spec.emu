@@ -1432,6 +1432,38 @@ contributors: Sirisian
             <p>A builder is evaluated forward and never run backwards, so a capture among its arguments would observe nothing, and a |ComputedType| is a builder call by its syntax alone: `class S&lt;Make(const T)&gt; {}` is refused before any name is resolved. A capture REFERENCE there is not refused, `class S&lt;const T, Make(T)&gt; {}`, since it reads a capture bound at a structural position and is checked forward. Whether some other position exposes a component depends on what its name denotes, and is the type error of <emu-xref href="#sec-capture-scope"></emu-xref>.</p>
           </emu-note>
         </emu-clause>
+        <emu-clause id="sec-callable-overload-contracts">
+          <h1>Callable Overload Contracts</h1>
+          <p>A function's or method's generic list declares an overload contract, so its declaration group may hold several same-named declarations whose lists differ. An <dfn id="callable-owner">owner</dfn> is one whose list holds parameters only. A declaration whose list holds only fixed arguments, captures, and `_` <em>attaches</em> to the owner of its group whose list accepts it: each entry lands in one of the owner's parameters by position, a fixed argument there is of that parameter's kind and admitted by its domain and bound, and a capture or `_` takes the parameter's domain. It borrows the owner's parameter names. A declaration no owner accepts, and one whose list mixes arguments with parameters, is <em>standalone</em>: its unlabeled positions are positional only, and it takes part only in ordinary overload resolution.</p>
+          <p>An attached declaration whose parameter list is the owner's instantiated at its entries (the same parameter types, optionality, rest element, and reference permissions; parameter names and initializers are not compared) is a <dfn id="callable-replacement">replacement</dfn>. It keeps the owner's contract, and is reached through the owner's generic function value. Its return type must be a subtype of the owner's instantiated return type. An attached declaration with another parameter list is <dfn id="callable-additive-overload">additive</dfn>, and is never reached through the owner's generic function value.</p>
+          <p>An owner may omit its body. A bodyless owner declares only the labels and generic contract its attached declarations keep, and an application no attached declaration matches is then no viable overload. In a class declared `abstract`, a bodyless method with no attached declaration is an abstract member instead.</p>
+          <emu-grammar type="definition">
+            <ins>BodylessOwnerDeclaration[Yield, Await] :
+              `function` BindingIdentifier[?Yield, ?Await] TypeParameters[?Yield, ?Await] `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[~Yield, ~Await]? `;`
+
+            BodylessOwnerMethod[Yield, Await] :
+              ClassElementName[?Yield, ?Await] TypeParameters[?Yield, ?Await] `(` UniqueFormalParameters[~Yield, ~Await] `)` TypeAnnotation[~Yield, ~Await]? `;`</ins>
+          </emu-grammar>
+          <emu-clause id="sec-callable-overload-contracts-static-semantics-early-errors">
+            <h1>Static Semantics: Early Errors</h1>
+            <emu-grammar>
+              BodylessOwnerDeclaration : `function` BindingIdentifier TypeParameters `(` FormalParameters `)` TypeAnnotation? `;`
+
+              BodylessOwnerMethod : ClassElementName TypeParameters `(` UniqueFormalParameters `)` TypeAnnotation? `;`
+            </emu-grammar>
+            <ul>
+              <li>It is a Syntax Error if |TypeParameters| holds anything but parameters.</li>
+            </ul>
+            <p>A |BodylessOwnerDeclaration| is a function declaration of its declaration group, and a |BodylessOwnerMethod| a method of its class body. For each declaration group of a |StatementList| or |ClassBody|, and each name declared in it by functions or methods, it is an early error if:</p>
+            <ul>
+              <li>A declaration whose list holds only fixed arguments, captures, and `_` is accepted by more than one owner of the group.</li>
+              <li>A bodyless owner has no attached declaration in the group, and is not a method of a class declared `abstract`.</li>
+              <li>A replacement's return type is not a subtype of the owner's return type instantiated at its entries.</li>
+              <li>Two attached declarations of one owner admit the same applications, compared with captures canonicalized by binding identity, or two standalone declarations do.</li>
+              <li>A capture at the top of a standalone declaration's list has no written domain, since its position belongs to no owner whose domain it could take.</li>
+            </ul>
+          </emu-clause>
+        </emu-clause>
 <emu-clause id="sec-capture-scope">
           <h1>Capture Scope</h1>
           <p>The captures of a specialization list are collected before anything in it is resolved. Their scope is the whole list, the specialized declaration's signature or heritage, its constraints and `where` clauses, and its body, under the ordinary rules for class and static scope. Within that scope a bare |IdentifierReference| whose StringValue names a collected capture is a <dfn id="capture-reference">capture reference</dfn>, including where it precedes the capture's declaration, and a capture shadows any outer binding of its name throughout the scope. The declared name, `Pair` in `class Pair&lt;const T, T&gt;`, is resolved before the capture scope is entered. A nested constructor, `Map` in `Map.&lt;string, const E&gt;`, is resolved within it, so a first-order capture named `Map` makes that application a type error rather than a lookup that falls back.</p>
