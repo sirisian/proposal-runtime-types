@@ -3556,6 +3556,7 @@ const n: uint32 = g();
 
     <emu-clause id="sec-arithmetic-never-promotes">
       <h1>Arithmetic Never Promotes</h1>
+      <p>In peer-operand literal inference, a literal beside a parameterized numeric value adopts that value's numeric base, not its metadata. This rule precedes primitive-block admission and applies to arithmetic, comparison, equality, and case matching. Explicit binding, argument, return, and cast contexts retain their stated requirements. Integer exponent and shift-count rules retain their own contexts. No unit-polymorphic zero rule is introduced: arithmetic may reject a scalar/quantity pair where strict equality answers false; loose equality retains its mathematical-value rule.</p>
       <p>Two operands of the same value type produce a result of that type. Two operands of different value types are a type error, since neither is assignable to the other. Where one operand is a literal it takes the type of the other (<emu-xref href="#sec-literal-propagation"></emu-xref>), so a literal never forces a conversion.</p>
 
       <p>The LITERAL rule of the preceding paragraph also reaches `==`, `!=`, `===`, `!==`, and a `case` label, though the type error of the preceding paragraph does not. A comparison answers rather than computing, so two operands of different numeric types compare unequal instead of being an error; but a literal in one of those positions still takes the other operand's type, so `uint8(5) === 5` is *true*. A binding adopts nothing, so `uint8(5) === n` for an `n` of the `number` type is *false*, and the values of distinct value types remain distinct. A `bigint` literal takes no Number-family type, being of a numeric type of its own. A literal the type cannot represent is not equal to any value of it, so the comparison is *false* rather than an error - unlike an arithmetic position, where the same literal is an Early Error, because there the literal must become a value and here it need not.</p>
@@ -3610,7 +3611,7 @@ const n: uint32 = g();
       <emu-alg>
         1. If the operator is `&&`, `||`, or `??`, the Static Type is the union of the short-circuiting part of the left operand's Static Type and the right operand's Static Type, where the short-circuiting part is the falsy part (<emu-xref href="#sec-falsy-and-truthy-parts"></emu-xref>) for `&&`, the truthy part for `||`, and, for `??`, the result of NarrowFrom (<emu-xref href="#sec-narrowing"></emu-xref>) applied to that Static Type and `null | undefined`; where that part has no members, the Static Type is the right operand's Static Type alone, and where the complementary part has no members, so that the left operand always short-circuits and the right is never evaluated, the Static Type is the short-circuiting part alone.
         1. Else if the operator is an equality or relational operator other than one whose operands are vectors, the Static Type is the ~primitive~ type named *"boolean"*.
-        1. Else if either operand's Static Type is a ~literal~ type and the other's is not, the literal adopts the other operand's type (<emu-xref href="#sec-literal-propagation"></emu-xref>) and this rule is applied again.
+        1. Else if either operand's Static Type is a ~literal~ type and the other's is not, the literal adopts the other operand's numeric base, excluding metadata (<emu-xref href="#sec-literal-propagation"></emu-xref>) and this rule is applied again.
         1. Else if the operands' Static Types are not the same type, it is a type error: an operator does not combine two numeric types (<emu-xref href="#sec-arithmetic-never-promotes"></emu-xref>).
         1. Else if the operands' Static Type is a ~vector~ type, the Static Type is that vector type, the operator having been applied at each lane; except that a relational or equality operator between vectors is overloaded on its result type (<emu-xref href="#sec-vector-comparisons"></emu-xref>).
         1. Else if the family of the operands' Static Type does not define the operation, it is a type error.
@@ -6115,7 +6116,7 @@ const n: uint32 = g();
             <tr><td>`subtype(sub, sup)`</td><td>Yes</td><td>Whether a value constrained by `sub` may be received where `sup` is required. This is the meta type's half of the metadata subtype judgment.</td></tr>
             <tr><td>`validate(value, constraint)`</td><td>No</td><td>Whether a value of the base satisfies `constraint`. This is the meta type's half of the validation judgment.</td></tr>
             <tr><td>`narrow(current, op, value)`</td><td>No</td><td>The constraint that a comparison `op` against `value` establishes, given `current` (<emu-xref href="#sec-metadata-narrowing"></emu-xref>).</td></tr>
-            <tr><td>`conversionFactor(from, to)`</td><td>No</td><td>The Number by which a value is multiplied when its constraint is converted from `from` to `to` (<emu-xref href="#sec-metadata-conversion"></emu-xref>).</td></tr>
+            <tr><td>`conversionFactor(from, to)`</td><td>No</td><td>A finite real numeric scalar by which the value is scaled when its constraint is converted from `from` to `to`. Number, BigInt, sized integer, binary floating-point, decimal, and rational results are admitted. A rational expresses an exact unit ratio (<emu-xref href="#sec-metadata-conversion"></emu-xref>).</td></tr>
             <tr><td>`rescale(constraint, factor)`</td><td>No</td><td>The constraint `constraint` denotes once its value has been multiplied by `factor`, so that a bound in metres survives a conversion into kilometres.</td></tr>
             <tr><td>`quantize(value, constraint)`</td><td>No</td><td>The value that `value` becomes under the representation `constraint` requires, such as a decimal rounded onto a scale.</td></tr>
             <tr><td>`describe(constraint)`</td><td>No</td><td>A String naming the constraint, for a diagnostic.</td></tr>
@@ -6141,6 +6142,8 @@ const n: uint32 = g();
 
     <emu-clause id="sec-metadata-decomposition">
       <h1>Decomposition and the Judgments</h1>
+      <p>Before interning or comparing metadata, normalize every origin against the same instantiated constraint shape: the declaration's default, a written record, a builder result, a capture, and a reflected description. A written numeric literal leaf is read from its exact source digits in its declared numeric domain under literal representability rules; a runtime Number leaf denotes its actual Number value. Normalization never wraps an out-of-range integer or invokes a user conversion. An already typed numeric atom retains its domain and exact value. Normalize nested records and lists recursively, using their field, tuple-position, or element shapes; an optional numeric field supplies its numeric domain when present. A union with several numeric alternatives does not choose an alternative by order. Reject a completed claimed portion that does not satisfy its shape. Range endpoints retain the separate host-base rule below. The unclaimed-key rule and base-form exception remain in force.</p>
+      <p>Normalization is idempotent and independent of origin. Equivalent metadata must have the same interning key, and reconstructing a reflected type must produce the same Type Object. A typed view of a capture preserves its declared field types. Numeric atoms use the domain's SameValue rule, not composite SameValueZero: neither negative zero nor the distinction between an explicit default-pinned requirement and a bare type is erased.</p>
       <p>A metadata value is drawn from a closed language, given by <emu-xref href="#table-metadata-values"></emu-xref>. The top level is a flat record whose keys are claimed keys; the values under them may nest freely. Two metadata values are equivalent when they are equivalent by the comparison that table gives, and it is that comparison, and not object identity, that interning uses.</p>
 
       <emu-table id="table-metadata-values" caption="Metadata Values">
@@ -6148,6 +6151,7 @@ const n: uint32 = g();
           <thead><tr><th>Form</th><th>Equivalence</th></tr></thead>
           <tbody>
             <tr><td>A Number, a String, a Boolean, a BigInt, or *null*</td><td>SameValue, so a NaN is equivalent to a NaN and a negative zero is not equivalent to a positive zero, as literal types already compare.</td></tr>
+            <tr><td>A numeric value of a sized integer, binary floating-point, decimal, rational, or complex type</td><td>The numeric domain and its SameValue relation, including that domain's rules for NaN, signed zero, and decimal cohorts. Its complete value is preserved, independently of the engine's physical encoding.</td></tr>
             <tr><td>A pattern, carried as its source and its flags</td><td>Identical source and identical flags.</td></tr>
             <tr><td>A Symbol</td><td>SameValue. A registered Symbol is therefore equivalent to itself in every agent; an unregistered one is equivalent only to itself.</td></tr>
             <tr><td>A record of metadata values</td><td>The same keys, and equivalent values at each, without regard to order.</td></tr>
@@ -6221,6 +6225,8 @@ const n: uint32 = g();
 
     <emu-clause id="sec-metadata-conversion">
       <h1>Conversion at a Boundary</h1>
+      <p>An implicit boundary to the bare base preserves metadata the supplied value already carries. An explicit conversion to the base may erase it. A bare annotation therefore supplies no proof that its value is plain. Neither value admission nor conversion changes the invariant type of a reference location or any reference-liveness requirement.</p>
+      <p>A required metadata record <dfn id="pinned-metadata">pins</dfn> each meta type for which it writes a claimed key, including a portion explicitly equal to that meta type's default. Pinning is independent of whether the completed portion governs a value. Unwritten portions do not constrain an argument and do not contribute a conversion factor.</p>
       <p>Two parameterizations of one base that differ in their metadata convert by this clause, which is the fourth case of <emu-xref href="#table-implicit-conversions"></emu-xref> and applies at every boundary of <emu-xref href="#table-check-sites"></emu-xref>, an operator's argument among them.</p>
 
       <emu-clause id="sec-convertparameterization" type="abstract operation">
@@ -6237,7 +6243,13 @@ const n: uint32 = g();
         </dl>
         <emu-alg>
           1. Let _v_ be _value_.
-          1. For each meta type _M_ declared in the surrounding realm whose MetadataPortion(_from_, _M_) or MetadataPortion(_to_, _M_) is not _M_'s `default`, do
+          1. Let _base_ be RuntimeTypeOf(_value_).
+          1. If _base_.[[Kind]] is ~parameterized~, set _base_ to _base_.[[Base]].
+          1. Let _pinned_ be the meta types pinned by _to_.
+          1. Let _participating_ be a new empty List.
+          1. For each meta type _M_ of _pinned_, do
+            1. If MetadataPortion(_from_, _M_) or MetadataPortion(_to_, _M_) is not equivalent to _M_'s `default`, append _M_ to _participating_.
+          1. For each meta type _M_ of _participating_, do
             1. Let _fp_ be MetadataPortion(_from_, _M_).
             1. Let _tp_ be MetadataPortion(_to_, _M_).
             1. If `subtype` of _M_ holds of _fp_ and _tp_, then
@@ -6247,15 +6259,40 @@ const n: uint32 = g();
               1. If _M_ defines `validate` and it does not hold of _v_ and _tp_, throw a *TypeError* exception whose message names _M_ and, where _M_ defines `describe`, its description of _tp_.
             1. Else,
               1. Throw a *TypeError* exception whose message names _M_ and, where _M_ defines `describe`, its descriptions of _fp_ and _tp_.
-          1. Let _f_ be 1.
-          1. For each meta type _M_ declared in the surrounding realm that defines `conversionFactor` and whose MetadataPortion(_from_, _M_) or MetadataPortion(_to_, _M_) is not _M_'s `default`, set _f_ to _f_ &times; the result of `conversionFactor` of _M_ applied to MetadataPortion(_from_, _M_) and MetadataPortion(_to_, _M_).
-          1. If _f_ is not 1, set _v_ to _v_ &times; _f_.
+          1. Let _f_ be the exact rational number 1.
+          1. For each meta type _M_ of _participating_ that defines `conversionFactor`, do
+            1. Let _factor_ be ? the result of applying that hook to MetadataPortion(_from_, _M_) and MetadataPortion(_to_, _M_).
+            1. If _factor_ is not a finite real numeric scalar, throw a *TypeError* naming _M_ and `conversionFactor`.
+            1. Set _f_ to the exact product of _f_ and the mathematical value of _factor_, retaining any zero sign separately for the base's multiplication rule.
+          1. Set _v_ to ? ScaleMetadataValue(_v_, _f_, _base_).
           1. For each meta type _M_ declared in the surrounding realm that defines `quantize` and whose MetadataPortion(_to_, _M_) is not _M_'s `default`, set _v_ to the result of `quantize` of _M_ applied to _v_ and MetadataPortion(_to_, _M_).
-          1. Return _v_.
+          1. Carry each unpinned source portion as described below, and retain every pinned target portion.
+          1. If any meta type governing the resulting metadata defines a validation hook that rejects the resulting value and carried portion after scaling and quantization, throw a *TypeError* exception.
+          1. Return _v_ carrying the resulting metadata.
         </emu-alg>
       </emu-clause>
 
-      <p>Where the required metadata leaves a meta type unpinned, as an operator parameter typed `float32.&lt;D&gt;` leaves every meta type but the dimensions of its receiver, that meta type's portion of _from_ flows to the position rather than the target's: scaled, it is the result of `rescale` of _M_ applied to MetadataPortion(_from_, _M_) and _f_ where _M_ defines `rescale`, and _M_'s `default` where it does not.</p>
+      <p>Where the required metadata leaves a meta type unpinned, its source portion is preserved when _f_ is one. Otherwise it is the normalized result of `rescale` applied to that portion and _f_, or its default when no `rescale` is declared. If every contributing factor was a Number or a binary floating-point value of width at most 64, the legacy `rescale` argument is the product rounded to Number; otherwise it is a rational, using the default width when the exact product fits and `rational.&lt;bigint&gt;` otherwise. This presentation to a hook does not change the exact factor used to scale the value. A failed hook, invalid result, exhausted evaluation budget, or failed snapshot is never treated as an absent hook. A `rescale` result must satisfy the instantiated constraint shape; a `quantize` result must belong to the numeric base. These hooks propagate abrupt completions. Validation and quantization receive the raw numeric value.</p>
+
+      <emu-clause id="sec-scale-metadata-value" type="abstract operation">
+        <h1>
+          ScaleMetadataValue (
+            _value_: an ECMAScript language value,
+            _factor_: a rational number,
+            _base_: a Type Record,
+          ): either a normal completion containing an ECMAScript language value or a throw completion
+        </h1>
+        <dl class="header"><dt>description</dt><dd>It scales in the base's numeric domain, without invoking user-language mixed-type multiplication or an operator definition.</dd></dl>
+        <emu-alg>
+          1. If _factor_ is 1, return _value_.
+          1. If _base_ is not a numeric primitive type, throw a *TypeError* exception.
+          1. If _value_ is finite and real, form the exact rational product of its value and _factor_.
+          1. For a rational base, retain the exact product. For an integer base, truncate toward zero and apply the base's conversion overflow rule. For a binary floating-point or decimal base, round once to that base using its conversion rule.
+          1. For a complex base, apply the corresponding real-component operation separately to its components.
+          1. Preserve signed-zero and special-value behaviour under the base's multiplication rules. A special value of the input does not authorize a non-finite conversion factor.
+          1. Return the resulting value of _base_.
+        </emu-alg>
+      </emu-clause>
 
       <p>Each meta type gates the crossing independently, and there are exactly two ways through: `subtype` admits it, or the value carries nothing of that meta type and a cast supplies what it lacks. `Meter` reaches `Kilometer` by the first, since the exponents agree and only the ratio differs; a bare `number` reaches `Velocity` only by the second, which is why the design says that without a cast on `number` the assignment is a type error, and why a brand, for which no cast is declared, is reachable only by construction. `validate` is what the second way costs, and it is where a bound is enforced: `subtype` cannot prove an unconstrained value non-negative, so the cast into the bounds meta type checks it.</p>
 
@@ -6282,6 +6319,10 @@ const n: uint32 = g();
       <p>These captures use MetadataPortion, including its default when the receiver carries none. An operator's own metadata parameters bind from its operand. A capture in a cast's destination is bound from the requested destination, not from the source's default. The projection rule is shared by specialization lists; repeating a capture compares completed portions, while admitting an operator argument uses the metadata subtype and conversion judgments for its pinned portions.</p>
       <p>Before consulting block definitions, a unary operation on a plain primitive value, or a binary operation on two plain primitive values of the same type, takes the primitive operation directly. No definition, including a definition without a body, contributes to that operation. A vector is plain for this purpose when its lanes carry no metadata. Compound assignment applies this rule to its underlying operation before checking the store. Mixed and parameterized operands continue through block dispatch.</p>
       <p>A bare Static Type is not proof of a plain runtime value: the binding may retain metadata admitted upward from a parameterization. The checker must not substitute defaults for these unknown portions. Where applicable definitions or their computed result metadata depend on such portions, the result is widened to a type admitting every possible result and the required boundary checks remain. The runtime fast path above is applicable statically only with a proof about the values, not from their bare annotations alone.</p>
+      <p>The checking pass distinguishes an exact known portion, a known plain value whose projection is the default, an unknown portion, and a pattern that does not match. Unknown is not the default and is not failure. Its required local proof rules are: a numeric literal proves a plain value of its contextual base; parentheses preserve a fact; a conversion to a base proves plainness only from a proven plain numeric source; a parameterization supplies its written pinned portions but proves nothing about unpinned portions; ordinary unary and same-base plain arithmetic preserve plainness. A direct local initializer may copy these facts to a binding, and a direct assignment replaces its mutable fact. Calls, borrowing or possible aliasing, updates, control-flow boundaries, and entry to or exit from a nested function discard mutable facts. No fact is inferred from a bare parameter annotation or from an unknown property read. The proof walk is bounded to twenty nested expression steps, after which the fact is unknown.</p>
+      <p>When only some captures are known, retain a result's numeric family, component type, lane count, and any result metadata independent of unknown captures. Widen metadata that depends on unknown captures. Join the possible successful return types of applicable value bodies and the built-in path when a plain pair remains possible; an unknown return requires an unknown result, rather than assuming the receiver's base. These rules determine the checking pass's baseline acceptance. Further optimization may elide checks already implied by that judgment; it may not introduce additional Early Errors.</p>
+      <p>Operator evaluation first evaluates each original operand once, prepares candidate operand requirements, and selects a value definition. Receiver-block precedence and strict operand specificity take priority. For equal instantiated operand types, the existing fixed-over-captured preference applies. For different parameterizations that mutually admit one another and are otherwise tied, an exact match of every pinned portion beats one requiring a metadata crossing. Exactness compares descriptors, never the numeric payload or a computed factor; zero values and factor-one conversions do not affect ranking. Incomparable requirements and remaining ties are ambiguous.</p>
+      <p>Convert the selected operand once before evaluating any metadata-only return builder. Rebind fresh operand captures from this effective operand, then check contribution applicability without selecting a different value body. With no value body, compatible metadata-only requirements combine into one conversion target; conflicting pinned portions are ambiguous. Independently captured portions already equal to their required portions impose no conversion. A result builder observes the converted and rescaled portions. Conflicting contributions to one result portion are a type error. The raw value body receives this same effective operand with metadata removed.</p>
       <emu-note>
         <p>The rule is the one a type position already applies, so a block's header reads as the type it covers. A component slot is not a metadata position, so a capture naming a meta type there, `primitive complex&lt;const T: P&gt;`, restates the component's domain `type` as `P` and is refused by <emu-xref href="#sec-capture-scope"></emu-xref>; its diagnostic offers `primitive complex&lt;_&gt;&lt;const T: P&gt;`. Which lists a primitive's parameters make components is known from the primitive alone, since every primitive is predefined.</p>
       </emu-note>
