@@ -2651,6 +2651,27 @@ contributors: Sirisian
         <p>Contract preparation does not change ordinary initialization order or reference liveness. If no type error is established, a forward value read still observes its ordinary temporal dead zone or uninitialized value. In particular, preparation neither runs a captured initializer early nor converts an ordinary runtime Reference Error into an inferred-return diagnostic. A known inconsistent typed consumer is rejected at the specified checking boundary even if ordinary execution would first encounter a different runtime error.</p>
       </emu-clause>
 
+      <emu-clause id="sec-initializer-inference-obligations">
+        <h1>Initializer Contracts and Dependent Obligations</h1>
+        <p>An obligation that consumes an inferred binding contract follows <emu-xref href="#sec-return-publication-dependencies"></emu-xref>. Its inputs include the binding's participation, the Static Type of its initializer, and the incoming flow facts required to compute that type. A dependency identifies a declaration and a source position, not only a name or a type representation. A completed unknown Static Type and a computation whose required inputs are not yet established are distinct: only the former is subject to the ordinary rules for ~any~.</p>
+        <ol>
+          <li>Establish the incoming flow for the initializer under <emu-xref href="#sec-narrowing"></emu-xref>, and compute its Static Type in its lexical, generic and contextual environments. Apply the binding form's existing participation and widening rules. An earlier established branch or store can therefore affect the inferred contract; a later store does not replace that contract with the later value's type.</li>
+          <li>If an input to this computation is unfinished, retain the dependency and complete that input under its defining rule before the binding contract is final. This includes an inferred callee result used by an earlier test or store. When that result becomes available, recompute the affected flow transfer and its dependent initializer facts; merely completing the callee does not validate the flow facts computed without it. Apply the existing fixpoint rules when these dependencies are recursive.</li>
+          <li>Recompute a consuming obligation whose input changed, retaining the consumer's own source position, lexical and generic environments, contextual type, receiver and enclosing function context, and applicable incoming flow. Resolve each producer in its own declaration environment. Do not use the environments or outgoing flow at the point when the work happens to be scheduled.</li>
+          <li>Finalize the obligation only after its required inputs are established. An intermediate acceptance or rejection that depended on an unfinished input is not a final judgment. A completed unknown input retains the existing gradual rules and runtime checks; it supplies neither an annotation-derived anchor nor a proof of incompatibility. A failure to complete required work follows its existing failure rule, and is not converted into a completed unknown type.</li>
+        </ol>
+        <p>These requirements apply at the checking boundary of <emu-xref href="#sec-type-errors"></emu-xref>, including obligations inside uncalled functions and otherwise unreachable source. They do not execute an initializer, call a function, initialize a value binding, extend reference liveness or authorize check elision. An implementation may store obligations or recompute equivalent judgments; no particular queue, frame representation or traversal count is required.</p>
+        <emu-example>
+          <p>In the following source, the initializer of `s` has Static Type `string` from the established store to `u`. The incompatible initializer of `q` is rejected before the Script body begins. Changing its annotation to `string` removes this incompatibility; ordinary execution still throws a Reference Error when `g` reads `s` before initialization. Changing `u` after the declaration of `s` does not change `s`'s inferred contract.</p>
+          <pre><code class="javascript">{
+  let u: string | number = "s";
+  const q: number = g();
+  function g() { return s; }
+  const s = u;
+}</code></pre>
+        </emu-example>
+      </emu-clause>
+
       <emu-clause id="sec-published-return-types">
         <h1>What a Published Type Is Used For</h1>
         <p>A published inferred return type is read in three places and not in others, and the division is what keeps inference from becoming a second declaration.</p>
