@@ -68,6 +68,33 @@
     <p>This state creates no program reference, extends no reference lifetime, and adds no observable property to an exception or Type Object. Equivalent internal representations are permitted. Discarding temporary preparation evidence does not itself undo declaration instantiation or observable effects; those remain governed by their respective evaluation algorithms.</p>
   </emu-clause>
 
+  <emu-clause id="sec-module-type-checking-order">
+    <h1>Module Type Checking Order</h1>
+    <p>Parsing and linking apply the rules assigned to those phases before module evaluation. For the remaining judgments that require type evaluation, each Source Text Module Record has a pre-body checking boundary at the point where its ordinary module evaluation would enter its own code. Checking does not introduce a separate traversal that executes dependency bodies. InnerModuleEvaluation, ExecuteAsyncModule and AsyncModuleExecutionFulfilled continue to determine when that boundary is reached, including cycles and asynchronous dependencies.</p>
+    <p>In Source Text Module Record ExecuteModule, replace the Evaluation of the module's [[ECMAScriptCode]] in the branch without top-level await with EvaluateModuleBodyWithTypeChecking of that code. Retain the surrounding context suspension, restoration and abrupt-completion propagation. In AsyncBlockStart, when _asyncBody_ is a |Module| Parse Node, replace its Evaluation with EvaluateModuleBodyWithTypeChecking of _asyncBody_ inside the async evaluation closure, after its context becomes current. The existing rejection path handles an abrupt result. This change does not apply to an ordinary async function body.</p>
+    <p>A module with no top-level await of its own can still have pending asynchronous dependencies. Its body and pre-body checking wait until the ordinary dependency prerequisites are satisfied. A checking failure follows the existing module evaluation rejection paths and prevents bodies whose execution depends on the failed evaluation from starting. Effects of dependency bodies that already ran are retained. Failure does not restart a dependency or undo its effects.</p>
+    <p>Within a cycle, a required imported binding may still be uninitialized when this boundary is reached. If preparation of a type declaration or another required pre-evaluation type judgment attempts to read that imported binding and cannot complete for that reason, checking fails with a *StaticTypeError* for type-evaluation failure before the candidate module body starts. Binding identity follows the resolved import target, including re-exports, as in <emu-xref href="#sec-declaration-preparation-state"></emu-xref>. Do not treat this failure as permission to retry after body entry, wait for every member of the cycle, or substitute a fallback type. This does not require evaluating an expression whose evaluation is deferred by a generic or other explicit deferral rule, and it does not reclassify an unrelated runtime exception.</p>
+    <p>The existing Module Record evaluation state governs repeated evaluation requests and shared dependencies. Checking must not re-enter an already evaluated module body or repeat its type computations in response to another request to evaluate the same record. A still-pending evaluation is neither successful nor rejected. Cached checking results may be reused only when their semantic inputs and required observable phase are preserved.</p>
+
+    <emu-clause id="sec-evaluatemodulebodywithtypechecking" type="abstract operation">
+      <h1>
+        EvaluateModuleBodyWithTypeChecking (
+          _code_: a Parse Node,
+        ): a Completion Record
+      </h1>
+      <dl class="header">
+        <dt>description</dt>
+        <dd>It applies the module's required pre-evaluation type judgments before entering its body, in the module execution context selected by the ordinary module evaluation algorithms.</dd>
+      </dl>
+      <emu-alg>
+        1. Assert: _code_ is a |Module| Parse Node.
+        1. Let _checkResult_ be the Completion Record obtained by applying the pre-evaluation checking of <emu-xref href="#sec-type-errors"></emu-xref> to _code_ in the running execution context, including its required declaration preparation and type judgments.
+        1. If _checkResult_ is an abrupt completion, return ? _checkResult_.
+        1. Return Completion(Evaluation of _code_).
+      </emu-alg>
+    </emu-clause>
+  </emu-clause>
+
   <emu-clause id="sec-checking-effect-order">
     <h1>Effects and Evaluation Order</h1>
     <p>Transfer follows the language's evaluation order. It captures a value before subsequent effects where evaluation does so, and invalidates facts about a mutable location when the specified effect can change that location. A definite lexical write invalidates the binding's current-value facts and dependent relations, then installs only the facts established by the new value. A write through a known alias has the same effect on the aliased location. Replacing a path prefix invalidates dependent suffixes. Declared store contracts survive these invalidations.</p>

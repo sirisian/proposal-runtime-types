@@ -163,7 +163,8 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-compile-time-evaluability"
+        "sec-compile-time-evaluability",
+        "sec-module-type-checking-order"
       ],
       "explanation": "A closed type expression does not evaluate to a Type Object.",
       "arguments": {
