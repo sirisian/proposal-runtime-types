@@ -164,9 +164,10 @@
       "errorClass": "StaticTypeError",
       "specification": [
         "sec-compile-time-evaluability",
-        "sec-module-type-checking-order"
+        "sec-module-type-checking-order",
+        "sec-specialization-predicate-completion"
       ],
-      "explanation": "A closed type expression does not evaluate to a Type Object.",
+      "explanation": "A required type computation cannot complete normally, or a closed type expression does not produce a Type Object.",
       "arguments": {
         "type": "array",
         "items": {
