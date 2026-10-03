@@ -838,7 +838,8 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-memory-layout"
+        "sec-memory-layout",
+        "sec-recursive-declaration-validation"
       ],
       "explanation": "The declared storage cannot have the required finite layout.",
       "arguments": {
@@ -1688,7 +1689,8 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-type-alias-declarations"
+        "sec-type-alias-declarations",
+        "sec-recursive-declaration-validation"
       ],
       "explanation": "The alias only defines itself and produces no type.",
       "arguments": {
@@ -2765,7 +2767,8 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-evaluation-budget"
+        "sec-evaluation-budget",
+        "sec-type-evaluation-accounting"
       ],
       "explanation": "The specified semantic work limit is exhausted; the computation supplies no fallback type.",
       "arguments": {

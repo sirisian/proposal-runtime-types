@@ -52,6 +52,13 @@
     <p>The checker must use the defined finite domains and transfers. It does not solve arbitrary predicates, assume purity from a return annotation, or enumerate possible runtime objects. A recursive type judgment uses its specified assumptions or cycle rule. A transfer for which this specification supplies no value proof preserves the applicable declared contracts and treats the missing value evidence as unknown; that absence cannot justify an impossibility rejection.</p>
   </emu-clause>
 
+  <emu-clause id="sec-recursive-declaration-validation">
+    <h1>Recursive Declaration Validation</h1>
+    <p>The cycle rules of <emu-xref href="#sec-type-alias-declarations"></emu-xref> and <emu-xref href="#sec-layout-finiteness"></emu-xref> apply to a closed declaration independently of whether execution reaches a use of it. A bare alias cycle denotes no type. A cycle requiring infinite inline layout is invalid. A cycle passing through the reference positions admitted by those rules remains eligible; the existence of a cycle alone is not a rejection predicate.</p>
+    <p>When checking establishes either violation, the responsible source is the declaration that contains the cycle. The source check fails without evaluating its candidate body, including when the declaration occurs in an uncalled nested function. The invalid graph is not an input on which subsequent contextual typing, canonicalization, member lookup, or narrowing may establish a successful checking result. An implementation may stop after that diagnostic or recover to collect further diagnostics, but recovery supplies neither an accepted program nor a fallback language type.</p>
+    <p>Completing declaration information may precede this judgment. An unresolved generic parameter or unavailable computed type is not proof of a cycle violation. The rule is applied when its inputs are established under the existing declaration and specialization rules; a resource limit is not a substitute for this structural judgment.</p>
+  </emu-clause>
+
   <emu-clause id="sec-checking-effect-order">
     <h1>Effects and Evaluation Order</h1>
     <p>Transfer follows the language's evaluation order. It captures a value before subsequent effects where evaluation does so, and invalidates facts about a mutable location when the specified effect can change that location. A definite lexical write invalidates the binding's current-value facts and dependent relations, then installs only the facts established by the new value. A write through a known alias has the same effect on the aliased location. Replacing a path prefix invalidates dependent suffixes. Declared store contracts survive these invalidations.</p>
@@ -86,12 +93,12 @@
   <emu-clause id="sec-statictypeerror-objects">
     <h1>StaticTypeError Objects</h1>
     <p>The initial value of the global object's `StaticTypeError` property is the intrinsic object %StaticTypeError%. The property has the attributes { [[Writable]]: *true*, [[Enumerable]]: *false*, [[Configurable]]: *true* }. Each realm has its own %StaticTypeError% and %StaticTypeError.prototype% objects. They are created with the realm's other intrinsic objects.</p>
-    <p>The <dfn id="sec-statictypeerror-constructor">%StaticTypeError%</dfn> intrinsic is a built-in function object with [[Call]] and [[Construct]] internal methods. Its [[Prototype]] is %Error%. Its `name` is *"StaticTypeError"* and its `length` is *1*<sub>??</sub>, with the usual built-in function property attributes. Its `prototype` property has value %StaticTypeError.prototype% and attributes { [[Writable]]: *false*, [[Enumerable]]: *false*, [[Configurable]]: *false* }.</p>
+    <p>The <dfn id="sec-statictypeerror-constructor">%StaticTypeError%</dfn> intrinsic is a built-in function object with [[Call]] and [[Construct]] internal methods. Its [[Prototype]] is %Error%. Its `name` is *"StaticTypeError"* and its `length` is *1*<sub>ùîΩ</sub>, with the usual built-in function property attributes. Its `prototype` property has value %StaticTypeError.prototype% and attributes { [[Writable]]: *false*, [[Enumerable]]: *false*, [[Configurable]]: *false* }.</p>
     <emu-clause id="sec-statictypeerror-call">
       <h1>StaticTypeError ( _message_, _options_ )</h1>
       <emu-alg>
         1. If NewTarget is *undefined*, let _newTarget_ be the active function object; else let _newTarget_ be NewTarget.
-        1. Let _O_ be ? OrdinaryCreateFromConstructor(_newTarget_, *"%StaticTypeError.prototype%"*, ´ [[ErrorData]] ª).
+        1. Let _O_ be ? OrdinaryCreateFromConstructor(_newTarget_, *"%StaticTypeError.prototype%"*, ¬´ [[ErrorData]] ¬ª).
         1. If _message_ is not *undefined*, then
           1. Let _msg_ be ? ToString(_message_).
           1. Perform CreateNonEnumerableDataPropertyOrThrow(_O_, *"message"*, _msg_).
