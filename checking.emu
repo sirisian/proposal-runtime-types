@@ -1,0 +1,116 @@
+<emu-clause id="sec-static-type-checking">
+  <h1>Static Type Checking</h1>
+  <p>This clause defines the common inputs, applicability and composition of the type judgments in this specification. A judgment uses only the evidence admitted by its defining clause. An implementation must not reject an additional program by using a stronger proof procedure, runtime feedback, speculative object shapes, or an optional optimization. It may issue an informative diagnostic for such a program without changing its acceptance or evaluation. A judgment that lacks an admitted proof is unresolved; it is not a proof of failure.</p>
+
+  <emu-clause id="sec-checked-unit-ownership">
+    <h1>Static Semantics: Checked Unit Ownership</h1>
+    <p>The checked unit of a Parse Node is its innermost owning Script, Module, function-like unit, or class, with the ownership exceptions in the following table. Ownership includes parameter and return positions. A function-like unit is a function declaration or expression, generator declaration or expression, async function declaration or expression, async generator declaration or expression, arrow function, async arrow function, method (including a getter, setter, generator method, async method, or async generator method), or operator definition (including a signature without a body). A class declaration or expression owns its heritage, modifiers, fields, static initialization and other class syntax, excluding the own syntax of its methods and other nested units.</p>
+    <emu-table id="table-checked-ownership">
+      <emu-caption>Checked unit ownership</emu-caption>
+      <table>
+        <thead><tr><th>Syntax</th><th>Owner</th></tr></thead>
+        <tbody>
+          <tr><td>A unit's parameters, return position, and own body</td><td>That unit.</td></tr>
+          <tr><td>A method's computed name</td><td>The unit enclosing the method.</td></tr>
+          <tr><td>Decorators on a unit</td><td>The unit enclosing the decorated unit.</td></tr>
+          <tr><td>A nested unit's parameters, return position, and own body</td><td>The nested unit; they do not activate its enclosing unit.</td></tr>
+          <tr><td>Other syntax</td><td>The innermost enclosing unit, following the preceding exceptions.</td></tr>
+        </tbody>
+      </table>
+    </emu-table>
+    <p>To classify a parsed source, first determine every node's owner and whether each unit owns any proposal syntax. Proposal syntax is determined by the added grammar alternatives, including alternatives added to existing productions; it is not determined by a list of implementation AST class names. Next, in outer-to-inner order, mark a unit checked if it owns proposal syntax or its enclosing unit is checked. The Script of a direct eval whose caller is checked is marked checked before this second operation. Indirect eval and dynamically constructed functions receive no such inherited mark. The combined parameter and body source of a dynamically constructed function has one owning function unit even if an implementation parses its fragments separately.</p>
+    <p>The classification does not evaluate annotations, decorators, computed keys, or any other expression. Moving proposal syntax within its owning unit cannot change that unit's classification. Strictness is a separate classification; neither strictness nor a typed import activates checking by itself. Classification and ownership may be cached. A cache must include inherited direct-eval classification and must not reuse a result for a different source or ownership graph.</p>
+  </emu-clause>
+
+  <emu-clause id="sec-type-rule-applicability">
+    <h1>Type Rule Applicability</h1>
+    <p>Each type-checking obligation identifies its rule, responsible source node, and, where relevant, the contract from which it arises. The checked status used by a rule is the status of that source node's owning unit. A deferred obligation retains that ownership when type evaluation resolves its inputs; the unit containing the resolution machinery is irrelevant. A synthesized node retains the source obligation it represents.</p>
+    <p>The following precedence resolves the three families in <emu-xref href="#sec-type-errors"></emu-xref>. A rule enforcing a declared type or a contract on a proposal-introduced binding applies everywhere. This remains so when its source value was inferred, when an existing built-in forwards the value to typed storage, or when the contract is reached through an established import or alias. Otherwise, an added rule on an existing built-in, operator or declaration form applies only in checked code. An inference-based impossibility or flow diagnostic also applies only in checked code. Ordinary ECMAScript Syntax Errors and runtime errors are unaffected.</p>
+    <p>A diagnostic family can describe several obligations with different applicability. For example, an inadmissible constructor can be an existing JavaScript value used with `new`, or a Type Object introduced by this proposal that supplies conversion but no construction. The first added static rejection is checked-only; the latter contract applies everywhere. The rule and contract origin determine applicability, never a diagnostic's English wording or its family code.</p>
+    <p>For an implicit `Symbol.hasInstance` call, distinguish the existing operator's callability requirement from the selected callable's declared receiver and parameter contracts. A proof of non-callability (including the nullish-hook fallback) is checked-only. A proof that every selected callable violates its declared receiver or parameter contract applies everywhere. Outside checked code, a union alternative that fails only the added callability rule cannot contribute to that latter proof. No hook or getter is executed to classify the obligation.</p>
+    <p>Applicability does not erase analysis. Outside checked code, the transfers of <emu-xref href="#sec-narrowing-flow"></emu-xref> still establish their specified facts and distinguish impossible predecessors. They withhold only an inapplicable diagnosis. An empty meet is still empty, including when established by metadata evaluation. An unresolved or failed optional knowledge-producing hook follows its own specified fallback; it must not be confused with a successful empty result.</p>
+    <p>Existing built-in contextual signatures and overload formation require earlier applicability decisions. Outside checked code the added existing built-in signature supplies no contextual argument type. A declared callable or typed storage obligation still supplies its declared context. Declarations form an overload set under exactly the checked-declaration condition of <emu-xref href="#sec-checked-code"></emu-xref>. Suppressing a final message cannot undo a contextual conversion or an overload set that should never have been formed.</p>
+  </emu-clause>
+
+  <emu-clause id="sec-checking-state">
+    <h1>Checking State and Evidence</h1>
+    <p>A checking state consists of the declaration environment, current value facts, origin facts, reference facts, and the reachable completion alternatives. These are specification data, not properties of program objects. Lexical bindings are identified by their declarations, not by the spelling of their names. A property path includes the captured receiver origin and the established keys; the same spelling on another receiver is a different path.</p>
+    <emu-table id="table-checking-state">
+      <emu-caption>State components</emu-caption>
+      <table>
+        <thead><tr><th>Component</th><th>Meaning and invariant</th></tr></thead>
+        <tbody>
+          <tr><td>Declaration environment</td><td>The declared store types, callable contracts, lexical binding identities, resolved type declarations, and available imported bindings. A narrower current value never changes a declared store contract.</td></tr>
+          <tr><td>Current value facts</td><td>The domains, exclusions, numeric categories, and value relations established by the specified transfers. Missing evidence is distinct from the declared type ~any~, the type ~never~, and an impossible control-flow predecessor.</td></tr>
+          <tr><td>Origin facts</td><td>The captured values, established data paths and intrinsic or declaration identities admitted by the origin rules. A saved result describes the value that was captured, not a subsequently replaced binding.</td></tr>
+          <tr><td>Reference facts</td><td>The location, permissions and liveness facts admitted by <emu-xref href="#sec-reference-liveness"></emu-xref>. A value relation supplies no reference and extends no lifetime.</td></tr>
+          <tr><td>Completion alternatives</td><td>Normal, return, throw, break and continue alternatives, including their values, target identities and states. An impossible predecessor contributes no alternative.</td></tr>
+        </tbody>
+      </table>
+    </emu-table>
+    <p>Joining reachable predecessors retains a fact only to the extent it holds on every predecessor contributing to that result. Value domains are joined by the specified type union; exclusions and relations retain only common evidence about the same surviving identities. An absent fact on a reachable predecessor is not an impossible predecessor. Joining no reachable predecessors produces an impossible result. Abrupt alternatives are joined separately by completion kind and target. Leaving a scope projects away its local binding identities; it does not erase a captured value that the existing capture rules preserve.</p>
+    <p>The checker must use the defined finite domains and transfers. It does not solve arbitrary predicates, assume purity from a return annotation, or enumerate possible runtime objects. A recursive type judgment uses its specified assumptions or cycle rule. A transfer for which this specification supplies no value proof preserves the applicable declared contracts and treats the missing value evidence as unknown; that absence cannot justify an impossibility rejection.</p>
+  </emu-clause>
+
+  <emu-clause id="sec-checking-effect-order">
+    <h1>Effects and Evaluation Order</h1>
+    <p>Transfer follows the language's evaluation order. It captures a value before subsequent effects where evaluation does so, and invalidates facts about a mutable location when the specified effect can change that location. A definite lexical write invalidates the binding's current-value facts and dependent relations, then installs only the facts established by the new value. A write through a known alias has the same effect on the aliased location. Replacing a path prefix invalidates dependent suffixes. Declared store contracts survive these invalidations.</p>
+    <p>An unknown call, accessor, conversion, proxy operation, callback, iterator operation or direct eval cannot supply an effect-free proof. Invalidate the mutable facts that the operation can affect under the existing origin and escape rules; retain facts about immutable captured primitive values and other identities those rules establish as independent. A known intrinsic is used only while its identity and the relevant receiver/descriptor facts remain established. No ordinary operation is executed merely to discover these facts. Compile-time type evaluation is the separate, restricted operation of <emu-xref href="#sec-compile-time-evaluability"></emu-xref>.</p>
+    <p>Suspension, iterator closing, resource disposal and a finalizer apply their specified invalidations and completion replacement before a successor receives facts. A runtime identity guard or an inline-cache observation is not a static proof. The origin and effect preconditions in <emu-xref href="#sec-proved-library-operations"></emu-xref> remain requirements for every transferred library fact and contract.</p>
+  </emu-clause>
+
+  <emu-clause id="sec-checking-transfer-composition">
+    <h1>Transfer Composition</h1>
+    <p>An expression analysis has a value result, a state after each reachable normal result, and abrupt alternatives. A deciding analysis additionally separates true and false results, or nullish and present results for the nullish operators. Reporting an impossible deciding alternative and computing the alternatives are distinct operations. The exemptions for explicitly written constant tests remain those of <emu-xref href="#sec-narrowing-flow"></emu-xref>; an empty alternative does not by itself authorize a new diagnostic in every expression position.</p>
+    <emu-table id="table-checking-composition">
+      <emu-caption>Composition of transfers</emu-caption>
+      <table>
+        <thead><tr><th>Form</th><th>Required composition</th></tr></thead>
+        <tbody>
+          <tr><td>Parentheses and negation</td><td>Parentheses preserve the result. Negation exchanges the true and false alternatives without re-evaluating the operand.</td></tr>
+          <tr><td>Logical AND and OR</td><td>Analyze the left operand first. Analyze the right only under the selecting left alternative. Join the skipped left value with the reached right result; do not equate that value join with the deciding environments.</td></tr>
+          <tr><td>Nullish coalescing and optional chains</td><td>Use nullish/present alternatives, not truthy/falsy alternatives. Skipped chain results contribute undefined. Each reached key, argument and call applies its effects before the next link.</td></tr>
+          <tr><td>Conditional expressions</td><td>Analyze the condition, then each arm under its own incoming alternative. Join reached normal results and preserve abrupt alternatives separately.</td></tr>
+          <tr><td>Assignments and updates</td><td>Evaluate and capture the target in the specified order. Check a reached store against its declared destination, perform the specified conversion/effects transfer, and retain the captured expression result independently of later destination changes. Logical assignments also retain their skipped-store alternative.</td></tr>
+          <tr><td>Comparisons, predicates, patterns and assertions</td><td>Use the applicable row of <emu-xref href="#table-narrowing-forms"></emu-xref> and its membership-stability conditions. Preserve distinctions among strict equality, SameValue, NaN and signed zero. Unknown or effectful cases supply no additional subtraction proof.</td></tr>
+          <tr><td>Calls, construction and other operators</td><td>Resolve only contracts and identities admitted by the relevant rule. Analyze receiver and arguments in order, apply their effects, enforce applicable contracts, and use only the specified result facts. A signature's return type alone supplies no effect summary.</td></tr>
+          <tr><td>Comma, do, match and pipeline results</td><td>Sequence operand effects and transport only each construct's specified completion value. Match guards and patterns use their defined scopes and transfers; a pipeline topic identifies the captured input value. Generator-producing forms retain their generator result rather than a yielded scalar value.</td></tr>
+        </tbody>
+      </table>
+    </emu-table>
+    <p>Statement analysis sequences only normal predecessors into the next statement and transports abrupt alternatives to their actual targets. An <code>if</code> joins its reached arms. A switch separates label selection from body fallthrough, uses the captured discriminant, and includes labels on both sides of a default when deciding whether that default is selectable. A label's evaluation effects precede subsequent label tests.</p>
+    <p>Loops use the bounded write-discovery and widening rules of <emu-xref href="#sec-narrowing-flow"></emu-xref>. The entry alternative is not a repeated-iteration alternative. A while or ordinary for loop includes its possible zero-iteration exit; a do-while first executes its body. A continue reaches only its designated loop's update/test, and a break reaches only its designated exit. For-in, for-of and for-await-of apply their specified enumeration, iterator, assignment, closing and suspension effects. An established empty iteration has no body predecessor, whether or not its diagnostic applies.</p>
+    <p>A catch receives only the throw alternatives its filter admits and preserves its declared binding contract. A finalizer is analyzed for each pending completion alternative; a normal finalizer preserves that pending completion with the finalizer's resulting facts, while an abrupt finalizer replaces it. Return, throw, break and continue retain their values and targets, with UpdateEmpty where the ordinary semantics requires it. Unreachable source still undergoes the ordinary syntactic and declared-contract checks specified for it; it supplies no outgoing execution facts to a reachable join.</p>
+  </emu-clause>
+
+  <emu-clause id="sec-statictypeerror-objects">
+    <h1>StaticTypeError Objects</h1>
+    <p>The initial value of the global object's `StaticTypeError` property is the intrinsic object %StaticTypeError%. The property has the attributes { [[Writable]]: *true*, [[Enumerable]]: *false*, [[Configurable]]: *true* }. Each realm has its own %StaticTypeError% and %StaticTypeError.prototype% objects. They are created with the realm's other intrinsic objects.</p>
+    <p>The <dfn id="sec-statictypeerror-constructor">%StaticTypeError%</dfn> intrinsic is a built-in function object with [[Call]] and [[Construct]] internal methods. Its [[Prototype]] is %Error%. Its `name` is *"StaticTypeError"* and its `length` is *1*<sub>??</sub>, with the usual built-in function property attributes. Its `prototype` property has value %StaticTypeError.prototype% and attributes { [[Writable]]: *false*, [[Enumerable]]: *false*, [[Configurable]]: *false* }.</p>
+    <emu-clause id="sec-statictypeerror-call">
+      <h1>StaticTypeError ( _message_, _options_ )</h1>
+      <emu-alg>
+        1. If NewTarget is *undefined*, let _newTarget_ be the active function object; else let _newTarget_ be NewTarget.
+        1. Let _O_ be ? OrdinaryCreateFromConstructor(_newTarget_, *"%StaticTypeError.prototype%"*, « [[ErrorData]] »).
+        1. If _message_ is not *undefined*, then
+          1. Let _msg_ be ? ToString(_message_).
+          1. Perform CreateNonEnumerableDataPropertyOrThrow(_O_, *"message"*, _msg_).
+        1. Perform ? InstallErrorCause(_O_, _options_).
+        1. Return _O_.
+      </emu-alg>
+    </emu-clause>
+    <emu-clause id="sec-statictypeerror-prototype">
+      <h1>Properties of the StaticTypeError Prototype Object</h1>
+      <p>The <dfn id="intrinsic-statictypeerror-prototype">%StaticTypeError.prototype%</dfn> intrinsic is an ordinary object. Its [[Prototype]] is %Error.prototype%. It has no [[ErrorData]] internal slot. Its own `constructor`, `name`, and `message` properties have values %StaticTypeError%, *"StaticTypeError"*, and the empty String, respectively. Each has attributes { [[Writable]]: *true*, [[Enumerable]]: *false*, [[Configurable]]: *true* }.</p>
+      <p>A StaticTypeError instance has an [[ErrorData]] internal slot. No diagnostic identifier, source location, or other host diagnostic record is an additional required own property of the instance. A required type rejection creates the error using the intrinsic of the checking realm, independently of changes to the global `StaticTypeError` binding.</p>
+    </emu-clause>
+  </emu-clause>
+
+  <emu-clause id="sec-type-diagnostic-identity">
+    <h1>Diagnostic Identity</h1>
+    <p>Normative rejection predicates are the rules of this specification, with applicability determined by <emu-xref href="#sec-type-rule-applicability"></emu-xref>. The accompanying diagnostic registry supplies stable references to those rules and developer-facing diagnostic families. It does not replace the predicates, enlarge the required rejection set, or authorize suppressing an applicable error.</p>
+    <p>Diagnostic text, presentation order, number of reported consequences, and host transport are implementation-defined. No diagnostic code property is added to ECMAScript Error objects by this clause. A host may expose structured diagnostics containing a family identifier, responsible rule, phase, source location, structured arguments, and related declaration/origin locations. The identifiers are independent of section numbering, message wording, and source filenames. A stable identifier is never reassigned to a different meaning; a retired identifier remains reserved. A provisional identifier must be identified as such in the registry.</p>
+    <p>The registry's index links rule identities to their defining clauses. Several rule identities may share a diagnostic family, including rules with different applicability. Implementations must determine the applicable rule and its source/contract provenance before rendering a diagnostic. Changing diagnostic wording must not change program acceptance, required facts, or the phase of rejection.</p>
+  </emu-clause>
+  <emu-import href="diagnostics.emu"></emu-import>
+</emu-clause>

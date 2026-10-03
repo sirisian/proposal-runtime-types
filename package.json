@@ -5,7 +5,9 @@
   "scripts": {
     "start": "npm run build-loose -- --watch",
     "build": "npm run build-loose -- --strict",
-    "build-loose": "node -e 'fs.mkdirSync(\"build\", { recursive: true })' && ecmarkup --load-biblio @tc39/ecma262-biblio --verbose spec.emu build/index.html --lint-spec"
+    "build-loose": "node -e 'fs.mkdirSync(\"build\", { recursive: true })' && ecmarkup --load-biblio @tc39/ecma262-biblio --verbose spec.emu build/index.html --lint-spec",
+    "check:diagnostics": "node scripts/diagnostics.mjs",
+    "prebuild": "npm run check:diagnostics"
   },
   "homepage": "https://github.com/sirisian/proposal-runtime-types#readme",
   "repository": {

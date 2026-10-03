@@ -780,7 +780,7 @@ contributors: Sirisian
           <p><ins>Lowering the STEP limit is the wrong remedy, and a host is not asked to. A step count low enough to stop a recursion would stop a wide computation that was going to finish, and the two failures are unrelated: one exhausts a stack, the other a clock. A host that meters NESTING separately &mdash; a third count, of type-position evaluations open at once &mdash; bounds the resource that is actually scarce and leaves the step floor where it is. The value is not a floor this specification fixes, because the depth a native stack affords differs between implementations and between the constructs a recursion passes through: a recursion through an array or a function type walks further per level than one through an object member, so a host measures its own worst case rather than trusting a shared number.</ins></p>
         </emu-note>
 
-        <p>Exhaustion is not an abrupt completion the evaluated code can observe. No `try` statement within the evaluation handles it; the evaluation is abandoned, and EvaluateToTypeObject of the containing type-position expression is ~empty~, with a diagnostic naming the outermost call and the deepest frames.</p>
+        <p>Exhaustion is not an abrupt completion the evaluated code can observe. No `try` statement within the evaluation handles it; the evaluation is abandoned, and EvaluateToTypeObject of the containing type-position expression is ~empty~, with a diagnostic naming the outermost call and the deepest frames. The containing source check reports a *StaticTypeError* for evaluation-limit exhaustion. An incidental hook exception or lack of a result after exhaustion does not instead establish an ordinary type mismatch, select an overload fallback, or supply an unknown type.</p>
 
         <emu-note>
           <p>"Not an abrupt completion the evaluated code can observe" is a requirement on how exhaustion is REPRESENTED, not only on what it means. An implementation that reports exhaustion by throwing gives a `where` predicate or a builder a `try` that catches it, and the evaluation then continues on a budget it has already overrun. Recording exhaustion as a state of the evaluation, so that every metered operation after it does nothing and the containing evaluation fails whatever the evaluated code does with what it caught, has the behaviour this clause describes. The diagnostic belongs at the containing evaluation for the same reason: the operation that spends the last step is wherever the budget happened to run out, which is not the outermost call this clause asks to name.</p>
@@ -855,6 +855,8 @@ contributors: Sirisian
       </emu-clause>
     </emu-clause>
   </emu-clause>
+
+  <emu-import href="checking.emu"></emu-import>
 
   <emu-clause id="sec-type-grammar">
     <h1>Grammar</h1>
@@ -6476,7 +6478,7 @@ const n: uint32 = g();
       </emu-table>
 
       <p>Every hook is required to be a pure function of its arguments, compile-time evaluable (<emu-xref href="#sec-iscompiletimeevaluable"></emu-xref>), and deterministic, the obligation <emu-xref href="#sec-parameterized-types"></emu-xref> states of the judgments they compose. It is an early error for a hook not to be compile-time evaluable.</p>
-      <p><ins>A type violation the checker can decide is likewise an EARLY ERROR, and the error is a *StaticTypeError*, whose [[Prototype]] is %Error.prototype% and whose constructor is a global. It does not inherit from *SyntaxError*: the syntax of a program this rejects is well formed, and a host that catches a *SyntaxError* to mean "this source did not parse" must not be made to catch a type failure by doing so. Nor does it inherit from *TypeError*, which is reserved for the dynamic boundary; the two are disjoint, and a program wanting either phase tests both.</ins></p>
+      <p><ins>A type violation the checker can decide is likewise an EARLY ERROR, and the error is a *StaticTypeError*, whose prototype object inherits from %Error.prototype% and whose constructor is a global (<emu-xref href="#sec-statictypeerror-objects"></emu-xref>). It does not inherit from *SyntaxError*: the syntax of a program this rejects is well formed, and a host that catches a *SyntaxError* to mean "this source did not parse" must not be made to catch a type failure by doing so. Nor does it inherit from *TypeError*, which is reserved for the dynamic boundary; the two are disjoint, and a program wanting either phase tests both.</ins></p>
       <p><ins>The distinction it draws is WHEN, and it is observable: a *StaticTypeError* is thrown before any of the Script or Module runs, and a *TypeError* is thrown by a boundary during evaluation. `let _n_: `uint8` = "s"` is decided without running and is the first; a value crossing a boundary the checker could not decide is the second.</ins></p>
       <p><ins>Every violation this specification calls decidable is therefore reported alike by every implementation, at the same moment and with the same class of error. An implementation that deferred one of them to evaluation would run a program that others refuse, which is the fragmentation early errors exist to prevent.</ins></p>
 
