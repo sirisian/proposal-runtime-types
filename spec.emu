@@ -2636,6 +2636,23 @@ contributors: Sirisian
         </emu-note>
       </emu-clause>
 
+      <emu-clause id="sec-contribution-environments">
+        <h1>Lexical Environments of Contributions</h1>
+        <p>The contribution judgments in <emu-xref href="#sec-anchored-contributions"></emu-xref> use the binding environments of the contributing source position. They do not use a single name map for the entire function. Determine these environments as follows, without executing source text.</p>
+        <ol>
+          <li>Establish the function's parameter, variable and body lexical bindings according to declaration instantiation. A |VariableDeclaration| belongs to its variable environment even when its occurrence is nested in a block, loop, handler or switch. A declaration without an initializer does not replace an existing binding's value. An unannotated `var` redeclaration, including a destructuring one, does not erase the contract of the binding it reuses. Preserve the parameter/body distinctions required by <emu-xref href="#sec-elision-stability"></emu-xref>.</li>
+          <li>On entering a lexical block, establish its declared bindings before reading any contribution in that block. This includes names in destructuring patterns and declarations that follow the contribution in source order. An unknown contract still shadows an outer same-named binding. Establishing a name or contract does not initialize its runtime binding or suppress its temporal-dead-zone checks.</li>
+          <li>A switch discriminant is outside the CaseBlock's lexical environment. All clauses of that CaseBlock share one lexical environment, including declarations in later clauses. A nested block in a clause has its own environment.</li>
+          <li>A lexical loop-head binding belongs to that loop's environment; a `var` loop-head binding belongs to the enclosing variable environment. Preserve the base-language head, iterable-expression and per-iteration binding scopes. Loop-body blocks have their own environments. A loop-local binding supplies no type or provenance to a read outside its scope.</li>
+          <li>Each catch clause has its own parameter environment and body block environment. Its filter and binding annotations supply contracts according to <emu-xref href="#sec-type-annotations"></emu-xref>; an unannotated parameter with no known filter is unknown. Sibling handlers and the finally block do not share these local bindings. Collect each syntactic handler once, regardless of an implementation's representation of a list of handlers.</li>
+          <li>Associate initializer contribution types, numeric-constant facts and anchoring provenance with the binding identity that supplied them. Leaving a scope removes its local facts from lookup and reveals the enclosing bindings again; it does not remove a surviving variable-environment binding. A nested function's returns and yields belong to that function, and a class body or static block does not contribute to its enclosing function.</li>
+        </ol>
+        <p>These rules select bindings; the existing contribution, iteration, catch, mutation-stability and dependency rules determine their types. They do not infer a type for an ordinary unannotated mutable binding, make a literal-only contribution participate, establish a path as reachable, or substitute source visitation order for unresolved dependencies. A published inferred result still cannot justify check elision. Reference aliasing, reference liveness, effects and runtime initialization order are unchanged.</p>
+        <emu-note>
+          <p>In `function f(x: string) { let g = x; { let g; g = 1; } return g; }`, the returned `g` is the unchanged outer alias and contributes `string`. The inner assignment changes another binding. Conversely, in `function f(g: string) { { return g; let g; } }`, the return reads the inner unknown binding and cannot borrow the parameter's annotation. If executed, that read retains its ordinary temporal-dead-zone failure.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-return-publication-dependencies">
         <h1>Publication Dependencies and Checking Order</h1>
         <p>The results required by <emu-xref href="#sec-inference-fixpoint"></emu-xref> are independent of declaration visitation order. Establish the lexical identities and available contracts of a declaration scope before finalizing obligations in that scope that consume inferred returns. This applies to Scripts, Modules, function bodies, blocks and switch scopes, including consumers preceding a function declaration or the declaration of a captured binding. It also applies when the consumer is in an uncalled body or a branch whose ordinary Evaluation is not reached.</p>
