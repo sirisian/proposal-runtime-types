@@ -2705,6 +2705,8 @@ contributors: Sirisian
   const q: number = f("s");
 }</code></pre>
         </emu-example>
+        <p>An unavailable contribution result does not prevent discovery of a declaration on which that result depends. Establish the required declaration and initializer dependencies even when their source text follows the return or yield requesting them, or is unreachable under ordinary Evaluation. A completed unknown contribution affects the join under the existing gradual rules; it does not exempt other source text from its declaration, dependency or checking obligations. Merely encountering one unknown or unresolved result is not a completion criterion for the enclosing source scope.</p>
+        <p>If a contribution judgment is performed after its source position has been traversed, retain that position's binding identities, contextual type, receiver, parameter and type-parameter environments, initialization state and incoming flow. Do not use the flow after a later store, a sibling branch or a suspension in place of that source judgment. Traversing a contribution's operand for effects or further contributions is distinct from obtaining its type: deferring a yield's type does not omit a nested yield, delegation input or contribution inside a test, and does not move suspension effects. Completing a required binding contract invalidates any dependent result or obligation that used an unfinished answer. The completed contract remains distinct from contribution-only initializer evidence.</p>
         <p>The incoming flow used by a contribution query is the flow at the contributing expression or initializer under <emu-xref href="#sec-narrowing-flow"></emu-xref>. In particular, a guarded abrupt completion does not contribute a normal predecessor to a following initializer. Join the remaining normal predecessors, and retain the destinations of breaks and continues. Loop entries and exits, switch selection and fallthrough, exceptional entry and finally transfer use their existing flow rules; syntactic visitation order is not an additional predecessor. An inference query for a nested function has its own completion state and cannot terminate or revive the enclosing query's path.</p>
         <p>Source flow includes the current-value facts established by successful participating initializations and stores under <emu-xref href="#sec-narrowing-flow"></emu-xref>. Determine the source value at its production point using the ordinary Static Type judgment and the contracts available to that judgment. Process operand evaluation, required conversions and store effects in the specified order, then establish any permitted destination fact from the resulting stored domain. For sequential expressions and successive bindings, the effects of each preceding expression are inputs to the next expression. A right operand's type before conversion is not necessarily the type of the stored value. Preserve the declared destination view for mutable objects, callable contracts, predicates and contextual `void`; a more specific initializer shape or signature cannot replace that view.</p>
         <p>A provisional callee result available only to contribution inference does not become an ordinary store or capture contract by being assigned to a local. Likewise, transparency of an ordinary untyped local to an enclosing contribution query does not make that local a typed storage destination or a participating source for constant inference. Apply the existing alias and effect invalidations even when a store establishes no new fact. A reference store is a write to its referent, with that location's contract and alias effects; it does not turn the reference into an immutable copy. If a required source, conversion or flow input remains unresolved, retain the dependency and reconsider its affected transfer and consumers when it completes. A completed unknown supplies no unsupported stored-domain fact.</p>
@@ -2747,6 +2749,18 @@ contributors: Sirisian
   const q: string = f(0);
 }</code></pre>
           <p>If the parameter instead has type `uint8 | string` and the assignment is `x = 1`, apply the ordinary numeric-literal conversion before establishing the stored domain. The captured contract is `uint8`, not Number. By contrast, storing `{ v: "s" }` into a location declared `{ v: string | number }` does not change its mutable member's contract to String.</p>
+        </emu-example>
+        <emu-example>
+          <p>The contribution of `g` requires the contract of `s`. The guard establishes String at the source position of that initializer. Discovery of `s` cannot stop merely because the earlier query of `g` had no completed answer. The String consumer is compatible, and a Number consumer is incompatible. Evaluation of the call still encounters the ordinary temporal dead zone; establishing these contracts does not execute or make the initializer reachable.</p>
+          <pre><code class="javascript">function outer() {
+  function f(x: string | number) {
+    if (typeof x !== "string") return "s";
+    return g();
+    function g() { return s; }
+    const s = x;
+  }
+  const q: string = f("s");
+}</code></pre>
         </emu-example>
       </emu-clause>
 
