@@ -2805,6 +2805,41 @@ function unused() {
         </emu-example>
       </emu-clause>
 
+      <emu-clause id="sec-callable-value-publication">
+        <h1>Publication Dependencies of Callable Values</h1>
+        <p>Result inference can depend on a function value without containing a call of that function. A contribution that returns, yields, resolves with, or retains a callable value carries the result contracts needed by that value's consumers. Merely reading a previously collected signature is not completion of those contracts.</p>
+        <ol>
+          <li>Resolve the contributed value in its source-position environment, using the binding-stability, shadowing and capture-contract rules. Where that resolution establishes a particular callable declaration or overload set, an unfinished inferred result of a retained signature is a dependency. A write that makes the binding's value unknown does not establish that the original declaration still supplies the value. In particular, an immutable alias does not restore the original declaration identity if its initializer may read a replaced binding; a write to an unrelated same-spelled binding is not such a replacement.</li>
+          <li>For each required signature, retain its explicit result if one is declared. Otherwise complete its result inference in that declaration's lexical type, parameter, capture and receiver environments, using <emu-xref href="#sec-contribution-environments"></emu-xref>, <emu-xref href="#sec-method-contribution-receivers"></emu-xref> and <emu-xref href="#sec-inference-fixpoint"></emu-xref>. The requesting contribution's same-spelled names cannot substitute for those environments.</li>
+          <li>Carry the completed publication through the value's aliases, returned callable layers and generic specialization before discharging a consumer's result obligation. A retained or copied signature must not permanently conceal a dependency that was unfinished when it was obtained. Apply the same rule to further callable values on which the result depends.</li>
+          <li>Keep completion separate from participation. A function returning only an unanchored literal does not acquire a published result merely because another function returns it; a completed unknown join still publishes nothing. A private provisional result must not become the callable value's public result contract. An unfinished dependency is neither of those completed outcomes.</li>
+          <li>A recursive edge that retains a callable value is not a recursive invocation and does not, by itself, contribute the `never` type. Apply the recursive dependency rules to the resulting type obligations; do not claim that reading or returning a function value cannot complete because calling that function would recur.</li>
+          <li>After completion, apply <emu-xref href="#sec-effectivesignaturereturn"></emu-xref> at callable conformance boundaries. Declaration identity, overload formation, ranking and declared-only viability retain their existing rules. Invariant carrier arguments, writable storage and reference-liveness obligations retain their respective relations; publication does not turn an invariant comparison into a covariant one.</li>
+        </ol>
+        <p>This judgment is independent of declaration order, the presence of an invocation, and the implementation's query order. It requires neither evaluating a function body, default, initializer or getter nor making a captured binding initialized. It creates no implicit promise on a replaceable function declaration binding and licenses no runtime check elision. An implementation may complete dependencies eagerly or on demand after their environments are established; a fixed syntactic pass that treats unfinished work as unknown is not an equivalent judgment.</p>
+        <emu-example>
+          <pre><code class="javascript">interface I { m(): (x: string) =&gt; number; }
+class C implements I {
+  m() {
+    return f;
+    function f(x: string) { return x; }
+  }
+}</code></pre>
+          <p>The declaration of `f` publishes String. The return of `m` carries that callable contract even though it never calls `f`, so this interface implementation is a type error before the Script body begins. Changing the interface's nested result to `string` removes the incompatibility. Moving `f` before the return or introducing a stable local alias for it does not change the judgment.</p>
+        </emu-example>
+        <emu-example>
+          <pre><code class="javascript">class C {
+  m() {
+    return f;
+    function f() { return s; }
+    const s = "s" := string;
+  }
+}
+new C().m()();</code></pre>
+          <p>The callable result retains the declared String contract of the captured initializer. Contract discovery executes no initializer. Evaluating the final call still throws a ReferenceError because `s` was never initialized.</p>
+        </emu-example>
+      </emu-clause>
+
       <emu-clause id="sec-published-return-types">
         <h1>What a Published Type Is Used For</h1>
         <p>A published inferred return type is read in three places and not in others, and the division is what keeps inference from becoming a second declaration.</p>
