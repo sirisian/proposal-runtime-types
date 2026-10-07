@@ -456,6 +456,16 @@ contributors: Sirisian
           <dd>It determines whether every value of the type _s_ is a value of the type _t_, treating each pair in _assumptions_ as already established so that comparison of recursive types terminates. The initial call passes an empty List for _assumptions_.</dd>
         </dl>
         <emu-alg>
+          1. If _s_.[[Kind]] is ~function~ and _t_.[[Kind]] is ~function~, then
+            1. If _s_ is _t_, return *true*.
+            1. If _assumptions_ contains a Record _p_ such that _p_.[[First]] is _s_ and _p_.[[Second]] is _t_, return *true*.
+            1. Let _next_ be the list-concatenation of _assumptions_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
+            1. For each Signature Record _b_ of _t_.[[Signatures]], do
+              1. Let _matched_ be *false*.
+              1. For each Signature Record _a_ of _s_.[[Signatures]], do
+                1. If IsSignatureSubtype(_a_, _b_, _next_) is *true*, set _matched_ to *true*.
+              1. If _matched_ is *false*, return *false*.
+            1. Return *true*.
           1. If SameTypeWithAssumptions(_s_, _t_, _assumptions_) is *true*, return *true*.
           1. If _assumptions_ contains a Record _p_ such that _p_.[[First]] is _s_ and _p_.[[Second]] is _t_, return *true*.
           1. Set _assumptions_ to the list-concatenation of _assumptions_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
@@ -4354,6 +4364,25 @@ const n: uint32 = g();
         </emu-note>
       </emu-clause>
 
+      <emu-clause id="sec-effectivesignaturereturn" type="abstract operation">
+        <h1>
+          EffectiveSignatureReturn (
+            _signature_: a Signature Record,
+          ): a Type Record or ~none~
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It returns the completed result contract used by callable conformance.</dd>
+        </dl>
+        <emu-alg>
+          1. If _signature_.[[Return]] is not ~none~, return _signature_.[[Return]].
+          1. Return _signature_.[[InferredReturn]].
+        </emu-alg>
+        <p>The publication rules of <emu-xref href="#sec-inferred-return-types"></emu-xref> store ~none~ for a completed unknown join; they do not publish the ~any~ type. An explicit ~any~ result annotation is retained. This operation does not complete an unfinished inference dependency, and an unfinished result must not be replaced by ~none~ merely to discharge a conformance obligation. Complete the dependencies required by <emu-xref href="#sec-inference-fixpoint"></emu-xref> and <emu-xref href="#sec-method-contribution-receivers"></emu-xref> before finalizing that obligation.</p>
+        <p>This result is used on both sides of callable conformance, including the signature comparisons reached through interface satisfaction, inherited contracts, callbacks and function-valued results. A target with a published result still describes what its consumers can receive. Identity, interning, overload-set formation, ranking and declared-only viability continue to read the declared signature fields. Declaration identity alone cannot discharge a result obligation that depends on publication. This distinction applies recursively when a comparison reaches a callable contract; it does not relax writable-storage invariance or reference-liveness requirements.</p>
+        <p>A published result describes a function value, not an unwritten storage promise on a replaceable function declaration binding. For a store to that binding, including contextual typing of the replacement expression, use its declared signature with [[InferredReturn]] set to ~none~. Preserve its declared parameters, explicit result, receiver and narrowing contracts. This does not erase the published contract of a function value passed to a consumer, or an explicit callable annotation on another binding. The existing binding-stability rules determine whether a later read may use the original function's published result.</p>
+      </emu-clause>
+
       <emu-clause id="sec-issignaturesubtype" type="abstract operation">
         <h1>
           IsSignatureSubtype (
@@ -4369,7 +4398,11 @@ const n: uint32 = g();
         <emu-alg>
           1. If _a_.[[Untyped]] is *true*, _a_.[[InferredReturn]] is ~none~, neither signature has a reference parameter, and _b_.[[Narrows]] is empty, return *true*.
           1. If _a_.[[TypeParameters]] is not empty and _b_.[[TypeParameters]] is empty, then
-            1. Let _bindings_ be the bindings of _a_.[[TypeParameters]] inferred from _b_'s parameter types and [[Return]] by the structural matching of <emu-xref href="#sec-structural-matching"></emu-xref>, each binding checked by IsAssignable against its parameter's constraint after substituting the inferred bindings, including those on which a dependent constraint depends; if a parameter cannot be bound or a binding fails its constraint, return *false*.
+            1. Let _bindings_ be the bindings of _a_.[[TypeParameters]] inferred from _b_'s parameter types by the structural matching of <emu-xref href="#sec-structural-matching"></emu-xref>.
+            1. Let _sourceResult_ be EffectiveSignatureReturn(_a_) with _bindings_ substituted.
+            1. Let _targetResult_ be EffectiveSignatureReturn(_b_).
+            1. If _sourceResult_ and _targetResult_ are not ~none~, _targetResult_.[[Kind]] is not ~void~, and _sourceResult_ still contains unbound parameters of _a_, use structural matching against _targetResult_ to infer those remaining parameters. Bindings already established by parameter matching are retained.
+            1. Check every inferred binding by IsAssignable against its parameter's constraint after substituting the inferred bindings, including those on which a dependent constraint depends. If a parameter cannot be bound or a binding fails its constraint, return *false*. A completed result with no remaining inference variable is checked covariantly below, not required to be identical to _targetResult_.
             1. Set _a_ to the Signature Record whose fields are those of _a_ with each Type Record they hold replaced by the result of SubstituteType applied to it and _bindings_, and whose [[TypeParameters]] is empty.
           1. Else if _a_.[[TypeParameters]] is empty and _b_.[[TypeParameters]] is not empty, then
             1. Return *false*.
@@ -4380,6 +4413,7 @@ const n: uint32 = g();
               1. Let _w_ be _b_.[[TypeParameters]][_k_].
               1. If _u_.[[Kind]] is not _w_.[[Kind]], or _u_.[[Variadic]] is not _w_.[[Variadic]], or _u_.[[Arity]] is not _w_.[[Arity]], return *false*.
               1. Append the Record { [[First]]: the ~parameter~ Type Record whose [[Declaration]] is _u_.[[Declaration]], [[Second]]: the ~parameter~ Type Record whose [[Declaration]] is _w_.[[Declaration]] } to _assumptions_.
+              1. Append the Record { [[First]]: the ~parameter~ Type Record whose [[Declaration]] is _w_.[[Declaration]], [[Second]]: the ~parameter~ Type Record whose [[Declaration]] is _u_.[[Declaration]] } to _assumptions_.
             1. For each integer _k_ such that 0 &le; _k_ and _k_ &lt; the number of elements of _a_.[[TypeParameters]], do
               1. Let _u_ be _a_.[[TypeParameters]][_k_].
               1. Let _w_ be _b_.[[TypeParameters]][_k_].
@@ -4411,12 +4445,12 @@ const n: uint32 = g();
             1. If there is no corresponding Narrowing Record _m_ of _a_.[[Narrows]], return *false*.
             1. If _b_ declares a Boolean test, the narrowed sets of _m_.[[Type]] and _n_.[[Type]] must be equivalent within the parameter domain admitted by _b_; if that equivalence is not established, return *false*. SameType under _assumptions_ after substitution is a sufficient conservative judgment.
             1. Otherwise, if IsSubtype(_m_.[[Type]], _n_.[[Type]], _assumptions_) is *false*, return *false*.
-          1. If _b_.[[Return]] is ~none~, return *true*.
-          1. If _b_.[[Return]].[[Kind]] is ~void~, return *true*.
-          1. Let _aReturn_ be _a_.[[Return]].
-          1. If _aReturn_ is ~none~, set _aReturn_ to _a_.[[InferredReturn]].
+          1. Let _bReturn_ be EffectiveSignatureReturn(_b_).
+          1. If _bReturn_ is ~none~, return *true*.
+          1. If _bReturn_.[[Kind]] is ~void~, return *true*.
+          1. Let _aReturn_ be EffectiveSignatureReturn(_a_).
           1. If _aReturn_ is ~none~, return *true*.
-          1. Return IsSubtype(_aReturn_, _b_.[[Return]], _assumptions_).
+          1. Return IsSubtype(_aReturn_, _bReturn_, _assumptions_).
         </emu-alg>
         <p>Reference modes and narrowing guarantees participate in ordinary callable conformance, including assignments, callbacks, interface satisfaction and overrides. The untyped catch-all does not erase a reference parameter's required location or supply an undeclared narrowing fact. Reference parameters require arguments even when their referent annotation is ~any~; a reference rest may collect an empty sequence. Explicit ~any~ at a value boundary retains its gradual meaning. This does not change the decay of a reference passed directly to a by-value parameter, and introduces no adaptation wrapper or additional reference-liveness permission.</p>
         <emu-note>
@@ -4426,7 +4460,7 @@ const n: uint32 = g();
         <emu-note>
           <p>The four directions a generic signature can face follow one question: could a caller reading _b_ be misled? A generic _a_ is usable where a concrete _b_ is required by INSTANTIATION &mdash; `(uint8) =&gt; uint8` holds `id.&lt;uint8&gt;` &mdash; and the bindings the relation infers are the ones the crossing specializes at (<emu-xref href="#sec-crossing-with-a-generic-function"></emu-xref>). A concrete _a_ is not usable where a generic _b_ is required, since `&lt;T: type&gt;(x: T) =&gt; T` promises every `T` and `(x: uint8) =&gt; uint8` would return a `uint8` for a `string`; the untyped catch-all of the first step is the one exception, as it is everywhere. A generic _a_ is usable where a generic _b_ is required when it is at least as general: the same parameters position by position, each constraint of _a_ admitting everything the corresponding constraint of _b_ admits, so `&lt;T: type&gt;(x: T) =&gt; T` satisfies `&lt;T: type extends Animal&gt;(x: T) =&gt; T` and not the reverse. The inference here never runs user code: it is the structural walk the checker already has, and the constraint check on an inferred binding is IsAssignable. A `where` on _a_'s declaration is not consulted, because a function type has none; it is checked at the specialization the crossing performs.</p>
           <p>A parameter and a [[ThisType]] are related by <emu-xref href="#sec-isassignable"></emu-xref> and not by <emu-xref href="#sec-issubtype"></emu-xref>, because a parameter position is a BOUNDARY and `any` is bidirectional at a boundary. IsSubtype admits `any` only as its target, which is the right rule for a subtype question and the wrong one here: it made a specific parameter refuse an `any`-typed position, so `(uint8) =&gt; void` was not usable where `(any) =&gt; any` was declared although the mirror was, and gradual typing broke at the function boundary in one direction only. The two [[ThisType]] steps refuse both mismatches, which is what <emu-xref href="#sec-this-adoption"></emu-xref> states in each direction: a signature with none is usable nowhere a `this` is required, and one that has a [[ThisType]] is usable nowhere a `this` is absent. That is what makes adoption load-bearing rather than decorative &mdash; a non-arrow function reaching a position whose signature has a [[ThisType]] is compared as if it had adopted it (<emu-xref href="#sec-isoftype"></emu-xref>), and an arrow, which adopts nothing, is refused here.</p>
-          <p>A return type keeps IsSubtype, and the asymmetry is deliberate. A return is covariant and is a PROMISE the function makes rather than a position a caller supplies, so a function returning `any` may stand where a specific return is declared through IsSubtype's ordinary target rule, and nothing needs relaxing.</p>
+          <p>A return type keeps IsSubtype, and the asymmetry is deliberate. A return is covariant and is a PROMISE the function makes rather than a position a caller supplies, so a known specific result may stand where `any` is required by IsSubtype's ordinary target rule. A source explicitly returning `any` does not thereby satisfy a specific result promise.</p>
         </emu-note>
         <emu-note>
           <p>Parameters are contravariant and the return is covariant, which is the standard rule and the only one that is sound: a function used where `(uint8) =&gt; uint8` is required will be handed a `uint8`, so it must accept at least every `uint8`, and its result will be used as a `uint8`, so it must produce only `uint8` values. A `ref` parameter is invariant because it is a location that is both read and written, so a mismatch in either direction is unsound; this is the parameter-level counterpart of the ~reference~ rule in <emu-xref href="#sec-issubtype"></emu-xref>.</p>
@@ -4436,6 +4470,22 @@ const n: uint32 = g();
           <p>This is not the same as declaring `any`. `function f(x: uint8): any` PROMISES nothing, and a promise of nothing does not satisfy a promise of `uint8`: `IsSubtype(any, uint8)` is *false* and the assignment is refused. The unannotated function makes no promise to break. The two are different signatures for the same reason - which is why [[Return]] is ~none~ where none is declared rather than the `any` type - and an implementation that stored `any` for both would refuse every function whose body defeats inference, while also reporting the two as one signature declared twice.</p>
           <p>This admission does not agree with the arity rule of <emu-xref href="#sec-resolveoverload"></emu-xref>, and the disagreement is worth stating. A call of `f` declared as `function f(a: uint8) {}` with two arguments selects no signature and is an error, because a signature is viable only for an argument list its arity accepts. But `f` is assignable to `(uint8, string) =&gt; void` by the rule above, and a call through a binding of that type reaches `f` with the second argument present and is not an error. The same call is therefore rejected when written directly and permitted through a function type. Either extra arguments are acceptable, in which case overload resolution should admit them and prefer the signature that uses the most, or they are not, in which case a function that ignores a parameter should not satisfy a type that supplies it and every such callback needs its parameter list widened. The design states the first rule and not the second, and this specification supplies the second in the shape ECMAScript's existing tolerance of extra arguments suggests. This specification settles it as the two rules answering two questions. A direct call is checked against what the author declared, where an extra argument is a mistake worth catching at the site that made it; assignability answers what a value can safely receive, where an extra argument is ignored by the language itself. Both rules stand as written, and a committee preferring one question's answer for both has each rule's consequences recorded above.</p>
         </emu-note>
+        <emu-example>
+          <pre><code class="javascript">interface I { m(): number; }
+class C implements I {
+  text: string = "s";
+  m() { return this.text; }
+}</code></pre>
+          <p>The published String result of `m` fails the interface's Number result contract at the checking boundary. Changing the interface result to `string`, `string | number`, `any` or `void` removes this result incompatibility. Removing the anchor and returning only an unannotated literal leaves the existing untyped admission in force.</p>
+        </emu-example>
+        <emu-example>
+          <pre><code class="javascript">function unused() {
+  function id&lt;T: type&gt;(x: T) { return x; }
+  const wide: (x: string) =&gt; (string | number) = id;
+  const ignored: (x: string) =&gt; void = id;
+}</code></pre>
+          <p>Parameter matching binds `T` to String. The published result becomes String under that binding. The union consumer is compatible by covariance, and the void consumer discards the result. The target result does not rebind `T` to a union or to `void`. Replacing the union target with `number` fails the result obligation.</p>
+        </emu-example>
       </emu-clause>
 
       <emu-clause id="sec-isfunctionsubtype" type="abstract operation">
