@@ -2858,6 +2858,45 @@ outer();</code></pre>
         </emu-example>
       </emu-clause>
 
+      <emu-clause id="sec-dependent-flow-completion">
+        <h1>Completion of Dependent Flow</h1>
+        <p>The completion requirements of <emu-xref href="#sec-dependent-test-obligations"></emu-xref> apply transitively to flow transfers. A transfer consumes the source-position facts required by an existing narrowing, store, effect, selection or completion judgment and produces that judgment's outgoing facts and completions. An unfinished incoming fact is a dependency of every output that requires it; it is neither a completed unknown value nor evidence that an incoming edge is unreachable.</p>
+        <ol>
+          <li>Identify the source declaration or value-producing operation and the source-position judgment that requires its result. Distinguish a binding's fixed contract from the current value supplied by an assignment or initialization. A declared target type can be complete while the initialized value's domain remains unfinished. In particular, an annotation does not complete the domain that a subsequent inferred constant captures from that initialization.</li>
+          <li>Complete each required input in its defining lexical, generic, contextual and flow environments. A completed declaration contract may be reused only for that same declaration and applicable type context. It does not carry the producer's current-value facts, runtime initialization state, selected reference origin or liveness into the requester.</li>
+          <li>Apply the consuming transfer using the completed inputs and the original source state. If the transfer was provisionally performed, replace its dependent outputs with the outputs of this completed judgment. Do not merely merge new facts into the provisional output: the completed input can change a refinement, an effect, an admitted predecessor or the presence of a normal completion.</li>
+          <li>Complete every downstream judgment that consumes an affected output before finalizing its result. This includes subsequent transfers, inferred binding and callable-result contracts, and diagnostics. A completed predecessor test does not by itself complete a later test, and a completed diagnostic does not by itself complete the test's outgoing environments.</li>
+          <li>At a join, apply the existing joining rule to the completed outgoing environments of all admitted predecessors. A fact must be justified on every such predecessor. Include the prescribed loop entry, back-edge, exit and abrupt-completion paths; do not infer a permanent loop fact from only the first iteration. Preserve separate value identities where an operation captures an operand before a later effect.</li>
+          <li>Continue through the required dependency relation. A finite acyclic chain is completed regardless of source order or length. For recursive dependencies, apply <emu-xref href="#sec-inference-fixpoint"></emu-xref>; absence of progress in an implementation's selected worklist is not a new language rule completing an input as ~any~ or waiving a diagnostic.</li>
+        </ol>
+        <p>The following transfer families retain their ordinary evaluation-order and flow rules while these dependencies are completed.</p>
+        <emu-table id="table-dependent-flow-transfers" caption="Dependent flow transfers">
+          <table>
+            <thead><tr><th>Source form</th><th>Required dependent outputs</th></tr></thead>
+            <tbody>
+              <tr><td>`if`, conditional expressions and logical short-circuit expressions</td><td>Each evaluated or skipped alternative, its admitted outgoing facts, and the continuation join. Deciding roles are unchanged; a value query does not acquire a deciding role.</td></tr>
+              <tr><td>`while`, `do`, `for`, `for-in`, `for-of` and `for await-of`</td><td>The prescribed entry, test, body, update or iteration transfers, back edges, and normal, break and continue successors. Iteration and suspension effects still apply at their specified positions.</td></tr>
+              <tr><td>`switch`</td><td>The captured discriminant, each evaluated label and its effects, successful and failed selection facts, default selection, fallthrough, and break successors. A later write to the discriminant's source does not replace the already captured discriminant value.</td></tr>
+              <tr><td>Blocks, labelled statements, `try`, `catch` and `finally`</td><td>The applicable lexical environments and normal or abrupt completions, including the replacement or propagation of a completion by `finally`. Completing unreachable source does not create a reachable successor.</td></tr>
+              <tr><td>Assignments, initializations and value consumers</td><td>The established destination contract, the converted stored-value domain, applicable effects, and every inferred capture or consuming judgment that reads the result at its own source position. Later stores do not alter an earlier copied value.</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+        <emu-example>
+          <p>The first test has an open String truthiness domain and is permitted. Its continuation still carries String, so the second test is impossible. Replacing the second test with a switch label `case "number"` for `switch (typeof u)` retains the impossible-selection judgment.</p>
+          <pre><code class="javascript">function outer(u: string | number) {
+  u = f();
+  if (u) {}
+  if (typeof u === "number") {}
+  function f() { return t; }
+  let v: string | number = "s";
+  const t = v;
+}</code></pre>
+          <p>Replacing the second test with `const q: number = g();`, and adding `function g() { return s; } const s = u;` before the independent initialization of `v`, instead establishes an incompatible inferred-return consumer. The corresponding String consumer is compatible. An initialization `let u: string | number = f();` requires the same completion of the stored-value domain as the assignment shown above.</p>
+        </emu-example>
+        <p>These requirements specify source judgments and their dependencies, not a traversal count or compiler architecture. An implementation may recompute a source region or retain individually dependent transfer results if it produces the same completed judgments. It must not evaluate ordinary source expressions to complete a static dependency, repeat program effects, or infer reference availability from contract completion.</p>
+      </emu-clause>
+
       <emu-clause id="sec-method-contribution-receivers">
         <h1>Class Method Contribution Receivers</h1>
         <p>A class method's result contributions are computed in its declaration environment. The receiver judgment is independent of the caller, the source order of the class's members, and the order in which an implementation requests their contracts. This requirement also applies when the only consumer occurs in an uncalled function or otherwise unreachable source.</p>
