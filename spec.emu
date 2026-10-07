@@ -2779,6 +2779,31 @@ contributors: Sirisian
         </emu-example>
       </emu-clause>
 
+      <emu-clause id="sec-completed-binding-consumers">
+        <h1>Completed Binding Contracts at Consuming Positions</h1>
+        <p>A read of an inferred binding consumes the completed contract required by <emu-xref href="#sec-initializer-inference-obligations"></emu-xref>. The binding's first observed type is not a permanent answer when its prerequisites were unfinished. Apply the following requirements to each dependent consuming judgment.</p>
+        <ol>
+          <li>Identify the source binding by lexical identity. Determine its inferred contract in its initializer's source environment, using the binding form's participation and widening rules. Complete required binding and result dependencies under <emu-xref href="#sec-return-publication-dependencies"></emu-xref>; an implementation's cached unavailable answer is not a completed unknown.</li>
+          <li>Use that completed contract together with the flow facts valid at the consuming source position. Do not replace a subsequent store's current-value fact with the initializer's earlier fact, or compute the initializer under the consumer's later flow. A constant's inferred contract is not changed by a later write to the initializer's source.</li>
+          <li>If completion changes an input to a judgment already attempted, reconsider that judgment at its original source position. This requirement propagates through chains of inferred constants, typed initializers, inferred function results, and their consumers. Preserve the original lexical, contextual and checked-code environments.</li>
+          <li>Apply the existing deciding-test and transfer rules to the resulting type and source facts. This includes tests in conditionals, iteration, logical and nullish expressions and assignments, switch selection, and guarded patterns. A value query does not become a deciding test merely because completing its operand establishes a constant answer. An unchecked source position does not become checked through the completion of a dependency.</li>
+          <li>Retain diagnostics established by completed declaration obligations even when their contracts were requested during a speculative query. A discarded speculative consumer does not discharge an independent declaration requirement. Conversely, an unfinished attempt is not a completed diagnostic. Apply the existing recursion rules where dependencies form a cycle.</li>
+        </ol>
+        <p>These requirements constrain the final judgments, not the timing of an implementation's internal requests. Eager completion, demand-driven completion and deferred reconsideration are permitted when they give the same required judgments. They neither evaluate initializers nor initialize value or reference bindings, prove reference liveness, permit check elision, change a mutable location's contract, or add participation to ordinary untyped mutable storage.</p>
+        <emu-example>
+          <p>The completed contract of `s` is String, so `f` publishes String and the participating constant `q` has that contract. The deciding test is a type error even if an implementation first encountered `q` while `s` was unfinished. Replacing the `if` statement with `const answer = typeof q === "number";` leaves a permitted value query. Changing `return flag ? s : "s"` to `return s` retains the String contract, but a compatible program that calls `outer` then encounters the ordinary temporal dead zone.</p>
+          <pre><code class="javascript">function outer(): string {
+  const q = f(false);
+  function f(flag: boolean) { return flag ? s : "s"; }
+  let source: string = "s";
+  const s = source;
+  if (typeof q === "number") {}
+  return q;
+}
+outer();</code></pre>
+        </emu-example>
+      </emu-clause>
+
       <emu-clause id="sec-method-contribution-receivers">
         <h1>Class Method Contribution Receivers</h1>
         <p>A class method's result contributions are computed in its declaration environment. The receiver judgment is independent of the caller, the source order of the class's members, and the order in which an implementation requests their contracts. This requirement also applies when the only consumer occurs in an uncalled function or otherwise unreachable source.</p>
@@ -2803,6 +2828,19 @@ function unused() {
 }</code></pre>
           <p>Both methods publish String, so the initializer of `q` is a type error at the checking boundary, before the Script body begins. Moving `text` or `value` earlier does not change that judgment. Changing the annotation of `q` to `string` removes this incompatibility. If `text` instead has the contract `string | number`, its String initializer does not justify a String-only published result.</p>
         </emu-example>
+      </emu-clause>
+
+      <emu-clause id="sec-object-callable-contributions">
+        <h1>Object Callable Contributions</h1>
+        <p>An object literal's static contribution preserves the contracts of its methods and property values. Determine these contracts without invoking a method, getter, iterator, or initializer to obtain a result:</p>
+        <ol>
+          <li>For an ordinary, async, generator, or async generator method, establish the effective signature under its annotations and any applicable contextual signature. Complete its publishable inferred result under <emu-xref href="#sec-inferred-return-types"></emu-xref>. Preserve the ordinary async and generator result carriers and their declared variance.</li>
+          <li>Such a method supplies a typed contribution to an unannotated immutable binding when a parameter or result annotation, contextual contract, or published annotation-derived result establishes participation. An unanchored literal-only method result does not acquire publication merely because the method occurs in an object.</li>
+          <li>A shorthand property `f` contributes the same value contract as `f: f`. Resolve that read in its source lexical environment and complete the callable-value dependencies required by <emu-xref href="#sec-callable-value-publication"></emu-xref>. The shorthand spelling grants no contextual parameter adoption to an already created function value.</li>
+          <li>Preserve these contributions through the existing immutable-binding, nested-object, and returned-contribution rules. Apply the ordinary source-order descriptor rules: a later data property definition replaces the earlier descriptor at that key; it does not introduce a second simultaneous property requirement. Accessor pairing and declared overload rules are unchanged.</li>
+          <li>Compare the resulting contract under the existing assignability rules. Writable members remain invariant, readonly members retain their specified depth subtyping, and generic substitution and reference-result restrictions remain applicable. Completing a signature is not evidence that a reference outlives its source.</li>
+        </ol>
+        <p>For example, `function outer() { const box = { m(x: string) { return x; } }; const target: { readonly m: (x: string) =&gt; number } = box; }` is a type error even if `outer` is never called. Replacing the method with a shorthand property carrying a local String-returning function preserves that judgment. A target requiring a String result is compatible. This requirement does not make an untyped mutable binding acquire an inferred storage contract or change ordinary property evaluation order.</p>
       </emu-clause>
 
       <emu-clause id="sec-callable-value-publication">
@@ -2960,6 +2998,19 @@ new C().m()();</code></pre>
         <p>This clause governs a function LITERAL. A function whose name a program can call, and whose inferred type therefore becomes a fact other code is checked against, is governed by <emu-xref href="#sec-inferred-return-types"></emu-xref>, which shares this join and adds what publication requires.</p>
         <p>The rule exists so that the two spellings of one function agree. Without it `a.map(_x_ =&gt; _x_)` carries its element type through and `a.map(_x_ =&gt; { return _x_; })` does not, and a program is punished for the braces. Inference of a result type is not inference of a PARAMETER type: a parameter takes its type from the position the literal is written in (<emu-xref href="#table-contextual-types"></emu-xref>) or from its own annotation, and those types are what the body is checked under while this operation reads it.</p>
       </emu-note>
+    </emu-clause>
+
+    <emu-clause id="sec-numeric-value-provenance">
+      <h1>Numeric Value Provenance</h1>
+      <p>A Number value's exact flow domain and its eligibility for contextual literal adaptation are distinct static facts. Retaining a singleton domain after a store or a guard does not make a read of that value a numeric literal. This distinction is expression provenance; it is not part of Type Record identity, subtyping, Type Object interning, or a JavaScript value's representation.</p>
+      <p>For contextual numeric adaptation, apply these rules before using an exact Number value to establish that a literal fits a numeric value type:</p>
+      <ol>
+        <li>A numeric literal expression, and the constant expressions and unannotated numeric constant references admitted by <emu-xref href="#sec-literal-propagation"></emu-xref> and <emu-xref href="#sec-contextual-types"></emu-xref>, retain their specified adaptation eligibility. Parentheses do not change that eligibility.</li>
+        <li>A read of a binding with an explicit `number` annotation has the Number domain, even if its current flow domain contains only one value. An immutable alias of that read preserves this restriction. A guard, assignment, join, property read, or call result cannot confer literal-adaptation eligibility merely by establishing an exact value.</li>
+        <li>Check a value without adaptation eligibility using its existing numeric domain and the applicable assignability and conversion rules. Do not authorize an implicit Number-to-value-type conversion solely because its singleton payload would fit. Apply the same distinction at stores, arguments, returns, composite members, and generic constraints. Contextual analysis of literal arms occurs before joining their contributions; joining does not itself authorize conversion.</li>
+        <li>Retain the exact domain for equality, narrowing, and deciding-test judgments (<emu-xref href="#sec-narrowing-flow"></emu-xref>). Neither loss of adaptation eligibility nor an explicit annotation widens an established flow fact back to the entire Number domain.</li>
+      </ol>
+      <p>Thus `let n: number = 5; let x: uint8 = n;` is a type error before evaluation. `const n = 5; let x: uint8 = n;` retains the specified constant propagation. `let n: number = 5; let x: uint8 = (n := uint8);` uses an explicit conversion. `let n: number = 5; if (n === 5) {}` still has an impossible deciding alternative; `String(n === 5)` is an ordinary value query. This clause changes neither dynamic boundary checking nor explicit conversion, metadata admission, literal-derived iteration contributions, or reference liveness.</p>
     </emu-clause>
 
     <emu-clause id="sec-contextual-types">
