@@ -2831,6 +2831,30 @@ outer();</code></pre>
         </emu-example>
       </emu-clause>
 
+      <emu-clause id="sec-dependent-test-obligations">
+        <h1>Deciding Tests with Unfinished Dependencies</h1>
+        <p>An unfinished input to a deciding test leaves a checking obligation under <emu-xref href="#sec-completed-binding-consumers"></emu-xref> and <emu-xref href="#sec-deferred-store-flow"></emu-xref>. It does not turn the test into a permitted dynamic test or a value query. Retain the test's source position, lexical and checked-code environments, deciding role, incoming source facts, and required binding and result dependencies.</p>
+        <ol>
+          <li>Complete each required input in its own source environment. An independent later value producer may supply an input even when an earlier transfer remains unfinished. Determine independence from the producer's actual value and flow dependencies, not merely from whether it occurs later in the same statement list. In particular, a fresh initialization from an established value can supply a contract independently of an earlier unrelated test; a read of a place whose required incoming facts remain unfinished cannot.</li>
+          <li>Apply the completed test judgment in its retained source environment. Use the deciding and truthiness roles established by the surrounding syntax, including their propagation through tested expressions. A later assignment, shadowing declaration, call or abrupt completion cannot replace the facts at that earlier position. A plain value query remains a value query, and the existing checking-unit and literal-idiom rules remain in force.</li>
+          <li>Discard a provisional diagnostic that required an unfinished input. Retain independent declaration diagnostics. If reconsideration discovers another required unfinished input, the judgment remains an obligation until that input is completed; an intermediate attempt is not a final verdict.</li>
+          <li>Complete the test's dependent result environments and consuming transfers using the existing narrowing, evaluation-order, feasibility and completion rules. Reconsidering only a diagnostic does not discharge a required branch-fact or downstream contribution judgment. At joins, every admitted predecessor must establish the retained fact; incomplete predecessors are not removed as unreachable.</li>
+        </ol>
+        <p>Source-order checking within unreachable source retains the environments needed by its ordinary type judgments and inferred contracts. A declaration initialized there is judged using its initializer's source position, including preceding declarations in the same unreachable sequence. Its facts and completions do not create a reachable successor or replace an enclosing return, throw, break or continue. Inferring such a contract neither evaluates the initializer nor initializes its runtime binding.</p>
+        <p>A completed declaration contract, a current-value fact, a branch-feasibility proof and a reference-liveness proof remain distinct. Completing an independent producer does not complete every fact in its surrounding environment. These requirements allow different dependency schedules and shared compiler-owned representations, but no implementation-selected retry count or source-order cutoff changes a required finite dependency judgment. The recursion rules of <emu-xref href="#sec-inference-fixpoint"></emu-xref> still apply.</p>
+        <emu-example>
+          <p>The test is encountered before the independent String producer. Once the input contracts are completed, it is an impossible test. Changing `number` to `string` makes the test always true, also an error in this deciding position. A declaration `const answer = typeof u === "number";` instead remains a permitted value query.</p>
+          <pre><code class="javascript">function outer(u: string | number) {
+  u = f();
+  if (typeof u === "number") {}
+  function f() { return t; }
+  let v: string | number = "s";
+  const t = v;
+}</code></pre>
+          <p>Adding `u = 1` after the test cannot change its earlier String input. A relevant captured write before the test can invalidate that input by the ordinary effect rules. Replacing the test with `return typeof u === "number" ? "a" : "b";` still requires its deciding-test judgment; checking the following initializers does not make them reachable or remove the temporal-dead-zone failure from an otherwise compatible invocation.</p>
+        </emu-example>
+      </emu-clause>
+
       <emu-clause id="sec-method-contribution-receivers">
         <h1>Class Method Contribution Receivers</h1>
         <p>A class method's result contributions are computed in its declaration environment. The receiver judgment is independent of the caller, the source order of the class's members, and the order in which an implementation requests their contracts. This requirement also applies when the only consumer occurs in an uncalled function or otherwise unreachable source.</p>
