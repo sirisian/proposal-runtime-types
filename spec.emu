@@ -2769,6 +2769,32 @@ contributors: Sirisian
         </emu-example>
       </emu-clause>
 
+      <emu-clause id="sec-method-contribution-receivers">
+        <h1>Class Method Contribution Receivers</h1>
+        <p>A class method's result contributions are computed in its declaration environment. The receiver judgment is independent of the caller, the source order of the class's members, and the order in which an implementation requests their contracts. This requirement also applies when the only consumer occurs in an uncalled function or otherwise unreachable source.</p>
+        <p>For a class method without a declared result type, apply the following requirements together with <emu-xref href="#sec-contribution-environments"></emu-xref> and <emu-xref href="#sec-inference-fixpoint"></emu-xref>:</p>
+        <ol>
+          <li>Establish the class's effective member contracts under <emu-xref href="#sec-typed-classes"></emu-xref>, including the applicable inherited contracts, private-name identities, overload sets and field precedence. An unfinished inferred member result is a dependency, not a completed ~any~ result.</li>
+          <li>For an instance method, the contribution environment's `this` has the declaring class's instance type over its own type parameters. For a static method, it has the declaring class's class-object view with static members. An instance member does not become a static member, or conversely. Class and method type parameters retain their lexical scopes; a same-named method parameter shadows the class parameter where its scope applies.</li>
+          <li>Query each contribution using that receiver and its source-position environment. A mutable field read uses the effective storage contract and any source-flow refinement justified at that read; a field initializer's particular value alone does not narrow every later method invocation. An ordinary nested function establishes its own receiver environment; an arrow retains the lexical receiver.</li>
+          <li>Complete dependencies on other inferred method results using their own declaration environments. Preserve the resulting contracts through member lookup and specialization. Substitute class and method type arguments into a published result as into a declared result, respecting nested parameter scopes. Specializing a member must not silently restore its earlier unfinished result.</li>
+          <li>Apply the existing participation, contribution-join and publication rules. For asynchronous and generator methods, apply <emu-xref href="#sec-inference-and-function-forms"></emu-xref>. A receiver environment alone does not publish an untyped method returning only an unanchored literal. An explicit result annotation retains precedence.</li>
+          <li>Use completed published results for the consumers in <emu-xref href="#sec-published-return-types"></emu-xref>, including calls, assignability and inherited contracts, before completing the checking boundary. Signature identity, overload ranking and declared-only viability remain unchanged.</li>
+        </ol>
+        <p>Computing this receiver environment neither binds a runtime method value to a particular receiver nor executes a field initializer, getter or method. Runtime receiver binding, return checks, reference decay and liveness retain their existing rules. These requirements prescribe judgments, not a class layout, hidden property, inline cache, inference queue or traversal count.</p>
+        <emu-example>
+          <pre><code class="javascript">class C {
+  result() { return this.value(); }
+  value() { return this.text; }
+  text: string = "s";
+}
+function unused() {
+  const q: number = new C().result();
+}</code></pre>
+          <p>Both methods publish String, so the initializer of `q` is a type error at the checking boundary, before the Script body begins. Moving `text` or `value` earlier does not change that judgment. Changing the annotation of `q` to `string` removes this incompatibility. If `text` instead has the contract `string | number`, its String initializer does not justify a String-only published result.</p>
+        </emu-example>
+      </emu-clause>
+
       <emu-clause id="sec-published-return-types">
         <h1>What a Published Type Is Used For</h1>
         <p>A published inferred return type is read in three places and not in others, and the division is what keeps inference from becoming a second declaration.</p>
