@@ -2880,6 +2880,30 @@ outer();</code></pre>
           <li>Before a lexical initializer, use the binding's established contract when the existing source-position rules supply that contract and no applicable earlier refinement or effect changes the judgment. A later initialization does not supply an earlier read's domain, complete a pending store, or establish runtime initialization. In particular, an unrelated unfinished test cannot make an otherwise complete annotated contract depend on its own later initializer. The temporal-dead-zone and reference-liveness rules are unchanged.</li>
           <li>An independent input proof belongs to its source-position judgment. A query that suspends that judgment to complete another producer uses the producer's own source state, even when the two positions refer to the same lexical binding. On returning to the suspended judgment, restore its original proofs; do not lend them to the producer or replace them with the producer's current-value facts.</li>
         </ol>
+        <p>Completion of a `switch` transfer has the following additional requirements:</p>
+        <ol>
+          <li>Complete the discriminant's value and applicable effects in its original source state. Retain a different place's completed input domain only when it is independent of those unfinished judgments and preserved by the specified effects. This requirement applies even when the case block has no labels, only a default clause, or no statements.</li>
+          <li>Complete each evaluated label and its effects in the state supplied by the preceding failed selections. Retain the captured discriminant value separately from its source place, which a label may subsequently change. A default clause does not evaluate a label; its selection depends on the applicable failed selections, including labels textually after it.</li>
+          <li>Keep a successful selection and its corresponding failed selection as distinct dependent outputs, even when their provisional fact sets are identical. A clause's entry combines its selected predecessor with any admitted fallthrough predecessor; a default entry, break successor and continuation without a matching clause keep their respective selection dependencies. No dependent output is finalized from the equality of provisional fact sets alone. Independently justified identical domains on every potential predecessor retain the independence permitted above.</li>
+          <li>Apply the completed selection, fallthrough and abrupt-completion judgments to obtain the switch continuation. Recomputing these static judgments does not evaluate the discriminant or a label at runtime, change which labels execute, or convert a value query within them into a deciding test.</li>
+        </ol>
+        <p>A loop's entry and any zero-iteration predecessor retain their applicable completed domains independently of unfinished judgments encountered only in the body. Establish those domains after the initializers, iterable evaluation and other effects that precede that predecessor under the existing transfer rules. Account for the prescribed widening, test, iteration, suspension, back-edge, break and continue transfers. Do not replace the zero-iteration predecessor with a body result, restore a fact invalidated by an applicable effect, or finalize a joined domain using only one potential exit. These requirements apply both when checking the loop and when obtaining a binding or callable-result contract from a dependent source judgment.</p>
+        <emu-example>
+          <p>The unfinished switch discriminant below does not change the established String-or-Number source contract of `seed`. That contract permits `answer` and the result of `id` to complete. The String stored in `last` then supplies the result of `f1`, the capture `t0`, and the result of `f0`. The `case "number"` selection is impossible. Replacing it with `case "string"` removes this error. No call or initializer in the uncalled body is executed to obtain these judgments.</p>
+          <pre><code class="javascript">function outer() {
+  switch (typeof f0()) { case "number": break; }
+  function f0() { return t0; }
+  function f1() { return t1; }
+  let u0: string | number = f1();
+  if (id(u0)) {}
+  const t0 = u0;
+  let last: string | number = "s";
+  const t1 = last;
+  function id(x: string | number) { return answer; }
+  const answer = seed;
+  let seed: string | number = "s";
+}</code></pre>
+        </emu-example>
         <emu-example>
           <p>The read that infers `snapshot` uses the established String-or-Number contract of `seed`. Neither the unfinished result of `test` nor the later String initializer changes that read's source-position domain. Completing `snapshot` and then `test` therefore rejects the String-only consumer. Changing that consumer to String-or-Number removes this contract error; it does not remove the runtime temporal-dead-zone failure of the earlier call to `test`.</p>
           <pre><code class="javascript">function outer() {
