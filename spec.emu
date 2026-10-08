@@ -2882,6 +2882,7 @@ outer();</code></pre>
           <li>An independent input proof belongs to its source-position judgment. A query that suspends that judgment to complete another producer uses the producer's own source state, even when the two positions refer to the same lexical binding. On returning to the suspended judgment, restore its original proofs; do not lend them to the producer or replace them with the producer's current-value facts.</li>
         </ol>
         <p>For a tested expression whose result environments are composed from component expressions, apply source-proof dependencies at the component's evaluation position. An unfinished right operand or conditional arm does not revoke an independent input proof on a continuation that skips that component. Evaluate the component only under its governing predecessor, apply its specified effects and refinements there, and join the resulting environments under <emu-xref href="#sec-narrowing-flow"></emu-xref>. A parenthesized expression, built-in logical negation, a comma expression or an established built-in Boolean conversion preserves this component distinction under its ordinary transfer rule. A declared logical-not operator or a replacement Boolean callable instead uses its selected call judgments; its spelling does not supply this transfer. These rules neither preserve a proof invalidated on an evaluated path nor discard a real selection or relation dependency.</p>
+        <p>A completed component judgment retains its justified output domains even when no other judgment was unfinished at that component's source position. A later component's unfinished input does not retroactively make those outputs unfinished. Use the retained domains on the continuations to which they belong, together with the effects, refinements and selection dependencies of each intervening judgment. This requirement applies equally to an immediately completed input and to the same input completed after a dependent judgment was suspended. It does not complete a stored value from its destination annotation, discharge another component's inputs, or make different predecessor domains independent of an unfinished selection.</p>
         <p>Completion of a `switch` transfer has the following additional requirements:</p>
         <ol>
           <li>Complete the discriminant's value and applicable effects in its original source state. Retain a different place's completed input domain only when it is independent of those unfinished judgments and preserved by the specified effects. This requirement applies even when the case block has no labels, only a default clause, or no statements.</li>
@@ -2899,6 +2900,34 @@ outer();</code></pre>
           <li>When a match result is used as a test, apply its existing deciding role to its result producers and join their applicable outcome states. An enclosing test retains independently justified output domains produced by those component judgments even when it has no independent proof for the entire expression's input state. This does not allow copying an arbitrary pre-expression domain into the output: every retained proof must survive the component effects and be justified on every admitted predecessor. The same requirement applies through enclosing parentheses, negation, logical expressions and conditional expressions.</li>
         </ol>
         <p>A whole-expression truthiness judgment for a |ConditionalExpression| uses its source-position Static Type, including the arm types under the selecting condition's applicable refinements. Facts conditioned on a particular true or false outcome of an arm are outputs of that arm's test; they must not become the input state for retyping the whole conditional. In particular, visiting the false outcome last cannot make an open Boolean result a necessarily falsy value. Apply the ordinary operand effects and captured-value rules; a join of post-evaluation stores is not a substitute for the conditional's result type.</p>
+        <emu-example>
+          <p>No earlier unfinished guard is needed for the following chain's completion. Retain completed component outputs before considering unfinished inputs in later components. The String-only consumer is a type error, as is a Number-only consumer. String-or-Number is compatible.</p>
+          <pre><code class="javascript">function outer(flag: boolean) {
+  const value: string = f0();
+  function f0() { return t0; }
+  function f1() { return t1; }
+  function f2() { return t2; }
+  function f3() { return t3; }
+  let u0: string | number = f1();
+  if (flag &amp;&amp; id(u0)) {}
+  const t0 = u0;
+  let u1: string | number = f2();
+  if (flag &amp;&amp; id(u1)) {}
+  const t1 = u1;
+  let u2: string | number = f3();
+  if (flag &amp;&amp; id(u2)) {}
+  const t2 = u2;
+  let last: string | number = "s";
+  const t3 = last;
+  function id(x: string | number) {
+    u0 = 1; u1 = 1; u2 = 1;
+    return answer;
+  }
+  const answer = seed;
+  let seed: string | number = "s";
+}</code></pre>
+          <p>Under the existing store and return rules, `t3` and `f3` have String domains. The initialization of `u2` therefore supplies String. The continuation that skips `id(u2)` retains that source domain; the evaluated continuation receives String-or-Number from the captured-write effect. Their ordinary join supplies String-or-Number to `t2` and `f2`. Completing the preceding stores, component judgments and joins supplies String-or-Number to `t1`, `f1`, `t0` and `f0`. The forward source read of annotated `seed` completes `answer` with String-or-Number independently of those selections. None of these judgments executes a call in the uncalled body or changes the temporal dead zone. Removing the three writes from `id` instead preserves String through the capture chain: a String consumer is then compatible and a Number consumer remains a type error.</p>
+        </emu-example>
         <emu-example>
           <p>The unfinished guard does not make the source contract of `seed` depend on the match's selected arm. Completing `answer` and `id` allows the capture chain to publish String, so the Number consumer is incompatible. Changing the consumer's annotation to String is compatible. A pattern binding also named `seed` would be a separate declaration and would not replace the outer source read.</p>
           <pre><code class="javascript">function outer(subject) {
