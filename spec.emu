@@ -2869,6 +2869,14 @@ outer();</code></pre>
           <li>At a join, apply the existing joining rule to the completed outgoing environments of all admitted predecessors. A fact must be justified on every such predecessor. Include the prescribed loop entry, back-edge, exit and abrupt-completion paths; do not infer a permanent loop fact from only the first iteration. Preserve separate value identities where an operation captures an operand before a later effect.</li>
           <li>Continue through the required dependency relation. A finite acyclic chain is completed regardless of source order or length. For recursive dependencies, apply <emu-xref href="#sec-inference-fixpoint"></emu-xref>; absence of progress in an implementation's selected worklist is not a new language rule completing an input as ~any~ or waiving a diagnostic.</li>
         </ol>
+        <p>Completion is a property of the inputs required by a particular judgment, rather than of every fact stored in its environment. Apply the following dependency distinctions:</p>
+        <ol>
+          <li>A refinement of a place consumes that place's domain and the other operands and effects required by the existing narrowing rule. Propagating the refinement through a retained value-copy or equality relation additionally consumes the relevant relation, its stability evidence and the domains needed by that propagation. A relation between unrelated places introduces no dependency solely because it was recorded in the same environment. Place identity includes the declaring lexical binding and any selected member path; matching written names alone is insufficient.</li>
+          <li>For a tested expression with no relevant write, call, property-read or other effect, a completed input domain and its justified refinements remain complete on each admitted outcome when all inputs required by that outcome's judgment are complete. Other facts may remain unfinished. This does not complete the whole outgoing environment. A subsequent join still requires justification on all admitted predecessors, and a subsequent effect can invalidate the proof under the ordinary flow rules.</li>
+          <li>Reading the established contract of a function declaration whose binding is proved unchanged does not consume an unrelated unfinished current-value fact. An unfinished result contract is still a dependency of a consumer of that result. Callable replacement, dynamic name resolution, aliases capable of replacing the binding and the effects of invoking the function retain their existing rules.</li>
+          <li>A call in a tested expression does not, solely by being a call, make every current-value fact unfinished. Apply the existing callee, receiver, argument, conversion and invocation judgments in their specified order, including their effects on captured bindings and aliases. Retain an independent input proof on an admitted outcome only when those judgments preserve that proof; an invalidated proof must not be restored from the pre-call environment. Complete every result-contract or flow dependency required by that outcome or a consuming judgment. An independent argument does not complete an unfinished callee result, and an available callee result does not complete an unfinished argument. Apply the same requirements to calls in extra arguments and nested deciding expressions. This is static application of the specified judgments, not execution of the call or a purity assumption based on its name or an identity-shaped body.</li>
+          <li>An independent input proof belongs to its source-position judgment. A query that suspends that judgment to complete another producer uses the producer's own source state, even when the two positions refer to the same lexical binding. On returning to the suspended judgment, restore its original proofs; do not lend them to the producer or replace them with the producer's current-value facts.</li>
+        </ol>
         <p>The following transfer families retain their ordinary evaluation-order and flow rules while these dependencies are completed.</p>
         <emu-table id="table-dependent-flow-transfers" caption="Dependent flow transfers">
           <table>
@@ -2893,6 +2901,22 @@ outer();</code></pre>
   const t = v;
 }</code></pre>
           <p>Replacing the second test with `const q: number = g();`, and adding `function g() { return s; } const s = u;` before the independent initialization of `v`, instead establishes an incompatible inferred-return consumer. The corresponding String consumer is compatible. An initialization `let u: string | number = f();` requires the same completion of the stored-value domain as the assignment shown above.</p>
+        </emu-example>
+        <emu-example>
+          <p>Each completed String producer below supplies the next capture's contract through an open truthiness test. The Number consumer is incompatible. Changing its annotation to String is compatible; neither result depends on the number of intermediate helpers or their declaration order. The uncalled body is checked without executing it.</p>
+          <pre><code class="javascript">function outer() {
+  const q: number = f0();
+  function f0() { return t0; }
+  function f1() { return t1; }
+  function f2() { return t2; }
+  function f3() { return t3; }
+  let u0: string | number = f1(); if (u0) {} const t0 = u0;
+  let u1: string | number = f2(); if (u1) {} const t1 = u1;
+  let u2: string | number = f3(); if (u2) {} const t2 = u2;
+  let last: string | number = "s";
+  const t3 = last;
+}</code></pre>
+          <p>Replacing each `if (u0)`, `if (u1)` and `if (u2)` with the corresponding `if (Boolean(u0))`, `if (Boolean(u1))` and `if (Boolean(u2))` retains the incompatible Number consumer when those calls denote the original Boolean function. So does using `if (id(u0))`, `if (id(u1))` and `if (id(u2))` with a local declaration `function id(x: string | number): string | number { return x; }`. No specified call effect changes the local primitive places in this example. A declaration or argument whose effects may change those places instead invalidates their proofs under the ordinary rules. A same-named replacement for Boolean uses its own declaration and effects; the spelling is not evidence of intrinsic identity.</p>
         </emu-example>
         <p>These requirements specify source judgments and their dependencies, not a traversal count or compiler architecture. An implementation may recompute a source region or retain individually dependent transfer results if it produces the same completed judgments. It must not evaluate ordinary source expressions to complete a static dependency, repeat program effects, or infer reference availability from contract completion.</p>
       </emu-clause>
