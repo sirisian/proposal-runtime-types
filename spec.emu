@@ -2598,6 +2598,54 @@ contributors: Sirisian
       <p>A function whose signature declares no return type may still have one, inferred from what its body returns. The inferred type is then the function's return type for every purpose a declared one serves: it is the Static Type of a call, it is enforced when the function returns, and reflection reports it. What it is not is a second way to declare, and the whole of this clause is the answer to one question &mdash; which functions have one &mdash; because a rule that answered "all of them" would compute a type for every function in every program ever written, and one that answered "only annotated ones" would lose the type one call away from the annotation that established it.</p>
       <p>Override compatibility consumes published returns after inference has established them. A changed publication requires dependent comparisons to be reconsidered. An unpublished or explicitly `any` return remains unknown; return inference does not change the parameter-based identification of an override.</p>
 
+      <emu-clause id="sec-dependent-result-instantiation">
+        <h1>Dependent Result Contracts</h1>
+        <p>A published inferred result can contain parameters bound by its function or by an enclosing generic declaration. Such a result is a symbolic contract in that declaration environment. Determine and use it as follows:</p>
+        <ol>
+          <li>During declaration checking, retain each parameter's binder and effective constraint. A completed symbolic input is not unfinished solely because no runtime type argument has been supplied. Apply the existing subtype and assignment judgments to that input; do not replace the parameter with its constraint or with ~any~. A subtype constraint permits the relations it establishes, but does not identify the parameter with that constraint.</li>
+          <li>Apply <emu-xref href="#sec-dependent-flow-completion"></emu-xref> to symbolic inputs as to other completed inputs. When the existing store rule preserves a scalar value's domain without conversion, retain its parameter-dependent domain through the store, subsequent captures and contribution queries. The destination's wider annotation does not replace the stored domain. Preserve all applicable effects, predecessor joins and binder identities.</li>
+          <li>A nongeneric helper can return a parameter of an enclosing declaration. Establish its call-result contract in that enclosing environment; the helper needs no additional type argument. A completed symbolic result is usable by contribution inference even while its enclosing parameter remains uninstantiated. This does not exempt the call from the replacement judgment of <emu-xref href="#sec-elision-stability"></emu-xref>.</li>
+          <li>At a runtime return boundary, instantiate the published contract using the generic arguments of that function invocation and the bindings captured from its declaration environment. Lexically inner binders shadow outer binders; a same-spelled parameter in an unrelated caller supplies no binding. Apply the ordinary return conversion and enforcement to this instantiated contract. Apply the same instantiation when supplying a concise body's result context and the effective result contracts of resumable forms. Do not enforce an unresolved parameter as a closed type, waive an inferred boundary because its declaration was generic, or overwrite a shared declaration contract with one invocation's argument.</li>
+          <li>Reflection and runtime callable compatibility use the published contract under the function value's captured generic bindings. A still-generic signature retains its own unbound parameters and constraints. Inspecting a closure after its creating call has returned, or from a caller with different generic arguments, does not change its captured contract. Completing or instantiating a type contract does not initialize a captured value or establish reference liveness.</li>
+        </ol>
+        <p>A returned generic signature introduces its own parameter declarations. Instantiating the enclosing result substitutes only parameters supplied by that enclosing environment, including free occurrences in the returned signature's parameter, result, receiver, narrowing and constraint records. It does not apply the returned signature to arguments. A later application of that returned function binds its own parameters by BindTypeArguments. Declaration identities, rather than equal parameter spellings, distinguish the two operations; preserve the returned signature's parameter declarations and unevaluated default and constraint source environments. No signature application or default expression is executed merely to publish or reflect a result.</p>
+        <emu-example>
+          <p>The inner parameter is distinct from the outer one. The expression evaluates to *"1s"*. Explicitly applying `outer.&lt;boolean&gt;` has the same result; explicitly applying `inner` later binds its own parameter.</p>
+          <pre><code class="language-javascript">function outer&lt;T: type&gt;(x: T) {
+  return function inner&lt;T: type&gt;(y: T): T { return y; };
+}
+const fn = outer(true);
+const a: number = fn(1);
+const b: string = fn("s");
+String(a) + b;</code></pre>
+        </emu-example>
+        <emu-example>
+          <p>An unchanged typed callback can supply a symbolic result even when its value crossed ~any~. The published boundary of `produce` below enforces the instantiated Number contract and throws a *TypeError*; the untyped caller does not waive that boundary. Replacing `get` through a mutable binding would instead invoke the replacement judgment described in <emu-xref href="#sec-elision-stability"></emu-xref>.</p>
+          <pre><code class="language-javascript">function dynamic(): any { return "s"; }
+function outer&lt;T: type&gt;(x: T) {
+  let unknown: any = dynamic;
+  const get: () =&gt; T = unknown;
+  function produce() { return get(); }
+  return produce();
+}
+outer(1);</code></pre>
+        </emu-example>
+        <emu-note>
+          <p>For example, both closures below retain their respective captured result types. The final expression evaluates to *"1s"*, and each closure reflects the same result type as an otherwise identical function with the corresponding Number or String return annotation.</p>
+          <pre><code class="language-javascript">function make&lt;T: type&gt;(x: T) {
+  const captured = x;
+  function produce() { return captured; }
+  return produce;
+}
+const a = make(1);
+const b = make("s");
+const x: number = a();
+const y: string = b();
+String(x) + y;</code></pre>
+          <p>In a declaration `function f&lt;T: type extends string&gt;(x: T) { let value: string | number = x; const captured = value; }`, the stored scalar domain and the captured contract retain `T`. Its constraint makes it usable as String, but assigning an arbitrary String back to a position requiring `T` is not justified. Forward helper chains over this capture must complete under <emu-xref href="#sec-dependent-flow-completion"></emu-xref> before their consumers are finalized.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-anchored-contributions">
         <h1>Anchored Contributions and Participation</h1>
         <p>A <dfn id="contribution">contribution</dfn> of a function is what <emu-xref href="#sec-inferred-result-type"></emu-xref> defines: the Static Type of the operand of each `return`, or *undefined* where a `return` carries no value or the body can complete without one, with a `return` in a nested function literal belonging to that literal.</p>
@@ -3919,6 +3967,20 @@ new C().m()();</code></pre>
         <p>Determine whether a binding can be replaced by its lexical identity, not by the spelling of its name. Establish the binding environments required by declaration instantiation before resolving reads and writes. An assignment to a distinct shadowing binding does not replace the binding read by a call. Conversely, a captured write, an assignment-pattern target, an iteration target, or a |VariableDeclaration| initializer that writes that same binding participates even when its occurrence precedes the declaration text or lies in another body. A declaration without an initializer does not itself write a value.</p>
         <p>Preserve the distinction between parameter and body environments where parameter expressions require it. A body-local `var` does not replace the outer binding read by a parameter default. Where the base-language rules make a parameter and a body `var` share a binding, writes through either name are writes to that binding. Class static blocks have their own variable and lexical environments and their class's static receiver; declarations in one block do not enter another block or the enclosing function.</p>
         <p>The same binding-identity judgment applies when a consuming Static Type query reads a callee signature or a contribution follows an unchanged initializer alias. It neither makes an untyped contribution participate nor permits elision on a published inferred return. Dynamic name lookup, direct `eval`, reference aliases and global-object access must retain their existing replacement and liveness rules. In particular, a Script-global object binding can be changed through the global object; absence of a lexical assignment alone does not prove otherwise. A runtime identity guard cannot justify an irrevocable Early Error.</p>
+
+        <p>Withdrawing a replaceable callee's result assumption is distinct from discarding a required result contract of the enclosing function. Where contribution inference requires that unavailable assumption, the contribution is unknown by the existing inference rules; a former declaration's result cannot be retained solely to create a new inferred boundary. A declared result contract of the enclosing function still applies, and another independently established published contract still applies. A shallow ~function~ storage check does not install a wrapper checking every invocation of the stored value.</p>
+        <emu-example>
+          <p>The final call returns *"s"*. Replacement makes the call through `typed` unknown, so neither `produce` nor `id` obtains a result contract from that call. Adding `: T` to either function's result requires a runtime *TypeError* at that declared boundary, including for this untyped caller. Merely annotating the mutable callback storage does not add that return boundary.</p>
+          <pre><code class="language-javascript">function bad(): any { return "s"; }
+function id&lt;T: type&gt;(x: T) {
+  function typed(): T { return x; }
+  function produce() { return typed(); }
+  let replacement: any = bad;
+  typed = replacement;
+  return produce();
+}
+id(1);</code></pre>
+        </emu-example>
 
         <emu-note>
           <p>Without this condition the first elision above is unsound in fully annotated code, and no inference is needed to reach it:</p>
@@ -6861,6 +6923,9 @@ class C implements I {
         1. If _t_.[[Kind]] is ~parameter~, then
           1. For each Record _b_ of _bindings_, do
             1. If _b_.[[Declaration]] is _t_.[[Declaration]], return _b_.[[Value]].
+          1. If _t_ has a [[Constraint]] field containing a Type Record, then
+            1. Let _constraint_ be SubstituteType(_t_.[[Constraint]], _bindings_).
+            1. Return a Type Record with the same fields as _t_, except that [[Constraint]] is _constraint_.
           1. Return _t_.
         1. If _t_.[[Kind]] is ~deferred~, then
           1. Let _args_ be a new empty List.
@@ -6874,6 +6939,7 @@ class C implements I {
         1. Let _u_ be a Type Record with the same fields as _t_, except that every Type Record reachable from _t_ through its fields and the elements of any List or structured Record those fields hold, without descending into a nested ~deferred~ or ~parameter~, is replaced by the Type Record that substituting _bindings_ into it yields.
         1. Return CanonicalizeType(_u_).
       </emu-alg>
+      <p>The [[Declaration]] identities in _bindings_ determine substitution throughout a nested signature. An enclosing application supplies no binding for an inner signature's own parameter, even if the names are equal. A bound parameter's replacement is returned directly, without recursively applying the same bindings to the replacement. For an unbound parameter, substitution may change its effective constraint but preserves its declaration identity. Traverse effective constraint descriptions and the signature's parameter, declared and published result, receiver and narrowing records consistently. Retain unevaluated constraint and default Parse Nodes in their declaring environments; substituting their captured inputs does not evaluate them before the application that requires them. Preserve recursive record graphs when traversing these fields: revisiting the same record under the same bindings reuses its substituted record rather than unfolding the graph.</p>
       <emu-note>
         <p>Substitution and evaluation are one pass: a deferred application becomes evaluable exactly when substitution has closed every parameter it read, at which point <emu-xref href="#sec-evaluatebuildercall"></emu-xref> runs under the budget and memo already specified, so a builder used at two instantiations evaluates twice under two distinct memo keys and interns each result. A value generic contributes its literal type where a type is substituted and that type's value where the body computes, which is the one mechanism seen from two sides. Where substitution leaves a ~parameter~ in place, in the body of a still-generic outer declaration, the result is itself generic and specializes when the outer one does. A ~tuple~ element written with `...` whose [[Type]] substitutes to a ~tuple~ Type Record is spliced element-wise into the containing tuple, so `[...Ts, T]` under `Ts` bound to `[uint8, string]` is `[uint8, string, T]` and not a tuple holding a tuple; CanonicalizeType performs the same splice, so the two spellings intern as one record.</p>
       </emu-note>
