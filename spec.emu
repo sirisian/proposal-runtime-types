@@ -2888,6 +2888,32 @@ outer();</code></pre>
           <li>Apply the completed selection, fallthrough and abrupt-completion judgments to obtain the switch continuation. Recomputing these static judgments does not evaluate the discriminant or a label at runtime, change which labels execute, or convert a value query within them into a deciding test.</li>
         </ol>
         <p>A loop's entry and any zero-iteration predecessor retain their applicable completed domains independently of unfinished judgments encountered only in the body. Establish those domains after the initializers, iterable evaluation and other effects that precede that predecessor under the existing transfer rules. Account for the prescribed widening, test, iteration, suspension, back-edge, break and continue transfers. Do not replace the zero-iteration predecessor with a body result, restore a fact invalidated by an applicable effect, or finalize a joined domain using only one potential exit. These requirements apply both when checking the loop and when obtaining a binding or callable-result contract from a dependent source judgment.</p>
+        <p>Completion of a |MatchExpression| additionally observes the following requirements. The pattern, guard, result and exhaustiveness rules of <emu-xref href="#sec-pattern-static-semantics"></emu-xref> remain unchanged.</p>
+        <ol>
+          <li>Establish the clause-entry state after the subject evaluation and its specified effects. A completed input domain that is independent of a later unfinished guard remains available on each potential continuation on which the ordinary pattern and effect rules preserve it. A failed pattern, a failed guard and a selected arm are distinct predecessors; do not replace their joined state with the state of only the selected arm.</li>
+          <li>Apply a guard's judgments in the lexical environment of its clause's pattern bindings. Completion evidence for a different outer binding remains associated with that outer declaration when an inner binding shadows its name. Shadowing supplies neither a value for the outer binding nor evidence that its source-position domain is unfinished. Reads still select the binding prescribed by lexical resolution, and producer queries still use their own source contexts.</li>
+          <li>For ordinary `match`, complete the selected arm's result and outgoing facts, and propagate applicable failed-pattern and failed-guard states to subsequent clauses. For `match all`, complete the matched, skipped and failed-guard continuations that reach each later clause, including the effects of earlier executed arms. Joining those states does not establish that an earlier arm executed. Clause-local bindings do not escape into another clause or the surrounding continuation.</li>
+          <li>When a match result is used as a test, apply its existing deciding role to its result producers and join their applicable outcome states. An enclosing test retains independently justified output domains produced by those component judgments even when it has no independent proof for the entire expression's input state. This does not allow copying an arbitrary pre-expression domain into the output: every retained proof must survive the component effects and be justified on every admitted predecessor. The same requirement applies through enclosing parentheses, negation, logical expressions and conditional expressions.</li>
+        </ol>
+        <p>A whole-expression truthiness judgment for a |ConditionalExpression| uses its source-position Static Type, including the arm types under the selecting condition's applicable refinements. Facts conditioned on a particular true or false outcome of an arm are outputs of that arm's test; they must not become the input state for retyping the whole conditional. In particular, visiting the false outcome last cannot make an open Boolean result a necessarily falsy value. Apply the ordinary operand effects and captured-value rules; a join of post-evaluation stores is not a substitute for the conditional's result type.</p>
+        <emu-example>
+          <p>The unfinished guard does not make the source contract of `seed` depend on the match's selected arm. Completing `answer` and `id` allows the capture chain to publish String, so the Number consumer is incompatible. Changing the consumer's annotation to String is compatible. A pattern binding also named `seed` would be a separate declaration and would not replace the outer source read.</p>
+          <pre><code class="javascript">function outer(subject) {
+  match (subject) { when _ if (f0()): 0; default: 1; };
+  const value: number = f0();
+  function f0() { return t0; }
+  function f1() { return t1; }
+  let u0: string | number = f1();
+  if (id(u0)) {}
+  const t0 = u0;
+  let last: string | number = "s";
+  const t1 = last;
+  function id(x: string | number) { return answer; }
+  const answer = seed;
+  let seed: string | number = "s";
+}</code></pre>
+          <p>Separately, `if (decision ? flag : flag) {}` with independent Boolean parameters `decision` and `flag` has an open Boolean truthiness domain. Neither visit order nor the facts on the false outcome of the second arm make it a constant-condition error. The same source-context requirement holds when an arm produces `flag` through a match expression.</p>
+        </emu-example>
         <emu-example>
           <p>The unfinished switch discriminant below does not change the established String-or-Number source contract of `seed`. That contract permits `answer` and the result of `id` to complete. The String stored in `last` then supplies the result of `f1`, the capture `t0`, and the result of `f0`. The `case "number"` selection is impossible. Replacing it with `case "string"` removes this error. No call or initializer in the uncalled body is executed to obtain these judgments.</p>
           <pre><code class="javascript">function outer() {
@@ -2921,6 +2947,7 @@ outer();</code></pre>
             <tbody>
               <tr><td>`if`, conditional expressions and logical short-circuit expressions</td><td>Each evaluated or skipped alternative, its admitted outgoing facts, and the continuation join. Deciding roles are unchanged; a value query does not acquire a deciding role.</td></tr>
               <tr><td>`while`, `do`, `for`, `for-in`, `for-of` and `for await-of`</td><td>The prescribed entry, test, body, update or iteration transfers, back edges, and normal, break and continue successors. Iteration and suspension effects still apply at their specified positions.</td></tr>
+              <tr><td>`match` and `match all`</td><td>The subject and clause-entry state; pattern effects and bindings; matched, failed-pattern and failed-guard successors; arm result and abrupt completions; and the applicable result or continuation joins. `match all` retains subsequent-clause paths after a successful arm. Existing per-clause and exhaustiveness distinctions are unchanged.</td></tr>
               <tr><td>`switch`</td><td>The captured discriminant, each evaluated label and its effects, successful and failed selection facts, default selection, fallthrough, and break successors. A later write to the discriminant's source does not replace the already captured discriminant value.</td></tr>
               <tr><td>Blocks, labelled statements, `try`, `catch` and `finally`</td><td>The applicable lexical environments and normal or abrupt completions, including the replacement or propagation of a completion by `finally`. Completing unreachable source does not create a reachable successor.</td></tr>
               <tr><td>Assignments, initializations and value consumers</td><td>The established destination contract, the converted stored-value domain, applicable effects, and every inferred capture or consuming judgment that reads the result at its own source position. Later stores do not alter an earlier copied value.</td></tr>
