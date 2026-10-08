@@ -2881,6 +2881,7 @@ outer();</code></pre>
           <li>Before a lexical initializer, use the binding's established contract when the existing source-position rules supply that contract and no applicable earlier refinement or effect changes the judgment. A later initialization does not supply an earlier read's domain, complete a pending store, or establish runtime initialization. In particular, an unrelated unfinished test cannot make an otherwise complete annotated contract depend on its own later initializer. The temporal-dead-zone and reference-liveness rules are unchanged.</li>
           <li>An independent input proof belongs to its source-position judgment. A query that suspends that judgment to complete another producer uses the producer's own source state, even when the two positions refer to the same lexical binding. On returning to the suspended judgment, restore its original proofs; do not lend them to the producer or replace them with the producer's current-value facts.</li>
         </ol>
+        <p>For a tested expression whose result environments are composed from component expressions, apply source-proof dependencies at the component's evaluation position. An unfinished right operand or conditional arm does not revoke an independent input proof on a continuation that skips that component. Evaluate the component only under its governing predecessor, apply its specified effects and refinements there, and join the resulting environments under <emu-xref href="#sec-narrowing-flow"></emu-xref>. A parenthesized expression, built-in logical negation, a comma expression or an established built-in Boolean conversion preserves this component distinction under its ordinary transfer rule. A declared logical-not operator or a replacement Boolean callable instead uses its selected call judgments; its spelling does not supply this transfer. These rules neither preserve a proof invalidated on an evaluated path nor discard a real selection or relation dependency.</p>
         <p>Completion of a `switch` transfer has the following additional requirements:</p>
         <ol>
           <li>Complete the discriminant's value and applicable effects in its original source state. Retain a different place's completed input domain only when it is independent of those unfinished judgments and preserved by the specified effects. This requirement applies even when the case block has no labels, only a default clause, or no statements.</li>
@@ -2889,6 +2890,7 @@ outer();</code></pre>
           <li>Apply the completed selection, fallthrough and abrupt-completion judgments to obtain the switch continuation. Recomputing these static judgments does not evaluate the discriminant or a label at runtime, change which labels execute, or convert a value query within them into a deciding test.</li>
         </ol>
         <p>A loop's entry and any zero-iteration predecessor retain their applicable completed domains independently of unfinished judgments encountered only in the body. Establish those domains after the initializers, iterable evaluation and other effects that precede that predecessor under the existing transfer rules. Account for the prescribed widening, test, iteration, suspension, back-edge, break and continue transfers. Do not replace the zero-iteration predecessor with a body result, restore a fact invalidated by an applicable effect, or finalize a joined domain using only one potential exit. These requirements apply both when checking the loop and when obtaining a binding or callable-result contract from a dependent source judgment.</p>
+        <p>Where the prescribed loop widening removes a refinement and supplies an established contract domain, that widened output is complete when its contract and the inputs required to identify the affected place are complete. It does not require the superseded first-iteration value or a later body test to complete. Establish this output at the loop entry and carry it through the applicable iteration-ending predecessor; this is the specified loop judgment, not an assumption that a body store or call ran on that predecessor. Identify stores by lexical declaration and member path. A loop-head or block-local store does not widen a distinct outer binding with the same name. A loop-head binding already in the current environment still widens its own domain where the loop can write it. Merely checking a nested callable's parameters or body does not execute their effects; creation-time computed names, decorators and actual calls retain their ordinary effects.</p>
         <p>Completion of a |MatchExpression| additionally observes the following requirements. The pattern, guard, result and exhaustiveness rules of <emu-xref href="#sec-pattern-static-semantics"></emu-xref> remain unchanged.</p>
         <ol>
           <li>Establish the clause-entry state after the subject evaluation and its specified effects. A completed input domain that is independent of a later unfinished guard remains available on each potential continuation on which the ordinary pattern and effect rules preserve it. A failed pattern, a failed guard and a selected arm are distinct predecessors; do not replace their joined state with the state of only the selected arm.</li>
@@ -2932,6 +2934,24 @@ outer();</code></pre>
   let seed: string | number = "s";
 }</code></pre>
           <p>The uncalled body is checked without evaluating its calls or initializing its bindings. The temporal-dead-zone and reference-liveness rules remain separate. If a surrounding short-circuit expression can skip the effect, the continuation also requires the skipped predecessor's domain; completing the evaluated predecessor alone is insufficient.</p>
+        </emu-example>
+        <emu-example>
+          <p>The right-hand call below can be skipped. Its call effect widens `u0` only on the evaluated continuation; the skipped continuation retains its own stored-value dependency. Completing both continuations makes `t0` and the result of `f0` String-or-Number, so the String-only consumer is incompatible. A String-or-Number consumer is compatible.</p>
+          <pre><code class="javascript">function outer(flag: boolean, subject, items) {
+  match (subject) { when _ if (f0()): 0; default: 1; };
+  const value: string = f0();
+  function f0() { return t0; }
+  function f1() { return t1; }
+  let u0: string | number = f1();
+  if (flag &amp;&amp; id(u0)) {}
+  const t0 = u0;
+  let last: string | number = "s";
+  const t1 = last;
+  function id(x: string | number) { u0 = 1; return answer; }
+  const answer = seed;
+  let seed: string | number = "s";
+}</code></pre>
+          <p>Replacing the `if` statement with `for (const item of items) { id(u0); }` also makes the consumer incompatible. Here the existing loop-widening judgment supplies the completed String-or-Number entry domain, including the iteration-ending predecessor. It does not prove that the body executes. Replacing that loop with `for (let u0 of items) { u0 = 1; }` writes a distinct loop binding; those stores supply no widening of the outer `u0`.</p>
         </emu-example>
         <emu-example>
           <p>The unfinished switch discriminant below does not change the established String-or-Number source contract of `seed`. That contract permits `answer` and the result of `id` to complete. The String stored in `last` then supplies the result of `f1`, the capture `t0`, and the result of `f0`. The `case "number"` selection is impossible. Replacing it with `case "string"` removes this error. No call or initializer in the uncalled body is executed to obtain these judgments.</p>
