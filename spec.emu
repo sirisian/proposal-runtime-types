@@ -1794,6 +1794,7 @@ contributors: Sirisian
             1. If _p_.[[Kind]] is ~value~, return _p_.[[Domain]].
             1. Return _p_.[[Constraint]].
           </emu-alg>
+          <p>This operation selects source; it does not resolve that source in the caller's environment. Its denotation at an application, including a completed description retained by a substituted signature, is determined by <emu-xref href="#sec-generic-constraint-contexts"></emu-xref>.</p>
         </emu-clause>
         <p>A parameter is bound from a call's argument by its kind. Where a formal parameter's annotation reads a parameter _p_, the argument contributes to _p_ its Static Type if _p_.[[Kind]] is ~type~, and the literal type of its value if _p_.[[Kind]] is ~value~, which requires the argument to be a compile-time constant as every value argument must be. So `function id&lt;T: type&gt;(x: T): T` called as `id((3 := uint16))` binds `T` to `uint16`, while `function init&lt;C: Component&gt;(component: C)` called with `Component.Transform` binds `C` to that constant. A pack binds elementwise by the same rule.</p>
       </emu-clause>
@@ -4713,6 +4714,8 @@ const n: uint32 = g();
         </table>
       </emu-table>
 
+      <p>The [[Domain]], [[Constraint]] and [[Default]] Parse Nodes retain their declaring environments. An effective constraint description may accompany them under <emu-xref href="#sec-generic-constraint-contexts"></emu-xref>; such a description retains its parameter declaration identities and captured substitutions and does not replace per-application evaluation with one declaration-wide concrete result.</p>
+
       <p>Two Lists of Type Parameter Records are the same up to renaming when they have the same length and, pairwise, the same [[Kind]], [[Variadic]], [[Variance]], and [[Arity]], and constraints and defaults that denote the same types once each parameter of one list is identified with the parameter at the same position of the other. This is how generic signatures compare (<emu-xref href="#sec-samefunctiontype"></emu-xref>): [[Name]] is never read, so `&lt;T: type&gt;(x: T) =&gt; T` and `&lt;U: type&gt;(x: U) =&gt; U` are one type, and a constraint, a default, a modifier, or the order makes two.</p>
 
       <p>A <dfn id="parameter-record">Parameter Record</dfn> has a [[Name]] (a String), a [[Type]] (a Type Record), an [[Optional]] field (a Boolean, *true* when the parameter is marked `?` or has a default), a [[Rest]] field (a Boolean), an [[Initial]] field (an ECMAScript language value or ~none~, the declared default), and a [[Reference]] field (a Boolean). [[Reference]] is *true* exactly when [[Type]].[[Kind]] is ~reference~: the flag restates the type for convenience, and reflection reads the fact from the type.</p>
@@ -6766,6 +6769,37 @@ class C implements I {
       </emu-note>
     </emu-clause>
 
+    <emu-clause id="sec-generic-constraint-contexts">
+      <h1>Constraint and Argument Environments</h1>
+      <p>Applying a generic signature uses two distinct source environments. The written arguments belong to the application; the domains, bounds, defaults and `where` clauses belong to the declaration. A returned function or an instantiated member retains the enclosing substitutions of its signature. Determine the obligations of each application as follows:</p>
+      <ol>
+        <li>Resolve each written type argument, including a named argument or spread operand, in the lexical and generic environments of that argument's source position. Assign the resulting arguments to the applied declaration's parameters by <emu-xref href="#sec-bindtypearguments"></emu-xref>. The name of a named argument selects a parameter; it does not change the environment of the argument's |Type|.</li>
+        <li>Resolve each parameter's effective constraint in its declaration environment. Retain the identities and bindings of free parameters captured from enclosing declarations or supplied by an instantiated class or interface. Apply the bindings established for this application in the order required by <emu-xref href="#sec-computed-constraints"></emu-xref>, preserving the existing rules for F-bounds and forward reads. The applied signature's own parameters remain distinct from enclosing parameters and from parameters of its caller.</li>
+        <li>If the signature already has a completed description of that effective constraint, apply the remaining substitutions to that description. A description is reusable only for the same declaring environment and captured bindings. Re-reading its Parse Node in the caller's environment is not an alternative resolution rule. Retain the source and its declaration environment for a constraint whose computation is still deferred; a missing result does not discharge the obligation.</li>
+        <li>Judge each supplied, inferred or defaulted binding against the resulting constraint by the existing admission rules, including the rules for value parameters, literal conversion and variadic collections. Use the same captured constraint when a pack's element bound participates in argument distribution. A statically established refusal is a type error at the application, including an application in an uncalled body. It is not postponed until invocation merely because the signature was returned by another function or obtained through a member.</li>
+        <li>Resolve an omitted parameter's default and the declaration's `where` clauses in their original declaration environments under the applicable captured and preceding bindings. Neither publishing a signature nor reflecting it evaluates a default or executes a deferred constraint prematurely. A default supplied at its prescribed application is subject to the same constraint as an explicit argument. Existing compile-time evaluability, initialization and evaluation-limit rules still apply.</li>
+        <li>When runtime inference is required because an argument's Static Type is ~any~, that static lack of information is not an explicit binding of the generic parameter to the Type Object `any`. Infer from the actual argument under the existing runtime rules and enforce the constraint. A written type argument `any` remains an explicit argument and is judged by the existing gradual admission rule; this clause adds no prohibition on it.</li>
+        <li>Keep distinct applications and captured function values independent. Completing a constraint for one application does not replace the declaration's symbolic constraint, change a different application, initialize a captured binding or prove a reference live. A failed application supplies no bindings to a subsequent application or to its caller.</li>
+      </ol>
+      <emu-example>
+        <p>The first application below retains Number as the bound of `U`. The final call is a type error before script evaluation. Replacing its argument with *2*<sub>𝔽</sub> is valid. The explicit application `fn.&lt;string&gt;` is also a type error, even if its result would never be invoked.</p>
+        <pre><code class="language-javascript">function outer&lt;T: type&gt;(x: T) {
+  return function inner&lt;U: type extends T&gt;(y: U): U { return y; };
+}
+const fn = outer(1);
+fn("s");</code></pre>
+      </emu-example>
+      <emu-example>
+        <p>The `T` in the written argument list belongs to `caller`; the `T` in `inner`'s bound belongs to `outer`. The expression evaluates to *2*<sub>𝔽</sub>. Calling `caller("s")` instead fails the captured Number constraint when the argument is determined; it cannot replace that constraint with String.</p>
+        <pre><code class="language-javascript">function outer&lt;T: type&gt;(x: T) {
+  return function inner&lt;U: type extends T&gt;(y: U): U { return y; };
+}
+const fn = outer(1);
+function caller&lt;T: type&gt;(x: T) { return fn.&lt;T&gt;(x); }
+caller(2);</code></pre>
+      </emu-example>
+    </emu-clause>
+
     <emu-clause id="sec-bindtypearguments" type="abstract operation">
       <h1>
         BindTypeArguments (
@@ -6780,6 +6814,7 @@ class C implements I {
       </dl>
       <p>Type aliases and interfaces perform this binding before expansion or canonicalization, just as classes and functions do. Parameter domains and bounds are obligations of the application even when the body does not use the parameter. Named arguments, defaults, packs and dependent bounds use the same ordered bindings. A statically established failure is a type error; an unresolved application retains its obligation until specialization supplies the missing information.</p>
       <emu-alg>
+        1. Interpret the type-source judgments below in the argument and declaration environments required by <emu-xref href="#sec-generic-constraint-contexts"></emu-xref>, retaining the applied signature's captured substitutions.
         1. Let _entries_ be a new empty List.
         1. For each |TypeArgument| _a_ of _args_, do
           1. If _a_ is <emu-grammar>TypeArgument : `...` Type</emu-grammar>, then
