@@ -2768,6 +2768,41 @@ function read(n: uint32, leaf: Leaf) {
         </emu-note>
       </emu-clause>
 
+      <emu-clause id="sec-inference-constructor-components">
+        <h1>Constructor Growth in Dependency Components</h1>
+        <p>The sufficient proof in <emu-xref href="#sec-inference-fixpoint"></emu-xref> extends to a finite system of contribution equations. Each equation belongs to a declaration and its required result component in its declaration environment. Identify dependencies by their resolved declarations, including applicable type-argument bindings, rather than by identifier spelling or formatted types. An edge denotes a result actually used by the contribution judgment; a name that is shadowed, an unresolved input or a potentially replaced callee supplies no such identity proof.</p>
+        <p>For this proof, establish all of the following before classifying a component as growing:</p>
+        <ol>
+          <li>Each equation in the required dependency closure is built from a finite set of known seed types, results of other equations in that closure, finite joins, and constructors preserving their operands as proper structural components. Apply the actual participation, contextual typing, substitution and normalization rules. Every result dependency has an equation in the closure. An unsupported or unfinished outgoing dependency prevents this proof for every equation depending on it, even if an apparent cycle can be drawn without that dependency.</li>
+          <li>For each occurrence of another equation's result, record an edge from the consuming equation to that dependency. Mark the edge as CONSTRUCTING only when at least one proper constructor enclosing that occurrence survives the complete contribution transfer and normalization. An unwrapped result copy is not constructing. Joining results is not by itself constructing.</li>
+          <li>Partition the dependency graph into strongly connected components: two equations belong to the same component exactly when each is reachable from the other by following dependency edges. A single equation with no self edge has no cycle. A component is growing under this proof exactly when it contains a constructing edge whose target is in that component. Such an edge lies on a cycle; every traversal of that cycle preserves an additional proper structural component, giving unbounded structural depth.</li>
+          <li>A growing component has no finite result under these equations and produces the non-convergence type error. The diagnostic identifies a declaration in that component; an acyclic consumer is not itself evidence of a growing cycle. Do not publish an intermediate approximation as a completed inferred contract. A component with only copy/join edges is not rejected by this proof; complete its finite closure under <emu-xref href="#sec-inference-fixpoint"></emu-xref>.</li>
+        </ol>
+        <p>A constructor on an acyclic path to a finite result does not prove growth. A projection, a substituting annotation or an absorbing unknown contribution can remove a would-be constructing edge or prevent the closed-equation proof altogether. Merely seeing a constructor in a source expression is therefore insufficient. Failure to establish these premises is not a type error or a completed unknown result; continue the ordinary contribution computation, use another sound proof, or apply <emu-xref href="#sec-inference-resources"></emu-xref> on resource exhaustion. An unrelated unsupported component does not invalidate an independently closed proof.</p>
+        <emu-example>
+          <p>The first equation constructs an array containing the second result; the second only copies the first. Together they form a growing cycle and require the non-convergence error in either declaration order.</p>
+          <pre><code class="javascript">function first(n: uint32) { return [second(n)]; }
+function second(n: uint32) { return first(n); }
+"ok";</code></pre>
+        </emu-example>
+        <emu-example>
+          <p>Here the constructor is outside the recursive component. The two recursive functions close over the finite Number seed. The array in `wrap` does not make their cycle grow, and this source evaluates to `"ok"`.</p>
+          <pre><code class="javascript">function wrap(n: uint32) { return [first(n)]; }
+function first(n: uint32) { return second(n); }
+function second(n: uint32) { return n &gt; 1 ? first(n) : 0; }
+"ok";</code></pre>
+        </emu-example>
+        <emu-example>
+          <p>The property projection removes the component that the object literal constructs. Treating the first call as a constructing edge while ignoring that projection would wrongly reject this finite closure. The source evaluates to `"ok"`; replacing the last expression with `const bad: string = second(0);` requires the ordinary inferred-return assignability error.</p>
+          <pre><code class="javascript">function first(n: uint32) { return { value: second(n) }; }
+function second(n: uint32) { return n &gt; 1 ? first(n).value : 0; }
+"ok";</code></pre>
+        </emu-example>
+        <emu-note>
+          <p>This judgment states proof premises and their consequence. It does not prescribe a graph representation, traversal order, source-syntax recognizer, or a resource allowance. In particular, a production implementation can use shared type representations and iterative component algorithms without modifying user-object layouts, runtime call-site caches or reference-liveness checks.</p>
+        </emu-note>
+      </emu-clause>
+
       <emu-clause id="sec-inference-resources">
         <h1>Return Inference Resources</h1>
         <p>Resource exhaustion during a required return-contribution computation is distinct from a proof that its equation has no finite fixpoint. An implementation may bound contribution evaluations, distinct provisional answers and the number of contribution queries active at once. These are host-defined resource limits, not alternative rules for inferred types. A source check that exceeds such a limit is abandoned with a *StaticTypeError* identifying inference-resource exhaustion and the declaration being computed. It supplies no inferred result. In particular, a chosen number of changed approximations establishes only that the implementation spent that allowance, not that further approximations would change forever.</p>
