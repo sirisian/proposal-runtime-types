@@ -1666,9 +1666,34 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-type-errors"
+        "sec-inference-fixpoint"
       ],
-      "explanation": "Return inference grows without a finite result; write an explicit return type.",
+      "explanation": "Return inference is proved not to converge to a finite result; write an explicit return type.",
+      "arguments": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "relatedLocations": [
+        "declaration",
+        "origin"
+      ]
+    },
+    {
+      "code": "RT_INFERENCE_LIMIT",
+      "rule": "rt-inference-limit",
+      "status": "provisional",
+      "applicability": "always",
+      "phases": [
+        "static",
+        "pre-evaluation"
+      ],
+      "errorClass": "StaticTypeError",
+      "specification": [
+        "sec-inference-resources"
+      ],
+      "explanation": "Return inference exhausted a host resource limit; this does not prove non-convergence and supplies no fallback result.",
       "arguments": {
         "type": "array",
         "items": {
