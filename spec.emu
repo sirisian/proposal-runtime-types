@@ -6765,6 +6765,7 @@ class C implements I {
       <h1>Parameters as Types and as Values</h1>
       <p>A generic parameter is a ~parameter~ Type Record whose [[Declaration]] is its |TypeParameter|. A type parameter, one whose domain is `type` (<emu-xref href="#sec-parameter-kinds"></emu-xref>), denotes that Record in a type position and, in an expression position, the Type Object bound to it, exactly as a type name does. A value parameter, one whose domain is a value domain, is the <dfn id="value-generic-parameter">value generic parameter</dfn> of the design: its argument is a value of the named type rather than a type, and this specification binds it to the literal type of that value (<emu-xref href="#sec-literal-types"></emu-xref>) with the value recoverable as that type's one value. The literal-type binding is primitive and the value is its view, the decision <emu-xref href="#sec-computed-constraints"></emu-xref> records: a body that reads `V` where a value is required, as `2 ** V`, reads the [[Value]] of the literal type, and a body that reads `V` where a type is required, as `Reflect.typeOf(V)`, reads the type itself.</p>
       <p>A generic declaration's type parameters are in scope, lexically, for its signature and body, including every function and class the body contains. Resolving an |IdentifierReference| in that scope reaches a type parameter after every binding of a scope nested in the body, the body's own top level and its parameter list being unable to bind the name (<emu-xref href="#sec-type-parameters-static-semantics-early-errors"></emu-xref>), and before every binding of the environment that encloses the declaration, and so before the built-in type names of <emu-xref href="#sec-type-names"></emu-xref>, which are consulted only when the scope chain is exhausted. A parameter named after a predefined type, `uint32: type`, therefore shadows that type in the body as it does in the signature, and `let T` outside `function f&lt;T: type&gt;()` does not reach its body. For a class the scope is its class scope, where the class binding is.</p>
+      <p>Arguments to a computed type's builder are expressions and use this same lexical resolution and value view. A bare |IdentifierReference| to a value parameter reads its admitted value, including its declared numeric domain; a type parameter reads its Type Object even when that Type Object denotes a literal type. Parenthesizing an argument does not change which binding or view it reads. A value pack uses its specified array view. A nearer ordinary binding shadows an enclosing generic parameter; a generic parameter in its declaration's signature shadows an outer ordinary binding. Apply these rules when a constraint or default is evaluated as well as when the function body is evaluated. Resolving an argument does not initialize a captured ordinary binding or establish reference liveness.</p>
       <emu-note>
         <p>Two applications name one specialization when their arguments are pairwise the same: a type argument under SameType, and a value argument under SameValue, which is the identity the literal type already has, so `A.&lt;0&gt;` and `A.&lt;-0&gt;` are distinct and `A.&lt;NaN&gt;` is usable, following from identity rather than as special cases. A reference value cannot be an argument, since specialization identity would then turn on object identity; the permitted value types are the primitive value types the design lists.</p>
       </emu-note>
@@ -6783,6 +6784,7 @@ class C implements I {
         <li>Keep distinct applications and captured function values independent. Completing a constraint for one application does not replace the declaration's symbolic constraint, change a different application, initialize a captured binding or prove a reference live. A failed application supplies no bindings to a subsequent application or to its caller.</li>
       </ol>
       <p>A selected method case retains the bindings of the receiver's instantiation of its declaring class. Apply those bindings to its parameter and result descriptions along with the selected case's own bindings, preserving the identities of the case's own parameters and captures. Selection does not restore an unspecialized declaring-class result after member lookup has established the receiver's arguments. An inferred binding initialized by that result is subject to its resulting contract, not to a fresh lookup of the declaring class's parameter names at the binding site.</p>
+      <p>At a boundary with an instantiated class result, membership follows IsSubtype from the value's runtime class through its instantiated base types, preserving each base declaration and its arguments. A derived value is not refused merely because its most-derived declaration differs from the result's declaration. Nor does matching a declaration's name or members erase a mismatch in its arguments. This membership judgment does not discharge the separate value-storage restriction of <emu-xref href="#sec-value-type-copying"></emu-xref>: a subclass that adds storage cannot occupy a base value type position. RequireType applies that restriction to a runtime value reaching an annotated binding, parameter or return through ~any~, just as it does to a field or array element. Reference-class targets keep their existing polymorphic admission and reference-liveness requirements.</p>
       <p>A default description follows the same free-parameter substitution as a constraint description. Substitute enclosing bindings wherever the default description refers to them, including within arrays, tuples and callable signatures, while preserving binders introduced inside the description. A default that itself denotes a generic function type remains generic. A default for a higher-kinded parameter denotes a constructor as a written argument for that parameter does; naming a generic declaration there does not apply it to an empty argument List. At the later application that uses the default, substitute the preceding bindings of that application and validate the resulting argument. Do not execute a computed type merely to obtain a description; retain an unresolved default and its declaring environment until its prescribed use. Supplying an explicit argument bypasses that parameter's default computation. This applies also to a computed type nested within a composite default.</p>
       <p>Determine whether a type source depends on an unbound parameter by its lexical binding dependencies. A declaration-local alias does not remove such a dependency: follow that alias's declaration and, for an applied generic alias, its own argument bindings. Repeat through dependent aliases while respecting binder identity and the existing recursive-type rules. An unbound dependency is retained for the application that can supply it; it is not a closed type computation with a missing global name. Once the application supplies the required bindings, discharge its constraint normally. Alias indirection does not weaken admission or postpone a statically established refusal.</p>
       <p>For a required constraint or omitted-argument default that remains computed, determine its inputs by lexical declaration identity, including dependencies reached through a helper function or alias. A helper retains its own declaration environment: a parameter of the applied signature with the same name does not replace the helper's captured parameter. Enclosing substitutions propagate through intermediate generic signatures even when an intermediate signature introduces a same-named parameter.</p>
@@ -6793,6 +6795,43 @@ class C implements I {
         <li>After a required computation completes normally, apply its resulting type to the owning application and repeat any dependent admission or default-completion judgment that lacked that result. A completed result may be reused only when the source, declaring environment and all determining bindings agree, including captured bindings and bindings established by this application. Distinct parameter declarations remain distinct even if their names agree.</li>
       </ol>
       <p>These requirements do not prescribe cache data structures, synthesized environments or a particular compiler pass. They do not introduce eager evaluation of unused defaults, deepen the admission of `any`, or establish initialization or reference liveness from the successful computation of a type.</p>
+      <emu-example>
+        <p>The omitted default reads the captured `uint32` value `16`, so its array has two elements. This program evaluates to *"ok"*. Parenthesizing `N` has the same result.</p>
+        <pre><code class="language-javascript">function sized(n: uint32): type { return type [n / 8].&lt;uint8&gt;; }
+function outer&lt;N: uint32&gt;() {
+  return function inner&lt;U: type = sized(N)&gt;(x: U): U { return x; };
+}
+const fn = outer.&lt;16&gt;();
+fn.&lt;&gt;([1, 2]);
+"ok";</code></pre>
+      </emu-example>
+      <emu-example>
+        <p>The earlier parameter `N` belongs to the signature being applied and shadows the outer binding while its default is evaluated. The written argument `16` is resolved at the call site. This program evaluates to *"ok"*.</p>
+        <pre><code class="language-javascript">const N = 8;
+function sized(n: uint32): type { return type [n / 8].&lt;uint8&gt;; }
+function f&lt;N: uint32, U: type = sized(N)&gt;(x: U): U { return x; }
+f.&lt;16&gt;([1, 2]);
+"ok";</code></pre>
+      </emu-example>
+      <emu-example>
+        <p>Each inherited method retains the receiver's instantiation `C.&lt;8&gt;`. The derived class adds no storage, so the results cross their declared base boundaries and this program evaluates to *"ok"*. Replacing the heritage argument with `4` is also valid and uses `C.&lt;4&gt;` throughout.</p>
+        <pre><code class="language-javascript">class C&lt;N: uint32 = 4&gt; {
+  begin(): C { return this; }
+  m&lt;T: type&gt;(x: T);
+  m&lt;number&gt;(x: number): C { return this; }
+  end(): C { return this; }
+}
+class D extends C.&lt;8&gt; {}
+new D().begin().m.&lt;number&gt;(1).end();
+"ok";</code></pre>
+      </emu-example>
+      <emu-example>
+        <p>Membership in the generic base does not permit losing the subclass's additional storage. The unannotated parameter supplies ~any~ at the return, and the return boundary throws a *TypeError* at runtime. Declaring `C` as a reference class instead admits the derived value.</p>
+        <pre><code class="language-javascript">class C&lt;N: uint32&gt; { x: uint32 = 1; }
+class D extends C.&lt;8&gt; { y: uint32 = 2; }
+function take(v): C.&lt;8&gt; { return v; }
+take(new D());</code></pre>
+      </emu-example>
       <emu-example>
         <p>The helper's captured `T` is Number; the parameter named `T` in `inner` is independent. The shown call is valid. Replacing its second argument with *"s"* is a type error before script evaluation.</p>
         <pre><code class="language-javascript">function outer&lt;T: type&gt;(x: T) {
