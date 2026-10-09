@@ -2706,6 +2706,8 @@ value;</code></pre>
 
         <p>Complete finite propagation within a recursive dependency group before concluding that inference does not converge. Copying a previously established result or joining previously established union members does not construct a new recursive type. In particular, when a group's contribution transfers only copy or join members of a fixed finite set of established types, compute their closure under those transfers, with `never` as the initial contribution and a completed unknown join retaining its ordinary absorbing behaviour. The number of declarations, their source order and the distance from a seed to a consumer are not grounds for a non-convergence error.</p>
         <p>Reconsider a contribution when a required provisional or published input changes, retaining its declaration environment and the applicable type-argument substitution. Dependencies include results read through a function value or an explicit generic application, as well as a direct call. A private answer is such an input even when it supplies no declaration-derived anchor. An implementation may retain an answer while its inputs remain unchanged; invalidating a required binding contract also invalidates answers derived from that contract. Reconstructing an equivalent signature or canonical type is not progress by itself. These requirements permit dependency worklists and component scheduling without prescribing either representation.</p>
+        <p>A dependency read may use its available approximation while the recursive group is being solved. Reconsideration must propagate changed inputs until the group is complete; it need not recursively re-evaluate every previously answered dependency at each read. This permission does not make an answer permanent: the input-change and binding-invalidation requirements above continue to apply.</p>
+        <p>For a generic result dependency, retain the identity and declaration environment of the generic declaration before applying the caller's bindings. Substitute those bindings into the available provisional answer as well as any published answer. This includes a private answer and the initial `never` contribution of a recursive reference; an unanswered dependency must not become a completed unknown merely because an application copies a signature. A completed unknown remains unknown after substitution. Specialization does not itself publish a private answer or create declaration provenance, and a receiving context cannot replace explicit type arguments already bound by the application. A final published symbolic protocol result replaces any superseded concrete approximation in the runtime return contract. Instantiate that final contract with the invocation's bindings; dependence on a type parameter does not preserve an earlier approximation.</p>
         <p>Repetition does not always converge: a recursive result can grow under a type constructor at every step, as `function _w_(_a_: uint32) { return [_w_(_a_)]; }` does. It is a type error where the repetition does not reach a fixpoint, and the program says what it meant with an annotation. Apply the actual contribution transfers, including projection and unknown absorption, before concluding that a constructor makes a cycle grow without bound. The occurrence of a constructor on a recursive path, or a chosen number of changing approximations, does not by itself establish that conclusion. Inference produces no equirecursive types.</p>
         <emu-example>
           <p>All three functions below infer `uint32`. Inserting further functions that only forward or join these results, or reordering the declarations, does not change that result. A String annotation on `value` instead produces a type error before evaluation.</p>
@@ -2717,6 +2719,30 @@ function second(n: uint32) {
 }
 function third(n: uint32) { return second(n); }
 const value: uint32 = third(0);
+String(value);</code></pre>
+        </emu-example>
+
+        <emu-example>
+          <p>The unknown contribution from `globalThis.seed` absorbs the constructed recursive contributions. These functions therefore have no published inferred result contract. The occurrence of arrays on the recursive path does not establish infinite growth.</p>
+          <pre><code class="javascript">globalThis.seed = "s";
+function first(n: uint32) {
+  return n &gt; 1 ? [second(n)] : globalThis.seed;
+}
+function second(n: uint32) { return [first(n)]; }
+String(second(0)[0]);</code></pre>
+        </emu-example>
+        <emu-example>
+          <p>Each function below forwards its own type parameter through the recursive group. The explicit application specializes the completed result to `uint8`. Replacing the annotation on `value` with `string` produces a type error before evaluation; copying the generic signature cannot erase that obligation.</p>
+          <pre><code class="javascript">function first&lt;T: type&gt;(n: uint32, value: T) {
+  return n &gt; 1 ? second.&lt;T&gt;(n, value) : value;
+}
+function second&lt;U: type&gt;(n: uint32, value: U) {
+  return n &gt; 1 ? third.&lt;U&gt;(n, value) : first.&lt;U&gt;(n, value);
+}
+function third&lt;V: type&gt;(n: uint32, value: V) {
+  return second.&lt;V&gt;(n, value);
+}
+const value: uint8 = third.&lt;uint8&gt;(0, 7);
 String(value);</code></pre>
         </emu-example>
 
@@ -2759,6 +2785,7 @@ String(value);</code></pre>
           <li>Complete the applicable inference dependencies before finalizing a consuming assignability, narrowing or other type-checking obligation. If publication changes an input previously used by an obligation, reconsider that obligation. An unavailable input remains unresolved under its defining rule; declaration visitation order alone cannot be the reason to treat an established contract as ~any~.</li>
         </ol>
         <p>These dependencies cross function forms. Inference of an ordinary return may require an async result or a generator protocol, and inference of an async result or delegated yield may require another declaration's result. Apply the contribution rules of <emu-xref href="#sec-inference-and-function-forms"></emu-xref> before building the callee's result type: an async result uses its fulfillment contribution, and a generator keeps its yielded and returned contributions distinct. A generic protocol shape alone supplies no annotation-derived anchor. A provisional protocol result remains private on the same terms as a provisional ordinary return; requesting it does not publish it for a non-participating callee.</p>
+        <p>For an async fulfillment contribution, apply the established awaited-result projection to each known union alternative before joining the contributions. A conditional union of a direct value and an intrinsic Promise supplying that same value type does not add a Promise layer to the fulfillment result. Apply the same projection to an async generator's returned contribution, independently of its yielded contribution. An unresolved assimilation alternative remains unknown; no hook is invoked by this inference. Joining raw Promise wrappers before projecting them is not an equivalent transfer and cannot justify a recursive-growth error.</p>
         <p>For generator inference, an unknown yielded or returned contribution remains ~any~ in that component; it is not replaced by ~void~ or by the other component. An empty yielded-contribution set contributes `never`, while normal completion contributes *undefined* only to the return join. Declared locals and unchanged initializer aliases use the same contribution and provenance rules in both joins. Delegation supplies its yielded contribution under <emu-xref href="#sec-generator-types"></emu-xref> and retains the provenance of that contribution. Neither a known return nor a known yield makes an unknown component known, and the input component is not inferred.</p>
         <p>An implementation may prepare a declaration group eagerly, resolve dependencies on demand, or use an equivalent schedule. It must produce the same required acceptance and rejection results. An acyclic dependency chain is not non-convergent merely because its declarations are encountered in the reverse order or because it exceeds an implementation's chosen number of whole-scope passes. Module dependency availability and failure order remain governed by <emu-xref href="#sec-module-type-checking-order"></emu-xref>.</p>
         <p>Contract preparation does not change ordinary initialization order or reference liveness. If no type error is established, a forward value read still observes its ordinary temporal dead zone or uninitialized value. In particular, preparation neither runs a captured initializer early nor converts an ordinary runtime Reference Error into an inferred-return diagnostic. A known inconsistent typed consumer is rejected at the specified checking boundary even if ordinary execution would first encounter a different runtime error.</p>
