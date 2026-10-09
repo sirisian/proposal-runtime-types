@@ -2685,7 +2685,22 @@ String(x) + y;</code></pre>
 
       <emu-clause id="sec-inference-fixpoint">
         <h1>The Inference Fixpoint</h1>
-        <p>A contribution may be the return type of a function whose own inference is in progress, directly or through a cycle of calls. Such a contribution is `never`, and the inference is then repeated until the published types do not change. Because `never` is the identity of union (<emu-xref href="#sec-never-type"></emu-xref>), a cycle's contribution vanishes from a join that has any other member, so a function whose base case returns a `uint32` publishes `uint32` and one that only calls itself publishes `never`, which is what a function that never returns a value has.</p>
+        <p>A contribution may be the return type of a function whose own inference is in progress, directly or through a cycle of calls. If that dependency has no provisional contribution result yet, its initial contribution is `never`. Otherwise use its most recent provisional contribution result, including a completed unknown join, and repeat inference until the required provisional results, participation and published types do not change. Because `never` is the identity of union (<emu-xref href="#sec-never-type"></emu-xref>), a cycle's initial contribution vanishes from a join that has any other member, so a function whose base case returns a `uint32` publishes `uint32` and one that only calls itself publishes `never`, which is what a function that never returns a value has.</p>
+
+        <p>Distinguish an unfinished contribution, a known contribution (including `never`), and a completed unknown join. An unfinished prerequisite remains a dependency under <emu-xref href="#sec-return-publication-dependencies"></emu-xref>; its absence is not a completed unknown result. Once a contribution computation completes, its result replaces the previous provisional result even when the new join is unknown. Re-entering that computation does not replace an already computed unknown join with the initial `never` seed. A change to a private provisional result also requires reconsideration of its dependent contributions; the absence of a published result does not make such a change irrelevant.</p>
+
+        <p>Apply the participation and publication rules anew to the updated contribution result. A completed unknown join publishes no inferred result, and a contribution that no longer establishes participation supplies no inferred result merely because an earlier approximation did. Remove the superseded inferred signature result, its declaration-derived provenance and the runtime return contract derived from it. Retain explicit annotations and their runtime enforcement. Preserve any independently specified protocol shape of an unannotated generator; a generic protocol shape does not itself establish participation. These changes neither initialize storage nor change reference capture or liveness.</p>
+
+        <emu-example>
+          <p>The recursive dependency below initially contributes `never`, but `first` ultimately has an unknown join. That unknown result propagates to `second`; neither function retains an inferred `never` return contract. The program evaluates to `"s"`. Replacing its binding declaration with `const value := second(0);` requires a type error because its initializer has no Static Type. A Number annotation instead retains the runtime boundary check and fails there.</p>
+          <pre><code class="javascript">globalThis.seed = "s";
+function first(n: uint32) {
+  return n &gt; 0 ? second(n) : globalThis.seed;
+}
+function second(n: uint32) { return first(n); }
+const value: string = second(0);
+value;</code></pre>
+        </emu-example>
 
         <p>Repetition does not always converge: an in-progress type that recurs INSIDE a type constructor grows at every step, as `function _w_(_a_: uint32) { return [_w_(_a_)]; }` does. It is a type error where the repetition does not reach a fixpoint, and the program says what it meant with an annotation. Inference produces no equirecursive types.</p>
 
