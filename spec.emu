@@ -2673,6 +2673,8 @@ String(x) + y;</code></pre>
           <p>In `let s: string = "s"; function g() { return s; }`, the annotation on `s` anchors `g` even when the surrounding flow knows the singleton value `"s"`. In `function g() { const s = "s"; return s; }`, naming and widening the literal alone do not make `g` participate. In `let s: string | number = "s"; function g() { return s; }`, the captured contract contributes `string | number`; a later valid store of a Number cannot invalidate the published result.</p>
         </emu-note>
 
+        <p>A conditional contribution derives its anchoring from its value-producing arms in their respective guarded environments. Joining or widening those arms does not create declaration provenance. A cycle of private, unanchored answers cannot make its declarations participate merely by reading one another: without an annotated signature or an independently anchored contribution, each result remains private. A participating external consumer may still ask for those private answers under the following rule.</p>
+
         <p>A function <dfn id="participating">participates</dfn> in inference when its signature declares a parameter type or a return type, or when at least one of its contributions is anchored. A participating function whose declared return type is absent has an inferred return type, which is the join of its contributions, and that type is <dfn id="published">published</dfn>: it is recorded in the signature's [[InferredReturn]] field and is visible to every other clause. A join of the ~any~ type publishes nothing, since a function whose result is unknown is indistinguishable from one that never participated.</p>
 
         <p>A function that does not participate has no inferred return type and no [[InferredReturn]]; a call of it has the ~any~ Static Type, exactly as before. Its contributions are still computed where a participating function's inference asks for them, and the answer is used to type the ASKER without being published for the answerer: `function g() { return 'foo'; }` remains untyped at its own call sites even where a participating function returns `g()` and infers `string` from it.</p>
@@ -2702,7 +2704,21 @@ const value: string = second(0);
 value;</code></pre>
         </emu-example>
 
-        <p>Repetition does not always converge: an in-progress type that recurs INSIDE a type constructor grows at every step, as `function _w_(_a_: uint32) { return [_w_(_a_)]; }` does. It is a type error where the repetition does not reach a fixpoint, and the program says what it meant with an annotation. Inference produces no equirecursive types.</p>
+        <p>Complete finite propagation within a recursive dependency group before concluding that inference does not converge. Copying a previously established result or joining previously established union members does not construct a new recursive type. In particular, when a group's contribution transfers only copy or join members of a fixed finite set of established types, compute their closure under those transfers, with `never` as the initial contribution and a completed unknown join retaining its ordinary absorbing behaviour. The number of declarations, their source order and the distance from a seed to a consumer are not grounds for a non-convergence error.</p>
+        <p>Reconsider a contribution when a required provisional or published input changes, retaining its declaration environment and the applicable type-argument substitution. Dependencies include results read through a function value or an explicit generic application, as well as a direct call. A private answer is such an input even when it supplies no declaration-derived anchor. An implementation may retain an answer while its inputs remain unchanged; invalidating a required binding contract also invalidates answers derived from that contract. Reconstructing an equivalent signature or canonical type is not progress by itself. These requirements permit dependency worklists and component scheduling without prescribing either representation.</p>
+        <p>Repetition does not always converge: a recursive result can grow under a type constructor at every step, as `function _w_(_a_: uint32) { return [_w_(_a_)]; }` does. It is a type error where the repetition does not reach a fixpoint, and the program says what it meant with an annotation. Apply the actual contribution transfers, including projection and unknown absorption, before concluding that a constructor makes a cycle grow without bound. The occurrence of a constructor on a recursive path, or a chosen number of changing approximations, does not by itself establish that conclusion. Inference produces no equirecursive types.</p>
+        <emu-example>
+          <p>All three functions below infer `uint32`. Inserting further functions that only forward or join these results, or reordering the declarations, does not change that result. A String annotation on `value` instead produces a type error before evaluation.</p>
+          <pre><code class="javascript">function first(n: uint32) {
+  return n &gt; 1 ? second(n) : (7 := uint32);
+}
+function second(n: uint32) {
+  return n &gt; 1 ? third(n) : first(n);
+}
+function third(n: uint32) { return second(n); }
+const value: uint32 = third(0);
+String(value);</code></pre>
+        </emu-example>
 
         <p>The domain of the fixpoint is the participating functions of the linked module graph, computed before any module in the graph evaluates. A function therefore has one inferred type wherever it is called from, and whether a callee is defined in the same source text, in another module of the graph, or in an earlier script of the same realm makes no difference to what a program means. A dynamically imported module has no such relationship to its importer: a call through it has the ~any~ Static Type, and the enforcement and reflection of the imported function carry its type instead.</p>
 
