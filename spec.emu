@@ -2666,6 +2666,30 @@ String(x) + y;</code></pre>
 
         <p>A contribution is <dfn id="anchored">anchored</dfn> when its Static Type derives from a DECLARED type: a parameter's annotation, a binding's annotation, a field's annotation, a declared return type, or the inferred return type of a function that is itself participating. Anchoring follows the derivation of the value, not control dependence, so in `return _flag_ ? 1 : 2` an annotation on _flag_ anchors nothing: the contribution is the join of the arms, and the arms are literals.</p>
 
+        <p>A function or arrow expression contributes its callable contract, not merely the fact that its syntax is a literal. Determine its declaration provenance under the same lexical and contextual environments that determine that contract:</p>
+        <ol>
+          <li>A known parameter, receiver or result position other than ~any~, obtained from a written annotation or an adopted contextual signature, supplies declaration provenance. Preserve symbolic parameter identities and their enclosing substitutions as required by <emu-xref href="#sec-dependent-result-instantiation"></emu-xref>.</li>
+          <li>A completed inferred result supplies provenance when the literal itself participates under this clause. A private contribution result that does not qualify for publication supplies none. For a generator or async generator, determine yield and completion contributions independently: an unknown component does not erase a known declaration-derived component. The existence of a Promise or generator carrier alone supplies no anchor.</li>
+          <li>A generic parameter list alone, a known literal-only body result, or a signature whose only known positions are ~any~ does not supply an anchor. An annotation used only to choose control flow does not supply provenance to literal value-producing arms. An annotation elsewhere in a nested body contributes only through the ordinary derivation and participation rules.</li>
+          <li>Retain the provenance of the particular contract computation through contribution dependencies. Equal function types need not have equal declaration provenance. Neither another query of the same source under a different context nor an unfinished inference answer establishes an anchor for this query.</li>
+        </ol>
+        <p>These rules do not execute a literal or its enclosing function, apply generic defaults, initialize a captured binding, or establish reference liveness. A literal's declarations and any published result still undergo the ordinary callable compatibility and runtime enforcement judgments.</p>
+        <emu-example>
+          <p>The returned literal's annotated parameter and result anchor `outer`'s callable contribution. The published signature retains the captured String default through `R`. This program has a type error before evaluation although `use` is uncalled; changing `g(1)` to `g("ok")` admits the consumer. The independent `T` declared by `use` does not replace the capture.</p>
+          <pre><code class="language-javascript">function outer&lt;T: type&gt;() {
+  type R&lt;U: type = T&gt; = U;
+  return function f&lt;V: type = R.&lt;&gt; &gt;(x: V): V { return x; };
+}
+const f = outer.&lt;string&gt;();
+function use&lt;T: type&gt;() {
+  const g = f.&lt;&gt;;
+  return g(1);
+}</code></pre>
+        </emu-example>
+        <emu-note>
+          <p>In `function make() { return () =&gt; "ok"; }`, the literal's privately known String result does not anchor `make`. In `function make() { return (x: any) =&gt; "ok"; }`, the literal participates by its annotated parameter and publishes its String result, which supplies provenance to `make`. An explicit ~any~ result instead remains unknown: `function make() { return (): any =&gt; "ok"; }` gains no anchor from that result.</p>
+        </emu-note>
+
         <p>For a contribution that reads a binding, determine its type and its declaration provenance separately, as follows. Parentheses around the read do not affect either determination.</p>
         <ol>
           <li>Resolve the binding in the function's lexical environment. A local or parameter shadows an outer binding even if the local has no annotation, no initializer, an unresolved type, or the type ~any~. The annotation of the shadowed binding supplies no evidence for this read.</li>
