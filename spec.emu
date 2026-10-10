@@ -7010,6 +7010,7 @@ class C implements I {
       </emu-note>
       <p>Determine whether a type source depends on an unbound parameter by its lexical binding dependencies. A declaration-local alias does not remove such a dependency: follow that alias's declaration and, for an applied generic alias, its own argument bindings. Repeat through dependent aliases while respecting binder identity and the existing recursive-type rules. An unbound dependency is retained for the application that can supply it; it is not a closed type computation with a missing global name. Once the application supplies the required bindings, discharge its constraint normally. Alias indirection does not weaken admission or postpone a statically established refusal.</p>
       <p>For a required constraint or omitted-argument default that remains computed, determine its inputs by lexical declaration identity, including dependencies reached through a helper function or alias. A helper retains its own declaration environment: a parameter of the applied signature with the same name does not replace the helper's captured parameter. Enclosing substitutions propagate through intermediate generic signatures even when an intermediate signature introduces a same-named parameter.</p>
+      <p>A generic alias's parameter list does not hide its enclosing dependencies. Retain the free bindings reached through its body, constraints and defaults, while distinguishing the alias's own parameter declarations from captured declarations. Follow further aliases and helpers under the same rule. Retaining a dependency does not evaluate it: bind the alias's own arguments in order, evaluate only defaults required by that application, and keep captured bindings attached to the originating signature when a completed result reaches a consumer.</p>
       <ol>
         <li>Retain the source, its declaring environment, the captured parameter bindings and the preceding bindings required by the computation. For a value parameter, use the value admitted by its declared domain, with the conversion required by BindTypeArguments; its numeric domain is not replaced with Number merely because the source argument was a bare numeric literal.</li>
         <li>When those inputs are available at the required checking boundary, apply the compile-time evaluability judgment to the source and its transitive dependencies and evaluate the required source under those bindings. Do not enter an enclosing ordinary function body, execute its statements or initialize one of its local bindings in order to manufacture a captured input. Imported inputs retain the initialization and failure ordering of <emu-xref href="#sec-module-type-checking-order"></emu-xref>.</li>
@@ -7017,6 +7018,19 @@ class C implements I {
         <li>After a required computation completes normally, apply its resulting type to the owning application and repeat any dependent admission or default-completion judgment that lacked that result. A completed result may be reused only when the source, declaring environment and all determining bindings agree, including captured bindings and bindings established by this application. Distinct parameter declarations remain distinct even if their names agree.</li>
       </ol>
       <p>These requirements do not prescribe cache data structures, synthesized environments or a particular compiler pass. They do not introduce eager evaluation of unused defaults, deepen the admission of `any`, or establish initialization or reference liveness from the successful computation of a type.</p>
+      <emu-example>
+        <p>The typed parameter of `outer` makes it participate in result inference. Its published result retains the captured String argument through `R`, including the computed alias body. The stored application in `use` completes its default and has a String parameter, so this program has a type error before body evaluation even though `use` is never called. Replacing `g(1)` with `g("ok")` admits the consumer.</p>
+        <pre><code class="language-javascript">function identity(t: type): type { return t; }
+function outer&lt;T: type&gt;(x: T) {
+  type R&lt;U: type = T&gt; = identity(U);
+  return function inner&lt;V: type = R.&lt;&gt; &gt;(y: V): V { return y; };
+}
+const fn = outer.&lt;string&gt;("x");
+function use&lt;T: type&gt;() {
+  const g = fn.&lt;&gt;;
+  return g(1);
+}</code></pre>
+      </emu-example>
       <emu-example>
         <p>The omitted default reads the captured `uint32` value `16`, so its array has two elements. This program evaluates to *"ok"*. Parenthesizing `N` has the same result.</p>
         <pre><code class="language-javascript">function sized(n: uint32): type { return type [n / 8].&lt;uint8&gt;; }
