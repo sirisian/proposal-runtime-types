@@ -7226,6 +7226,16 @@ const fn = outer.&lt;uint8&gt;(1);</code></pre>
       </emu-example>
       <p>During checking, distinguish a parameter with no supplied argument from a parameter assigned an argument whose description is not yet available. The latter remains supplied and pending: do not select its default, infer a replacement solely because its description is missing, or report it as an omitted argument. Retain its source and argument-to-parameter assignment until the required inputs become available, then complete and validate that argument under the existing checking-boundary rules. An abrupt supplied argument is not replaced by the parameter's default.</p>
       <p>If an unresolved spread or argument-dependent distribution prevents establishing the supplied runs, retain the pending assignment; an empty set of completed bindings is not evidence of empty runs. A resolved empty spread follows the ordinary omission rules. Defaults for parameters established to be omitted remain subject to their own demand and input-availability rules, including dependencies on preceding bindings. Retaining dependencies reached through an alias's parameter list does not itself select or evaluate any default. None of these checking states is a completed binding of ~any~, initialization, or evidence of reference liveness.</p>
+      <p>For a function application, select defaults only after the applicable inference rungs. Retain each selected default's obligation with that application, its argument assignment, preceding bindings and declaration context, even if an unrelated supplied argument is still open or the callable's result does not mention the defaulted parameter. Availability depends on the selected default's determining inputs, not on all arguments of the application being closed. When enclosing specialization supplies a determining input, complete the retained obligation at the existing required checking boundary. An independent closed default is not suppressed by another parameter's pending description; a default that requires an unavailable input remains pending. Retaining this obligation does not evaluate a bypassed default or execute the ordinary enclosing or applied function body during preparation.</p>
+      <emu-example>
+        <p>This Script reports a default-evaluation type error before its body is evaluated. `U` is explicitly supplied, so its default is bypassed; `W` is omitted and its closed default is required. If `W` instead has a default that depends on `U`, that obligation is retained and checked when the enclosing application supplies `string`.</p>
+        <pre><code class="language-javascript">function fail(): type { throw new Error("default ran"); }
+function outer&lt;T: type&gt;(x: T): T {
+  function inner&lt;U: type = fail(), W: type = fail()&gt;(y: U): U { return y; }
+  return inner.&lt;T&gt;(x);
+}
+outer.&lt;string&gt;("ok");</code></pre>
+      </emu-example>
       <emu-alg>
         1. Interpret the type-source judgments below in the argument and declaration environments required by <emu-xref href="#sec-generic-constraint-contexts"></emu-xref>, retaining the applied signature's captured substitutions.
         1. Let _entries_ be a new empty List.
