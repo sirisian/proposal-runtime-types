@@ -258,6 +258,7 @@ contributors: Sirisian
           AreDisjoint (
             _s_: a Type Record,
             _t_: a Type Record,
+            optional _active_: a List of Records,
           ): a Boolean
         </h1>
         <dl class="header">
@@ -265,25 +266,28 @@ contributors: Sirisian
           <dd>It determines whether no value is of both _s_ and _t_.</dd>
         </dl>
         <emu-alg>
+          1. If _active_ is not present, set _active_ to a new empty List.
+          1. If _active_ contains a Record whose [[First]] is _s_ and whose [[Second]] is _t_, return *false*.
+          1. Set _active_ to the list-concatenation of _active_ and &laquo; the Record { [[First]]: _s_, [[Second]]: _t_ } &raquo;.
           1. If _s_.[[Kind]] is ~any~, ~parameter~, or ~deferred~, return *false*.
           1. If _t_.[[Kind]] is ~any~, ~parameter~, or ~deferred~, return *false*.
-          1. If _s_.[[Kind]] is ~shared~, return AreDisjoint(_s_.[[Target]], _t_).
-          1. If _t_.[[Kind]] is ~shared~, return AreDisjoint(_s_, _t_.[[Target]]).
+          1. If _s_.[[Kind]] is ~shared~, return AreDisjoint(_s_.[[Target]], _t_, _active_).
+          1. If _t_.[[Kind]] is ~shared~, return AreDisjoint(_s_, _t_.[[Target]], _active_).
           1. If _s_.[[Kind]] is ~intersection~, then
             1. For each element _m_ of _s_.[[Members]], do
-              1. If AreDisjoint(_m_, _t_) is *true*, return *true*.
+              1. If AreDisjoint(_m_, _t_, _active_) is *true*, return *true*.
             1. Return *false*.
           1. If _t_.[[Kind]] is ~intersection~, then
             1. For each element _n_ of _t_.[[Members]], do
-              1. If AreDisjoint(_s_, _n_) is *true*, return *true*.
+              1. If AreDisjoint(_s_, _n_, _active_) is *true*, return *true*.
             1. Return *false*.
           1. If _s_.[[Kind]] is ~union~, then
             1. For each element _p_ of _s_.[[Members]], do
-              1. If AreDisjoint(_p_, _t_) is *false*, return *false*.
+              1. If AreDisjoint(_p_, _t_, _active_) is *false*, return *false*.
             1. Return *true*.
           1. If _t_.[[Kind]] is ~union~, then
             1. For each element _q_ of _t_.[[Members]], do
-              1. If AreDisjoint(_s_, _q_) is *false*, return *false*.
+              1. If AreDisjoint(_s_, _q_, _active_) is *false*, return *false*.
             1. Return *true*.
           1. If _s_.[[Kind]] is ~void~ or _t_.[[Kind]] is ~void~, return *true* if _s_.[[Kind]] is not _t_.[[Kind]], and *false* otherwise.
           1. Let _sb_ be _s_; while _sb_.[[Kind]] is ~parameterized~, set _sb_ to _sb_.[[Base]].
@@ -291,13 +295,21 @@ contributors: Sirisian
           1. If _sb_.[[Kind]] is ~literal~ and _tb_.[[Kind]] is ~literal~, return *false* if SameType(_sb_, _tb_) is *true*, and *true* otherwise.
           1. If _sb_.[[Kind]] is ~literal~, set _sb_ to _sb_.[[Base]].
           1. If _tb_.[[Kind]] is ~literal~, set _tb_ to _tb_.[[Base]].
+          1. If both _sb_ and _tb_ are composite types (<emu-xref href="#sec-composite-types"></emu-xref>), then
+            1. If either is the top composite type, return *false*.
+            1. Return CompositeShapesAreDisjoint(the shape of _sb_, the shape of _tb_, _active_).
+          1. If exactly one of _sb_ and _tb_ is a composite type, then
+            1. Let _other_ be the one that is not a composite type.
+            1. If _other_.[[Kind]] is ~primitive~, ~array~, or ~function~, return *true*.
+            1. If _other_ is an enum type, return *true*.
+            1. Return *false*.
           1. If _sb_.[[Kind]] is ~primitive~ and _tb_.[[Kind]] is ~primitive~, return *false* if SameType(_sb_, _tb_) is *true*, and *true* otherwise.
           1. If _sb_.[[Kind]] is ~primitive~ and _tb_.[[Kind]] is ~object~, ~function~, ~array~, or ~tuple~, return *true*.
           1. If _tb_.[[Kind]] is ~primitive~ and _sb_.[[Kind]] is ~object~, ~function~, ~array~, or ~tuple~, return *true*.
           1. Return *false*.
         </emu-alg>
         <emu-note>
-          <p>This is the judgment <emu-xref href="#sec-narrowto"></emu-xref> already made in prose, given a name so that canonicalization, the Early Error of <emu-xref href="#sec-intersection-type-early-errors"></emu-xref>, and the narrowing rows decide it once and the same way. Everything it answers *true* for that clause's note had already committed to: two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or a ~function~ type.</p>
+          <p>This is the judgment <emu-xref href="#sec-narrowto"></emu-xref> already made in prose, given a name so that canonicalization, the Early Error of <emu-xref href="#sec-intersection-type-early-errors"></emu-xref>, and the narrowing rows decide it once and the same way. Everything it answers *true* for that clause's note had already committed to: two distinct non-composite ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a non-composite ~primitive~ type share values with an ~object~ or a ~function~ type.</p>
         <p><ins>An intersection of exactly two ~parameterized~ Type Records over one base reduces to their MEET, where a governing meta type gave one: the constraint its `meet` hook returned (<emu-xref href="#table-meta-hooks"></emu-xref>), which is satisfied by exactly the values satisfying both. So `uint8`&lt;`{ bounds: 1..=10 }`&gt; `&` `uint8`&lt;`{ bounds: 5..=20 }`&gt; is `uint8`&lt;`{ bounds: 5..=10 }`&gt;, and the two spellings intern to one Type Object &mdash; the reason the reduction is here and not at each use, since a type reached by two spellings must answer `===`.</ins></p>
         <p><ins>The hook runs USER CODE and this operation does not, so the meet is computed by the checking pass and read here. A meta type declaring no `meet`, or returning *undefined*, leaves the intersection standing, which is what keeps two differently-branded parameterizations of one primitive distinct: <emu-xref href="#sec-aredisjoint"></emu-xref> decides on the base and leaves them overlapping, and a meta type with nothing to prove says nothing here either.</ins></p>
           <p>The operation is CONSERVATIVE: where the values of a type are not yet known it answers *false*, never *true*. ~any~, a ~parameter~, and a ~deferred~ computation whose operands have not closed therefore overlap with everything, which is what keeps a generic body from being rejected for a disjointness that only some instantiation would have. It is likewise silent about two ~object~ types, two ~nominal~ types, and a ~nominal~ against an ~object~: two object types may share a value, which is the case intersections exist for, and whether two unrelated nominal CLASSES are disjoint is a question this operation deliberately does not answer, there being no need of it and a subtyping cost to deciding it. That question is answered instead by an Early Error on the syntax (<emu-xref href="#sec-intersection-type-early-errors"></emu-xref>) and by a step of NarrowTo (<emu-xref href="#sec-narrowto"></emu-xref>), both run by the checking pass, which is already running IsSubtype, so the interning path this operation sits on is not disturbed. A written `P &amp; Q` of two unrelated classes and a narrowing to the same pair therefore receive one answer.</p>
@@ -305,6 +317,45 @@ contributors: Sirisian
           <p>The walk to the base is a LOOP and not a single step, because parameterizing an already-parameterized type nests: the outer [[Base]] is the inner type, so `string.&lt;{ brand: 'E' }&gt;.&lt;{ brand: 'N' }&gt;` reaches `string` only by walking through the layer between (<emu-xref href="#sec-parameterized-types"></emu-xref>). A single step would have compared one nested brand against another and found two ~parameterized~ types it could not relate, and reading that as disjoint would have emptied every layered type in the language.</p>
           <p>The base a walk arrives at need not be a ~primitive~. A ~literal~ base is decided by the primitive beneath it, so a brand on `'a'` and a brand on `string` may share a value while a brand on `'a'` and a brand on `'b'` may not. An ~object~ or ~array~ base carries a brand as a mark on the value, so two brands over one object shape are two refinements of it exactly as over a `string`, and a brand over an object is disjoint from a ~primitive~ for the ordinary reason rather than because it is branded.</p>
         </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-compositeshapesaredisjoint" type="abstract operation">
+        <h1>
+          CompositeShapesAreDisjoint (
+            _s_: a Type Record,
+            _t_: a Type Record,
+            _active_: a List of Records,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It proves selected contradictions between two composite shapes without evaluating values or treating a membership contract as a construction schema. An unresolved case returns *false*.</dd>
+        </dl>
+        <emu-alg>
+          1. If one of _s_ and _t_ has [[Kind]] ~object~ and the other has [[Kind]] ~tuple~ or ~array~, return *true*.
+          1. If both _s_.[[Kind]] and _t_.[[Kind]] are ~object~, then
+            1. For each Property Type Record _p_ of _s_.[[Properties]], do
+              1. Let _q_ be the Property Type Record of _t_.[[Properties]] with the same [[Key]] as _p_, or ~none~ if there is none.
+              1. If _q_ is not ~none~, at least one of _p_.[[Optional]] and _q_.[[Optional]] is *false*, and AreDisjoint(_p_.[[Type]], _q_.[[Type]], _active_) is *true*, return *true*.
+            1. Return *false*.
+          1. Let _sFixed_ be *true* if _s_.[[Kind]] is ~tuple~ and none of its elements is a rest element, and *false* otherwise.
+          1. Let _tFixed_ be *true* if _t_.[[Kind]] is ~tuple~ and none of its elements is a rest element, and *false* otherwise.
+          1. If _sFixed_ is *true*, let _sMin_ be the minimum length admitted by the declared defaults of _s_.
+          1. If _tFixed_ is *true*, let _tMin_ be the minimum length admitted by the declared defaults of _t_.
+          1. If _sFixed_ is *true* and _tFixed_ is *true*, then
+            1. Let _required_ be max(_sMin_, _tMin_).
+            1. If _required_ is greater than the smaller of the numbers of elements of _s_ and _t_, return *true*.
+            1. For each integer _i_ such that 0 &le; _i_ &lt; _required_, do
+              1. If AreDisjoint(_s_.[[Elements]][_i_].[[Type]], _t_.[[Elements]][_i_].[[Type]], _active_) is *true*, return *true*.
+          1. Else if _sFixed_ is *true* and _t_.[[Kind]] is ~array~, then
+            1. For each integer _i_ such that 0 &le; _i_ &lt; _sMin_, do
+              1. If AreDisjoint(_s_.[[Elements]][_i_].[[Type]], _t_.[[Element]], _active_) is *true*, return *true*.
+          1. Else if _tFixed_ is *true* and _s_.[[Kind]] is ~array~, then
+            1. For each integer _i_ such that 0 &le; _i_ &lt; _tMin_, do
+              1. If AreDisjoint(_s_.[[Element]], _t_.[[Elements]][_i_].[[Type]], _active_) is *true*, return *true*.
+          1. Return *false*.
+        </emu-alg>
+        <p>Record membership permits extra keys by width subtyping. Two conflicting optional properties can both be absent; if either is required, their common value must satisfy both property contracts. Likewise, only tuple positions required at every common admitted length can prove an element conflict. Two ~array~ composite shapes can share the empty tuple even when their element types are disjoint; an ~array~ shape denotes the variable-length tuple composite. A declared tuple default establishes possible omission without evaluating its initializer. Rest-containing tuple shapes, index-signature interactions and other unresolved shape constraints retain a conservative result unless the kind distinction already proves failure. Repeating an active Type Record pair supplies no proof of disjointness; other independently established conflicts are still checked.</p>
       </emu-clause>
 
       <emu-clause id="sec-canonicalizetype" type="abstract operation">
@@ -4605,7 +4656,7 @@ const n: uint32 = g();
         <p>A <dfn id="class-type">class type</dfn> is a ~nominal~ Type Record whose [[Declaration]] is a class declaration, or the type of a global constructor usable as a type name other than `Symbol`, `Proxy` and `ProxyHandler`. Each is a type whose values are its instances by prototype chain, with the single-inheritance identity a class has, so two class types neither of which is a subtype of the other share no value. `Symbol` names primitive values, and a proxy takes its target's prototype, so neither has that identity.</p>
         <p>A union _t_ is taken member by member because CanonicalizeType does not distribute an intersection over a union (<emu-xref href="#sec-canonicalizetype"></emu-xref>): without the step, NarrowTo of a class type against a union of class types it shares no value with would be the intersection `C &amp; (A | B)`, which stands for a type with no values.</p>
         <emu-note>
-          <p>The disjointness judgment is <emu-xref href="#sec-aredisjoint"></emu-xref>, which this clause once stated in prose and which canonicalization and the Early Error of <emu-xref href="#sec-intersection-type-early-errors"></emu-xref> now share, so a type is empty in one place exactly when it is empty in the others. Two distinct ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that yields ~empty~ for `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
+          <p>The disjointness judgment is <emu-xref href="#sec-aredisjoint"></emu-xref>, which this clause once stated in prose and which canonicalization and the Early Error of <emu-xref href="#sec-intersection-type-early-errors"></emu-xref> now share, so a type is empty in one place exactly when it is empty in the others. Two distinct non-composite ~primitive~ types have no common values, since each value belongs to exactly one of them (<emu-xref href="#sec-value-types"></emu-xref>), and neither does a non-composite ~primitive~ type share values with an ~object~ or ~function~ type. Two ~object~ types, or two ~nominal~ types that are interfaces, may have common values, since a class may satisfy both, so an intersection of those is inhabited and is returned. This is the step that yields ~empty~ for `d ?? 5` where `d` is a `uint8`: the narrowed type would be the intersection of `uint8` and `null | undefined`, which has no values.</p>
           <p>~empty~ remains distinct from the `never` this same disjointness produces in a TYPE, and the difference is what each is for. A narrowing row that cannot succeed is a branch the program wrote and can never take, so it is reported as the mistake it is; a type computation that filters every member away has an answer, and the answer is `never`. The two are the same judgment put to different uses, which is why they may share the operation without sharing the result.</p>
         </emu-note>
       </emu-clause>
@@ -9523,6 +9574,8 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
     <emu-clause id="sec-composite-types">
       <h1>Composite Types</h1>
       <p>A Type Record is a <dfn variants="composite types">composite type</dfn> when its [[Kind]] is ~primitive~ and its [[Name]] is *"Composite"*. The composite type over a shape _S_, where _S_ is an ~object~, ~tuple~ or ~array~ Type Record and where an interface type contributes the ~object~ Type Record of its structural form, has [[Arguments]] &laquo; CompositeTreeShape(_S_) &raquo;, and that record is called its <dfn>shape</dfn>. A shape is read as a <dfn>composite tree</dfn>: since a composite object is frozen from its creation and the value it holds at a structural position is itself a composite (a composite's contents are a tree terminating in non-composite leaves), CompositeTreeShape(_S_) is _S_ with every Property Type Record's [[Readonly]] set to *true* and every [[Type]] of a property, tuple element or array element that is an ~object~, ~tuple~ or ~array~ Type Record replaced by the composite type over that record, recursively; a member type that is not one of those kinds is unchanged, and the operation is idempotent. The reading is made where the composite type is constructed and nowhere else, so that every spelling of the type &mdash; an annotation, the typed creation `Composite.&lt;S&gt;(source)`, a parse target, the record `Reflect.typeOf` reports &mdash; denotes one type. An ~array~ shape is the variable-length tuple composite: a composite of that type is a tuple composite of any length each of whose elements is of the element type. The <dfn>top composite type</dfn>, written `Composite` with no arguments, has [[Arguments]] &laquo; &raquo;, states no shape, and is the type of every composite object. `Composite` joins the built-in type names of <emu-xref href="#sec-type-names"></emu-xref>, resolving in type position by the rule stated there, and `Composite.&lt;T&gt;` is a |TypeReference| with |TypeArguments| like any other parameterized family. <ins>That the shape is a TYPE ARGUMENT and not a metadata record follows from the general rule (<emu-xref href="#sec-parameterized-types"></emu-xref>) and needs no special case here: `Composite` declares a parameter, so its arguments are types. The rule matters at this clause in particular because a composite type's [[Kind]] is ~primitive~, so a reading that asked what KIND the base was &mdash; rather than whether it declares parameters &mdash; would take the shape for metadata and put it in [[Metadata]], where <emu-xref href="#sec-issubtype"></emu-xref> does not look for it.</ins> These Type Records canonicalize by canonicalizing the shape in [[Arguments]] (<emu-xref href="#sec-canonicalizetype"></emu-xref>), so `Composite.&lt;{ x: int32; y: int32 }&gt;` written anywhere is one Type Object. The Static Type of a call of the Composite function is the top composite type where the call supplies no |TypeArguments| and no contextual type reaches it, and the composite type over _T_'s structural form for the typed creation `Composite.&lt;T&gt;(source)`; `Reflect.typeOf` on a composite returns the Type Object of its [[RuntimeType]], the same object either spelling denotes. A `const` binding whose initializer is such a typed creation, or any call that writes its type arguments, takes the call's Static Type as its own, as a `const` initialized by a construction does: in each case the type is one the program wrote at the initializer, not one inferred from a literal, so `const t = Composite.&lt;[uint8, uint8]&gt;([1, 2]); let a: [].&lt;uint8&gt; = t;` is the type error the subtyping rule states rather than a binding the checker cannot see.</p>
+
+      <p>Composite Type Records use the ~primitive~ representation but describe frozen Objects and a family of overlapping contracts. Their disjointness is decided before the scalar ~primitive~ rules of AreDisjoint (<emu-xref href="#sec-aredisjoint"></emu-xref>). The top composite type overlaps every shaped composite type, and different shapes are not disjoint merely because their Type Records differ. Common-kind, required-member and admitted-length contradictions are judged by CompositeShapesAreDisjoint. A composite may also satisfy a structural object or tuple contract or an interface; absence of a subtype proof does not prove these contracts disjoint. Mutable ~array~ contracts exclude composite values, and a composite is neither callable nor a scalar or enum value. This judgment does not merge Type Objects, convert stored members, decide equality of particular values, or alter reference permissions or liveness. Equal contents still intern according to their stored types and composite kind.</p>
 
       <p>The shape recorded for a composite object is derived from its stored contents by CompositeShape (<emu-xref href="#sec-compositeshape"></emu-xref>), so that objects with the same contents have the same shape and interning is coherent. The type of each field is the runtime type of its value, except that a field whose value is an Object records the `any` type, a field whose value is a composite object records that composite's own type, and a field whose value is a Type Object records the `type` type. An ordinary object's structural runtime type describes the properties it happens to have and can change as the object does, which is why it is not recorded: a frozen object's recorded type must not go stale, and the identity a reference field contributes is the reference, not a snapshot of its shape.</p>
 
