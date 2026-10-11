@@ -5208,7 +5208,7 @@ class C implements I {
         <h1>
           ResolveOverload (
             _signatures_: a List of Signature Records,
-            _args_: a List of Parse Nodes,
+            _args_: a List of arguments,
             _contextualType_: a Type Record or ~none~,
           ): either a Signature Record, ~none~, or ~ambiguous~
         </h1>
@@ -5225,16 +5225,17 @@ class C implements I {
               1. If some parameter of _sig_.[[TypeParameters]] is left unbound, or binding it was a throw completion, then
                 1. Continue.
               1. Set _sig_ to the Signature Record whose fields are those of _sig_ with each Type Record they hold replaced by the result of SubstituteType applied to it and _bindings_, and whose [[TypeParameters]] is empty.
-            1. If BindArguments(_sig_, _args_) is ~unmatched~ (<emu-xref href="#sec-bindarguments"></emu-xref>), then
+            1. Let _argumentBindings_ be BindArguments(_sig_, _args_) (<emu-xref href="#sec-bindarguments"></emu-xref>).
+            1. If _argumentBindings_ is ~unmatched~, then
               1. Continue.
-            1. If some element of _args_ is not assignable to the type of the parameter that receives it, then
+            1. If some element of _args_ does not satisfy its receiving contract under _argumentBindings_ as defined below, then
               1. Continue.
             1. If _contextualType_ is not ~none~, _sig_ has a declared return type, and IsAssignable(_sig_.[[Return]], _contextualType_) is *false*, then
               1. Continue.
             1. Append _sig_ to _viable_.
           1. If _viable_ is empty, return ~none~.
           1. For each element _sig_ of _viable_, do
-            1. Let _rank_ be the greatest rank in <emu-xref href="#table-argument-match-ranks"></emu-xref> required by any element of _args_ to match its parameter in _sig_.
+            1. Let _rank_ be the greatest rank in <emu-xref href="#table-argument-match-ranks"></emu-xref> required by any element of _args_ to match its receiving contract under the bindings that made _sig_ viable.
             1. Let _sig_'s worst rank be _rank_.
           1. Let _best_ be the elements of _viable_ whose worst rank is least.
           1. If _best_ has more than one element, then
@@ -5244,6 +5245,10 @@ class C implements I {
           1. Return ~ambiguous~.
         </emu-alg>
       </emu-clause>
+
+      <p>For viability, ranking and specificity, each argument's receiving contract is its assigned fixed parameter's type or its actual position within a rest. For a reference rest, retain the positional leaf type selected by the complete collected contract and the lexicographically greatest successful sequence assignment of ReferenceSequenceAdmits (<emu-xref href="#sec-referencesequenceadmits"></emu-xref>), including nested rests. Do not replace the leaf with a union of the tuple's element types. Retain the owning declared parameter as well: a leaf within a rest is still a rest position for specificity. Reuse the assignment that established viability when comparing candidates.</p>
+      <p>A reference receiving position requires the original reference contribution and the reference-argument judgment of <emu-xref href="#sec-reference-parameters-and-arguments"></emu-xref>. At run time, the referent must be live and satisfy the receiving type without conversion, and its available declared location type retains its invariant obligation. The current referent type and the invariant location type are distinct facts; a narrower current value does not narrow the location's contract. Unresolved static facts retain their existing deferred runtime judgment. Rank an admitted reference against its receiving leaf type under the existing ranks. A value receiving position instead judges and ranks the decayed value under the ordinary value rules. An explicit reference contributes no additional preference between otherwise equally ranked candidates; existing specificity and ambiguity rules still apply.</p>
+      <p>Overload selection does not evaluate value parameter initializers or create replacement borrowed locations. The dispatcher forwards the original arguments and locations to the selected function; it is not itself a value parameter boundary. Final parameter binding and later accesses retain their independent admission and liveness checks, including after an intervening argument effect or initializer. This does not change the value boundaries of `call`, `apply`, or `bind`.</p>
 
       <emu-table id="table-argument-match-ranks" caption="Argument Match Ranks">
         <table>
@@ -5424,6 +5429,7 @@ class C implements I {
             1. Let _p_ be the parameter _which_ stands for.
             1. If _p_ is a reference rest parameter, return *true*.
             1. Let _target_ be _p_.[[Type]], or the element type of _p_.[[Type]] where _p_.[[Rest]] is *true*.
+            1. If _p_ is a reference parameter, return *true* if _positional_[_index_] satisfies the reference-argument judgment for _target_ of <emu-xref href="#sec-reference-parameters-and-arguments"></emu-xref>, and *false* otherwise.
             1. Return IsAssignable(the Static Type of _positional_[_index_] in contextual type _target_, _target_).
           1. Let _admitsRun_ be a new Abstract Closure with parameters (_start_, _count_, _which_) that captures _positional_ and performs the following steps when called:
             1. Let _p_ be the parameter _which_ stands for.
