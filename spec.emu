@@ -5319,6 +5319,7 @@ class C implements I {
             _slots_: a List of Records with a [[Rest]] field (a Boolean) and an [[Optional]] field (a Boolean),
             _n_: a non-negative integer,
             _admits_: an Abstract Closure taking a non-negative integer and a Record of _slots_ and returning a Boolean,
+            optional _admitsRun_: an Abstract Closure taking two non-negative integers and a Record of _slots_ and returning a Boolean,
           ): either a List of non-negative integers or ~unmatched~
         </h1>
         <dl class="header">
@@ -5337,9 +5338,16 @@ class C implements I {
           1. Let _min_ be 0.
           1. If _slot_.[[Rest]] is *false* and _slot_.[[Optional]] is *false*, set _min_ to 1.
           1. For each integer _m_ from _limit_ down to _min_, in descending order, do
+            1. If _admitsRun_ is present and _admitsRun_(0, _m_, _slot_) is *false*, continue.
             1. Let _shifted_ be a new Abstract Closure with parameters (_index_, _which_) that captures _admits_ and _m_ and performs the following steps when called:
               1. Return _admits_(_index_ + _m_, _which_).
-            1. Let _rest_ be SequenceAssignment(_tail_, _n_ - _m_, _shifted_).
+            1. Let _rest_ be ~unmatched~.
+            1. If _admitsRun_ is present, then
+              1. Let _shiftedRun_ be a new Abstract Closure with parameters (_start_, _count_, _which_) that captures _admitsRun_ and _m_ and performs the following steps when called:
+                1. Return _admitsRun_(_start_ + _m_, _count_, _which_).
+              1. Set _rest_ to SequenceAssignment(_tail_, _n_ - _m_, _shifted_, _shiftedRun_).
+            1. Else,
+              1. Set _rest_ to SequenceAssignment(_tail_, _n_ - _m_, _shifted_).
             1. If _rest_ is not ~unmatched~, return the list-concatenation of &laquo; _m_ &raquo; and _rest_.
           1. Return ~unmatched~.
         </emu-alg>
@@ -5348,6 +5356,43 @@ class C implements I {
           <p>The result is deterministic. Because the search takes the greatest count first at each slot in turn, the assignment returned is the greatest in the lexicographic order on the count lists, so it does not depend on how an implementation searches; an implementation may use any method that agrees with it. The recursion terminates because each call passes a shorter _slots_.</p>
           <p>The design's own example is the one to check the rule against. For `function f(...a: [].&lt;uint32&gt;, ...b: [].&lt;uint32&gt;, c: uint32)` called `f(0, 1, 2)`, the first slot takes all three, the tail cannot be satisfied, it yields to two, `b` then takes the one remaining and `c` cannot be satisfied, `b` yields to none, and the assignment settles at `a`: &laquo; 0, 1 &raquo;, `b`: &laquo; &raquo;, `c`: 2. Where the types differ the filter does the work with no further rule: in `function f(a: string, ...args: [].&lt;uint32&gt;, ...args2: [].&lt;string&gt;, callback: () =&gt; void)`, `args` stops at the first argument that is not a `uint32`.</p>
         </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-referencesequenceadmits" type="abstract operation">
+        <h1>
+          ReferenceSequenceAdmits (
+            _t_: a Type Record,
+            _run_: a List of arguments,
+            _admits_: an Abstract Closure taking an argument and a Type Record and returning a Boolean,
+          ): a Boolean
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It checks a reference rest's collected sequence, using _admits_ for invariant reference admission at each receiving position. The Type Record is the resolved collected contract, after applicable generic substitutions.</dd>
+        </dl>
+        <emu-alg>
+          1. If _t_.[[Kind]] is ~array~, then
+            1. If _t_.[[Extent]] is an integer and the number of elements of _run_ is not _t_.[[Extent]], return *false*.
+            1. For each element _arg_ of _run_, do
+              1. If _admits_(_arg_, _t_.[[Element]]) is *false*, return *false*.
+            1. Return *true*.
+          1. If _t_.[[Kind]] is ~tuple~, then
+            1. Let _slots_ be a new empty List.
+            1. For each element _e_ of _t_.[[Elements]], do
+              1. Append the Record { [[Rest]]: _e_.[[Rest]], [[Optional]]: _e_.[[Initial]] is not ~none~, [[Element]]: _e_ } to _slots_.
+            1. Let _one_ be a new Abstract Closure with parameters (_index_, _slot_) that captures _run_ and _admits_ and performs the following steps when called:
+              1. If _slot_.[[Rest]] is *true*, return *true*.
+              1. Return _admits_(_run_[_index_], _slot_.[[Element]].[[Type]]).
+            1. Let _many_ be a new Abstract Closure with parameters (_start_, _count_, _slot_) that captures _run_ and _admits_ and performs the following steps when called:
+              1. If _slot_.[[Rest]] is *false*, return *true*.
+              1. Let _part_ be the sublist of _run_ starting at _start_ and containing _count_ elements.
+              1. Return ReferenceSequenceAdmits(_slot_.[[Element]].[[Type]], _part_, _admits_).
+            1. Return *true* if SequenceAssignment(_slots_, the number of elements of _run_, _one_, _many_) is not ~unmatched~, and *false* otherwise.
+          1. For each element _arg_ of _run_, do
+            1. If _admits_(_arg_, _t_) is *false*, return *false*.
+          1. Return *true*.
+        </emu-alg>
+        <p>A static use of _admits_ applies the reference-argument judgment without reading storage; unresolved facts retain their existing deferred judgment. A runtime use requires a Reference Value, checks its live referent without conversion and preserves its available invariant location contract. A defaulted tuple position permits omission but supplies no location: a reference rest collects only the supplied borrows, creates no temporary for an omitted default, and retains bounds checks on subsequent indexing. A successful match is not proof of liveness after an intervening effect.</p>
       </emu-clause>
 
       <emu-clause id="sec-bindarguments" type="abstract operation">
@@ -5377,15 +5422,25 @@ class C implements I {
           1. Let _slots_ be a List containing, for each parameter _p_ of _sig_.[[Parameters]] not yet assigned to, a Record { [[Rest]]: _p_.[[Rest]], [[Optional]]: _p_.[[Optional]] or _p_.[[Initial]] is not ~none~ }, in parameter order.
           1. Let _admits_ be a new Abstract Closure with parameters (_index_, _which_) that captures _positional_ and performs the following steps when called:
             1. Let _p_ be the parameter _which_ stands for.
+            1. If _p_ is a reference rest parameter, return *true*.
             1. Let _target_ be _p_.[[Type]], or the element type of _p_.[[Type]] where _p_.[[Rest]] is *true*.
             1. Return IsAssignable(the Static Type of _positional_[_index_] in contextual type _target_, _target_).
-          1. Let _counts_ be SequenceAssignment(_slots_, the number of elements of _positional_, _admits_).
+          1. Let _admitsRun_ be a new Abstract Closure with parameters (_start_, _count_, _which_) that captures _positional_ and performs the following steps when called:
+            1. Let _p_ be the parameter _which_ stands for.
+            1. If _p_ is not a reference rest parameter, return *true*.
+            1. Let _run_ be the sublist of _positional_ starting at _start_ and containing _count_ elements.
+            1. Let _referenceAdmits_ be a new Abstract Closure with parameters (_arg_, _target_) that performs the following steps when called:
+              1. Return *true* if _arg_ satisfies the reference-argument judgment for _target_ of <emu-xref href="#sec-reference-parameters-and-arguments"></emu-xref>, and *false* otherwise.
+            1. Return ReferenceSequenceAdmits(the collected Type Record of _p_, _run_, _referenceAdmits_).
+          1. Let _counts_ be SequenceAssignment(_slots_, the number of elements of _positional_, _admits_, _admitsRun_).
           1. If _counts_ is ~unmatched~, return ~unmatched~.
-          1. Assign to each such parameter, in order, the number of elements of _positional_ that _counts_ gives it, a rest parameter receiving them as an array of its type and any other receiving the one element.
+          1. Assign to each such parameter, in order, the number of elements of _positional_ that _counts_ gives it, a reference rest receiving their original locations, a value rest receiving an array of its type, and any other receiving the one element.
           1. For each parameter _p_ of _sig_.[[Parameters]] that received nothing, do
             1. If _p_.[[Initial]] is not ~none~, assign _p_.[[Initial]] to _p_.
+            1. Else if _p_ is a reference rest parameter, assign an empty reference run to _p_.
             1. Else if _p_.[[Rest]] is *true*, assign an empty array of _p_.[[Type]] to _p_.
             1. Else if _p_.[[Optional]] is *false*, return ~unmatched~.
+          1. Check each reference rest's assigned run against its complete collected contract using ReferenceSequenceAdmits; if any judgment fails, return ~unmatched~.
           1. Return the bindings.
         </emu-alg>
         <emu-note>
@@ -6736,6 +6791,7 @@ class C implements I {
     <emu-clause id="sec-reference-parameters-and-arguments">
       <h1>Reference Parameters and Arguments</h1>
       <p>A `ref` argument `f(ref e)` evaluates _e_ to a storage location and passes a Reference Value holding it. The location is obtained by RequireBorrowableReference (<emu-xref href="#sec-requireborrowablereference"></emu-xref>), so it is a *TypeError* exception if _e_ does not denote a location: a value, a private member, a super property, and a property of a primitive have no location a borrow could alias. A `ref` parameter binds its name to the location the argument carries, so a read in the callee reads through to the referent and a write in the callee writes through to it. It is a *TypeError* exception if the argument to a `ref` parameter is not a Reference Value, since a plain value has no location to borrow, and a Reference Value passed to a parameter that is not `ref` decays to its referent.</p>
+      <p>At final binding of every reference rest, including a trailing rest reached through an unknown callable, check the actual run with ReferenceSequenceAdmits (<emu-xref href="#sec-referencesequenceadmits"></emu-xref>) before initializing its binding or entering the function body. Use the resolved collected annotation, retain positional tuple and nested-rest contracts and stated array extents, and require each supplied location's invariant type and current referent to satisfy its receiving contract without conversion. Omitted tuple defaults contribute no location. Failure is a *TypeError* exception; no partially admitted reference run is published. Recheck liveness after earlier parameter initializers and other intervening effects, even if distribution previously succeeded. The same sequence judgment applies statically where the run and its determining contracts are known; unknown iteration counts or unresolved inputs retain their existing runtime boundary.</p>
       <p>A type annotation on a `ref` parameter is checked against the referent and never converts it. The referent is of the annotated type or a *TypeError* exception is thrown; the value at the caller's location is not rewritten, because a borrow that converted its referent would silently change storage it does not own. A `ref` parameter's binding is not re-enforced by the parameter type pass of <emu-xref href="#sec-runtime-enforcement"></emu-xref> for the same reason.</p>
       <p>Where the borrowed location's type is statically known, `ref e` contributes a ~reference~ Type Record whose [[Target]] is that location type. A `return ref e` is checked against the declared return type before the caller's value-context decay; reference compatibility uses the existing invariant target relation. At an ordinary value parameter the explicit reference argument instead contributes its referent type, after the specified decay, to argument checking, overload resolution and generic inference. Unknown location types retain runtime checks. These judgments read no location and do not alter borrow permission or reference liveness.</p>
       <p>Reference-argument judgments apply wherever the static argument binding proves the receiving parameter. A spread of unknown count does not suppress the check on a preceding required positional argument whose destination is independent of that count. It is a type error if such an argument does not supply a reference, or if its known referent type differs from the parameter's type. A mapping that depends on an optional parameter, a non-final rest, or a possible object spread binding names is deferred where those facts are unknown; indexed array storage alone does not establish an iterator's protocol or count (<emu-xref href="#sec-static-iteration-contribution"></emu-xref>).</p>
