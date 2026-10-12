@@ -767,7 +767,7 @@
       "specification": [
         "sec-meta-declarations"
       ],
-      "explanation": "The meta declaration duplicates an owner or omits a required hook.",
+      "explanation": "The meta declaration cannot be completed: its owner, key claims, parameter count, default or required hooks are invalid.",
       "arguments": {
         "type": "array",
         "items": {
