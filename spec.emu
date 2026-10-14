@@ -11056,7 +11056,7 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
     <p>A bare argument is the first: `Iterator.&lt;uint8&gt;` is `Iterator.&lt;uint8, void, void&gt;`, and likewise for the other five. This is the shorthand <emu-xref href="#sec-generator-types"></emu-xref> states for the generator families, and it is one rule rather than two.</p>
 
     <emu-note>
-      <p>_R_ and _N_ default to ~void~ because the generator families default them to ~void~, and that agreement is what makes a `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` satisfy `IterableIterator.&lt;`_Y_`, `_R_`, `_N_`&gt;`. Had the two been chosen separately a generator would have been *nearly* an iterator, which is a failure mode with a record: TypeScript's builtin iterator type and its generators disagreed on this parameter, and the type could not be given a usable default as a result.</p>
+      <p>_R_ and _N_ default to ~void~ as they do in the generator families. A generator's body return obligation and its operation results are distinct: conformance to a structural iterator follows <emu-xref href="#sec-generator-operation-results"></emu-xref>, including ordinary exhaustion. Equal default spellings do not establish an unconditional same-argument implementation relation.</p>
       <p>There are no per-collection iteration types. TypeScript names `ArrayIterator`, `MapIterator`, and `SetIterator` because it needs somewhere to carry a narrower return type; the shorthand carries it here, so the family stays at six interfaces and two classes. The absence is a decision rather than an omission.</p>
     </emu-note>
 
@@ -11071,9 +11071,16 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
     <p>An unknown receiver, key or reached store does not establish failure. In particular, a logical assignment whose store is skipped is not refused by this rule. The rule does not classify every primitive member, structural lookalike, boxed object or configurable property as immutable; an inherited setter on another member can be callable. No getter is evaluated to establish a descriptor. Accepted code retains the ordinary runtime property operations and reference-liveness checks.</p>
   </emu-clause>
 
-  <emu-clause id="sec-iterator-completion-value">
-    <h1>IteratorCompletionValue ( _R_ )</h1>
-    <p>This operation separates a discarded completion contract from the value carried by a completed iteration result. It is a built-in type computation, not a new global binding or source operator.</p>
+  <emu-clause id="sec-iterator-completion-value" type="abstract operation">
+    <h1>
+      IteratorCompletionValue (
+        _R_: a Type Record,
+      ): a Type Record
+    </h1>
+    <dl class="header">
+      <dt>description</dt>
+      <dd>This operation separates a discarded completion contract from the value carried by a completed iteration result. It is a built-in type computation, not a new global binding or source operator.</dd>
+    </dl>
     <emu-alg>
       1. If _R_.[[Kind]] is ~void~, return the ~any~ Type Record.
       1. If _R_.[[Kind]] is ~deferred~ and _R_.[[Operator]] is ~iterator-completion~, return _R_.
@@ -11082,7 +11089,7 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
     </emu-alg>
     <p>Substitution into the deferred operation substitutes its operand and applies IteratorCompletionValue again. The existing identity and reflection rules for deferred Type Records apply. An open operation grants no more precise bound than ~any~. This rule does not change an ordinary property of type ~void~, rewrite the yielded component, or distribute a discard interpretation into other type constructors. An explicit `undefined` completion remains `undefined`.</p>
     <p>The `next`, optional `return` and optional `throw` methods share the iteration result type, wrapped in a Promise for async protocols. Their inputs remain separate: `next` takes optional _N_, `return` takes optional _R_, and `throw` takes an optional gradual value. Normalizing the completed result does not widen either _R_ or _N_ at an input boundary. The nominal generator type retains its original arguments, and its body's written return obligation is unchanged. In particular this operation does not admit a non-*undefined* body return at a written ~void~ obligation.</p>
-    <p>A nominal delegation's terminal contribution is IteratorCompletionValue(_R_); structural delegation reads the corresponding value component of the selected result shape. Self-iteration of `IterableIterator` and `AsyncIterableIterator` preserves _T_, _R_ and _N_. Ordinary iterable shorthand retains its default discard contract. Existing async-from-sync assimilation, async return assimilation, ordinary lookup, receiving admission, effects, failed state and reference-liveness rules remain in force. The type computation executes no hook, iterator method or callback and extends no reference lifetime.</p>
+    <p>A nominal generator delegation's terminal contribution is GeneratorCompletionValue(_R_) (<emu-xref href="#sec-generator-operation-results"></emu-xref>); structural delegation reads the corresponding value component of the selected result shape. Self-iteration of `IterableIterator` and `AsyncIterableIterator` preserves _T_, _R_ and _N_. Ordinary iterable shorthand retains its default discard contract. Existing async-from-sync assimilation, async return assimilation, ordinary lookup, receiving admission, effects, failed state and reference-liveness rules remain in force. The type computation executes no hook, iterator method or callback and extends no reference lifetime.</p>
   </emu-clause>
 
   <emu-clause id="sec-iterator-helper-contracts">
@@ -11103,17 +11110,39 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
 
     <p>A generator's return annotation is read as follows, which is the design's shorthand made precise. Where the annotation denotes a `Generator` instantiation, and an `AsyncGenerator` instantiation for an async generator, it is the declared type as written. Where it denotes any other type _T_, the declared type is `Generator.&lt;`_T_`, void, void&gt;`, or `AsyncGenerator.&lt;`_T_`, void, void&gt;`, so that `function* f(): int32` declares a generator of `int32`. It is a type error for the annotation of an async generator to denote a `Generator` instantiation, or for a synchronous generator's to denote an `AsyncGenerator` instantiation.</p>
 
-    <p>The Static Type of a call of a generator function is its declared type. Within the body, the Static Type of a |YieldExpression| without `*` is _N_, and it is a type error if the operand's type is not assignable to _Y_. The Static Type of a `yield*` is IteratorCompletionValue(_R_) for its operand's generator type, since delegation evaluates to what the delegated generator returned, and the operand's _Y_ must be assignable to the enclosing _Y_.</p>
+    <p>The Static Type of a call of a generator function is its declared type. Within the body, the Static Type of a |YieldExpression| without `*` is _N_, and it is a type error if the operand's type is not assignable to _Y_. The Static Type of a `yield*` is GeneratorCompletionValue(_R_) for its operand's generator type, since delegation can receive the body return or ordinary exhaustion, and the operand's _Y_ must be assignable to the enclosing _Y_.</p>
 
     <p>A |YieldExpression| in a deciding position is judged by the truthiness of its established normal resumed result, as any other operand under <emu-xref href="#sec-narrowfrom"></emu-xref>. A plain yield reads _N_, and delegation reads the established terminal result of the selected protocol, not its yielded element type. A constant-answer value query remains permitted. Suspension does not preserve arbitrary pre-yield place relations; possible thrown or external return resumptions, catch handlers and finalizers remain separate completions. Unknown protocol or assimilation results supply no new verdict, and reference-liveness and scheduling requirements are unchanged.</p>
     <p>When the running async generator has a resolved declared, contextual or published return contract that supplies a generator yield type, its yielded-value enforcement first applies Await to an Object value and then requires the resulting value to be of _Y_. An unresolved return type parameter supplies no such contract. This enforcement also applies to the outgoing value of `yield*` after a non-completed step. It does not add assimilation to untyped delegation or to a real async `for await` step's value.</p>
     <p>For a concrete established typed async yielded-value boundary, the bounded first-step proof follows the selected real async iterator, the awaited Object step result and a known *false* `done` to the effective `value`. It is a type error when every selected path fails a reached stage, including a yielded value whose callable `then` cannot accept the resolving callbacks under <emu-xref href="#sec-inference-and-function-forms"></emu-xref>. A possible completed result, unknown `done` or value contract, viable overload or intrinsic Promise path prevents this new assimilation proof. Async-from-sync retains its separate value-assimilation rule. No getter or callback runs during checking; accepted programs retain their scheduling and reference-liveness obligations, and arbitrary later delegation requests are outside this bounded proof.</p>
 
     <emu-note>
-      <p>A `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` satisfies `IterableIterator.&lt;`_Y_`, `_R_`, `_N_`&gt;` and `Iterable.&lt;`_Y_`&gt;` (<emu-xref href="#sec-iteration-types"></emu-xref>), and an `AsyncGenerator` the asynchronous three, which is why a generator may be spread, consumed by `for`-`of`, or passed where an iterator is expected. That holds because the two families default _R_ and _N_ the same way; the iteration types were written to match these rather than the reverse. The shorthand below is the one those types state, applied here.</p>
+      <p>A generator satisfies the corresponding `Iterable` or `AsyncIterable` element view. Its more precise structural iterator relationships follow its operation signatures, including exhaustion, under <emu-xref href="#sec-generator-operation-results"></emu-xref>. The nominal _R_ remains the body return obligation and is not widened in the generator's identity.</p>
       <p>Reading a bare annotation as the yield type rather than as the whole generator type is the design's choice and is the useful one: a generator's return and next types are `void` in almost every generator anyone writes, and requiring `Generator.&lt;int32, void, void&gt;` at each of them would make the common case the verbose one. The full form remains available and is what a generator with a meaningful `return` or a two-way protocol writes.</p>
-      <p>That `yield*` has the delegated generator's IteratorCompletionValue(_R_) as its type, while contributing its _Y_ to the enclosing generator's, is the one part of the protocol a reader is likely to get backwards. It follows from the run time: `yield*` drives the operand to completion and evaluates to its return value.</p>
+      <p>That `yield*` has the delegated generator's GeneratorCompletionValue(_R_) as its type, while contributing its _Y_ to the enclosing generator's, is the one part of the protocol a reader is likely to get backwards. It follows from the run time: `yield*` drives the operand to completion and evaluates to its return value.</p>
     </emu-note>
+  </emu-clause>
+
+  <emu-clause id="sec-generator-operation-results" type="abstract operation">
+    <h1>
+      GeneratorCompletionValue (
+        _R_: a Type Record,
+      ): a Type Record
+    </h1>
+    <dl class="header">
+      <dt>description</dt>
+      <dd>A generator operation can observe ordinary exhaustion separately from its body's return. This operation computes its completed-value view without changing the body's obligation or the nominal generator arguments.</dd>
+    </dl>
+    <emu-alg>
+      1. Let _completed_ be IteratorCompletionValue(_R_).
+      1. Let _absent_ be the Type Record of `undefined`.
+      1. Return CanonicalizeType(the Type Record { [[Kind]]: ~union~, [[Members]]: « _completed_, _absent_ » }).
+    </emu-alg>
+    <p>The read signatures of `next`, `return` and `throw` on `Generator.&lt;`_Y_`, `_R_`, `_N_`&gt;` each return the union of the result shape with `done` *false* and `value` of _Y_, and the shape with `done` *true* and `value` of GeneratorCompletionValue(_R_). The corresponding `AsyncGenerator` methods return a Promise of that union. All three methods are present; their optional inputs remain _N_, _R_ and ~any~ respectively. These signatures describe normal results and do not imply that a request fulfills or that `return` cannot yield during cleanup.</p>
+    <p>The self-iteration hook returns the same nominal generator instantiation. Dot access, an established computed String key, optional access, object-pattern member reads and the actual well-known self-iteration Symbol use this read contract. Ordinary lookup and receiver binding remain in force; extraction does not bind the receiver. A shadowed Symbol, unknown key or opaque receiver supplies no intrinsic identity. These read judgments do not make the members readonly or execute a getter.</p>
+    <p>Derive structural iterator conformance from these signatures, not an unconditional same-argument implementation claim. An optional _R_ input already admits *undefined*; the generator's declared structural view may equivalently spell that input as optional `_R_ | undefined`, retaining the same operation result. This declaration rule does not change general signature identity or nominal invariance. In particular a body with _R_ of `string` supplies the result view needed by `Iterator.&lt;`_Y_`, string | undefined, `_N_`&gt;`, but not the narrower `Iterator.&lt;`_Y_`, string, `_N_`&gt;`. Ordinary iterable element views remain available.</p>
+    <p>A nominal generator delegation uses GeneratorCompletionValue(_R_) as its terminal contribution, since the operand may already be exhausted. Structural delegation retains the terminal type of the selected structural result. Async-from-sync retains its existing assimilation stage. A source-local call alone does not establish a more precise lifecycle or immutable intrinsic identity. Open generic operands retain the deferred IteratorCompletionValue computation within the union until substitution and canonicalization resolve it.</p>
+    <p>This operation does not widen a written `IteratorResult`, admit *undefined* as a body return under a non-void _R_, change external request admission, or rewrite runtime result values. Receiving checks, failed-state effects, queue order, cleanup, Promise scheduling and reference-liveness rules remain applicable. A completed result grants no reference permission across suspension.</p>
   </emu-clause>
 
   <emu-clause id="sec-generator-resume-forwarding">
