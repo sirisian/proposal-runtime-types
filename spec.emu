@@ -5430,6 +5430,29 @@ class C implements I {
       <emu-note>
         <p>This is what makes an interface of call signatures usable as a declaration: `interface I { (string = '5', named: uint32) }` and `function f(a: I) { a(named: 10) }` bind by the interface's names and fill its default, so a function `(a, b) => b` passed to `f` receives `('5', 10)` whatever it calls its own parameters. The interface supplies data the caller uses to assemble the argument list; it supplies no behaviour, and the function called is always the value itself. A parameter's declared type is carried on its binding (<emu-xref href="#sec-typed-bindings"></emu-xref>), which is how a call through a parameter finds the signature in view.</p>
       </emu-note>
+      <emu-clause id="sec-named-intrinsic-arguments">
+        <h1>Named Arguments of Intrinsic Functions</h1>
+        <p>Where no declared callable signature is in view, the named parameter declaration of an intrinsic belongs to the actual function Object selected by ordinary evaluation of the callee. It is not obtained from the caller's property spelling, the receiver's inferred type, or the function's public `name` or `length` property. Aliasing or borrowing that function preserves its declaration; replacing a property selects the replacement function's declaration. A declared callable signature in view retains the names, defaults and admission rules specified above.</p>
+        <p>The following declarations apply to the intrinsic Range methods and synchronous Iterator helpers. Parameters are listed in order. Unless marked optional, each must be supplied in a named or object-spread call. These are value parameters, with no reference rest.</p>
+        <emu-table id="table-named-intrinsic-parameters" caption="Intrinsic Named Parameter Declarations">
+          <table>
+            <thead><tr><th>Intrinsic family</th><th>Method</th><th>Parameters</th></tr></thead>
+            <tbody>
+              <tr><td>Range</td><td>`contains`</td><td>optional `value`</td></tr>
+              <tr><td>Range</td><td>`intersect`</td><td>`other`</td></tr>
+              <tr><td>Range</td><td>`scale`</td><td>`factor`</td></tr>
+              <tr><td>Range</td><td>`step`</td><td>optional `by`</td></tr>
+              <tr><td>Range and Iterator</td><td>`map`, `filter`, `flatMap`, `forEach`, `some`, `every`, `find`</td><td>`callback`</td></tr>
+              <tr><td>Range and Iterator</td><td>`reduce`</td><td>`callback`, optional `initial`</td></tr>
+              <tr><td>Range and Iterator</td><td>`take`, `drop`</td><td>`count`</td></tr>
+            </tbody>
+          </table>
+        </emu-table>
+        <p>The static member signatures expose these same names. The `reverse`, `toArray` and self-iteration methods accept no named parameters. This table supplies no declaration for an unrelated built-in, a protocol request method, or an asynchronous helper.</p>
+        <p>Evaluate argument contributions and apply BindArguments in the ordinary order. When materializing the positional argument List for an intrinsic's own declaration, omit an unfilled optional trailing position; supply *undefined* for an unfilled optional position preceding a supplied later position. An explicitly supplied *undefined* remains present. Thus a call to `reduce` naming only `callback` has no initial accumulator argument, whereas a call also naming `initial` with value *undefined* has one. This rule does not change materialization under a declared callable signature in view.</p>
+        <p>Argument binding adds no conversion to an inferred receiver-dependent type. After binding, perform the selected intrinsic's ordinary receiver, value and callback admission, iterator operations and abrupt-completion handling. Retain original reference locations through binding and perform their existing value decay and liveness checks at the native boundary. No listed method admits a reference-rest forwarding occurrence, including an empty one. A Range helper delegates its materialized positional List to the normally selected Iterator helper; it does not bind the outer names a second time. Named parameter metadata alone supplies no generic callable capability and does not authorize ignoring explicit type arguments.</p>
+      </emu-clause>
+
       <p>A rest parameter is filled by name as well as by position. A named argument whose name is a rest parameter's supplies a value of that rest, and the positional arguments that follow it join the same rest in the order written, so `function f(a: uint8, b: string = '', ...args: [].&lt;string&gt;) {}` called `f(8, args: 'a', 'b')` binds `a` to 8, leaves `b` its default, and gives `args` the elements 'a' and 'b'. Where a parameter after that rest must still be filled, the rest gives back what the parameters after it require, which is the same rule BindArguments applies to a positional call.</p>
 
       <emu-clause id="sec-sequenceassignment" type="abstract operation">
