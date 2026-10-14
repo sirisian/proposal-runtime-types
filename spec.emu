@@ -3776,6 +3776,7 @@ new C().m()();</code></pre>
           <dd>It converts _value_, of the type _from_, to the type _to_.</dd>
         </dl>
         <emu-alg>
+          1. If _to_ is a numeric metadata parameterization, or _value_ carries a numeric metadata parameterization whose [[Base]] is _to_, return ? ConvertNumericParameterization(_value_, _to_).
           1. If SameType(_from_, _to_) is *true*, return _value_.
           1. If _from_.[[Kind]] is ~any~, return ? RequireType(_value_, _to_).
           1. If _to_.[[Kind]] is ~any~, return _value_.
@@ -3807,6 +3808,33 @@ new C().m()();</code></pre>
         <emu-note>
           <p>The final step is reached only where the operand types are related by no rule above. Where those types are known statically the conversion is rejected as a type error before evaluation (<emu-xref href="#sec-type-errors"></emu-xref>), so the exception is thrown only where a type reaches the conversion dynamically, as when a Type Object computed at run time is called as a function.</p>
         </emu-note>
+      </emu-clause>
+
+      <emu-clause id="sec-numeric-parameterization-construction" type="abstract operation">
+        <h1>
+          ConvertNumericParameterization (
+            _value_: an ECMAScript language value,
+            _to_: a Type Record,
+          ): either a normal completion containing an ECMAScript language value or a throw completion
+        </h1>
+        <dl class="header">
+          <dt>description</dt>
+          <dd>It performs explicit construction or removal of numeric metadata. A numeric metadata parameterization is a ~parameterized~ Type Record whose ultimate base is a scalar numeric type.</dd>
+        </dl>
+        <emu-alg>
+          1. Let _from_ be RuntimeTypeOf(_value_).
+          1. If _from_ is a numeric metadata parameterization, then
+            1. If SameType(_from_, _to_) is *true*, return _value_.
+            1. If _to_ is a numeric metadata parameterization and SameType(_from_.[[Base]], _to_.[[Base]]) is *true*, return ? ConvertParameterization(_value_, _from_, _to_).
+            1. If SameType(_from_.[[Base]], _to_) is *true*, return the numeric value with _value_'s representation carrying _to_.
+          1. Assert: _to_ is a numeric metadata parameterization.
+          1. Let _baseValue_ be ? ConvertValue(_value_, _from_, _to_.[[Base]]).
+          1. Apply each applicable defined metadata validation judgment of _to_ once to _baseValue_. If a judgment rejects, throw a *TypeError* exception; propagate an abrupt completion. An absent judgment imposes no construction check.
+          1. Return the numeric value with _baseValue_'s representation carrying _to_.
+        </emu-alg>
+        <p>Determine the ultimate base through the finite chain of base types; an implementation helper limit must not classify a deeper numeric parameterization as a mutable object construction. The existing type-evaluation resource limits remain applicable. The defined judgments include those of governing metadata portions and a validation hook declared on the base. Admission precedes retention of the target record and is not repeated merely to retain it. A written default portion remains a distinct construction target. Source metadata is read from the value even when its source expression has Static Type ~any~. A different parameterization of the same base cannot bypass ConvertParameterization through a successful value-membership test; its result carries the metadata that operation determines, including transported unpinned portions.</p>
+        <p>Retention and removal preserve the numeric representation, including a decimal's width, coefficient, exponent and special value, a binary float's zero sign and special value, exact integer or rational components, and complex components. They do not mutate the source value or other bindings holding it. An implementation using an Object internally for a numeric value must preserve these value semantics. The same requirement applies when constructing an intersection of numeric parameterizations over one base. This does not require an observable allocation.</p>
+        <p>Both explicit spellings use this operation. Literal operands keep their exact contextual evaluation. IsOfType and ordinary value admission do not become construction or acquire permission to retag a source. Implicit admission to the bare base continues to preserve metadata. Failure publishes no constructed value and does not initialize a failed binding, while prior source effects remain. None of these steps converts a reference location or changes evaluation order, the temporal dead zone or reference liveness.</p>
       </emu-clause>
 
       <emu-clause id="sec-numericconvert" type="abstract operation">
