@@ -4518,13 +4518,21 @@ const n: uint32 = g();
           1. If _t_.[[Kind]] is ~array~, then
             1. If _t_.[[Extent]] is ~dynamic~, return a new empty array of the type _t_.
             1. If _t_.[[Extent]] is 0, return a new empty array of the type _t_.
-            1. Let _d_ be DefaultValueOf(_t_.[[Element]]).
-            1. If _d_ is ~none~, return ~none~.
-            1. Return a new array of the type _t_ whose _t_.[[Extent]] elements are each _d_.
+            1. Let _values_ be a new empty List.
+            1. Repeat _t_.[[Extent]] times:
+              1. Let _d_ be DefaultValueOf(_t_.[[Element]]).
+              1. If _d_ is ~none~, return ~none~.
+              1. Append _d_ to _values_.
+            1. Return a new array of the type _t_ whose elements, in order, are _values_, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref>.
           1. If _t_.[[Kind]] is ~tuple~, then
-            1. For each element _e_ of _t_.[[Elements]], do
-              1. If _e_.[[Rest]] is *false* and _e_.[[Initial]] is ~none~ and DefaultValueOf(_e_.[[Type]]) is ~none~, return ~none~.
-            1. Return a new tuple of the type _t_ whose elements are, for each element of _t_.[[Elements]] whose [[Rest]] is *false* and in order, its [[Initial]] where that is not ~none~ and the default value of its [[Type]] otherwise.
+            1. Let _values_ be a new empty List.
+            1. For each element _e_ of _t_.[[Elements]] whose [[Rest]] is *false*, in order, do
+              1. Let _d_ be ~none~.
+              1. If _e_.[[Initial]] is ~none~, set _d_ to DefaultValueOf(_e_.[[Type]]).
+              1. Otherwise, set _d_ to its [[Initial]] converted at the position's type by <emu-xref href="#table-check-sites"></emu-xref>.
+              1. If _d_ is ~none~, return ~none~.
+              1. Append _d_ to _values_.
+            1. Return a new tuple of the type _t_ whose elements, in order, are _values_, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref>.
           1. If _t_.[[Kind]] is ~parameterized~, then
             1. Let _d_ be DefaultValueOf(_t_.[[Base]]).
             1. If _d_ is ~none~, return ~none~.
@@ -4537,6 +4545,8 @@ const n: uint32 = g();
           1. Return ~none~.
         </emu-alg>
       </emu-clause>
+
+      <p>Default aggregates carry their declared element or positional backing contracts, including nested aggregates. Each needed default is computed once per position in order, without a separate availability probe; failure retains earlier independent computation effects but exposes no partially constructed aggregate.</p>
 
       <p>A ZERO extent is answered before the element is consulted. A fixed array's default is its extent filled with the element's default, so an element with none leaves the array with none &mdash; but at extent zero there is nothing to fill, and the element's default is not needed. Asking for it first would make `[0].&lt;never&gt;` have no default while `[0].&lt;uint8&gt;` has one, a difference no value of either can observe, both being the empty array and the same value the dynamic extent already takes. The step matters where an element type is reached through a type parameter rather than written, since a generic body is checked once for every instantiation and a declaration of `[0].&lt;_T_&gt;` must not become unwritable at the instantiations whose argument has no default.</p>
       <p>It is a type error to declare a binding or a field with a type _t_ and no initializer when DefaultValueOf(_t_) is ~none~.</p>
@@ -6524,6 +6534,31 @@ class C implements I {
       <p>A store to an element of an array of element type _t_ checks the value against _t_ by <emu-xref href="#table-check-sites"></emu-xref>. `length` is of the <emu-xref href="#index-type">index type</emu-xref>. Deleting an element of a typed array throws a *TypeError* exception.</p>
 
       <p>A store to a position of a ~tuple~ checks the value against the [[Type]] of the element that receives that position, by the same table; a position an element whose [[Rest]] is *true* collects takes that element's collected type. The type checked against is the one the VALUE carries rather than the one the reference through which it is reached would give it, which is what makes the covariance of <emu-xref href="#sec-issubtype"></emu-xref> sound: a `[uint8]` seen as a `[uint8 | string]` is the same Array, and a String written through the wider view would otherwise land in a position declared `uint8`. The same reading governs the array store above, where `[].&lt;any&gt;` is a supertype of every array. A tuple's arity is part of its type, so a store to a position beyond it throws a *TypeError* exception rather than growing the Array, and so does an assignment to `length` that would leave fewer positions than the tuple fixes; a tuple with a rest element admits any length at or above its fixed positions.</p>
+
+      <emu-clause id="sec-typed-array-length-growth">
+        <h1>Initialization on Length Growth</h1>
+        <p>When an explicit definition or assignment to an Array's *"length"* increases its length and the Array carries typed array or tuple backing, apply the following rule after the typed count conversion, fixed-extent check and surviving-position contract check. An unchanged or decreased length retains the existing rules.</p>
+        <emu-alg>
+          1. Let _oldLength_ be the Array's current length.
+          1. Let _newLength_ be the requested length.
+          1. Let _descriptor_ be the requested length Property Descriptor with its value replaced by the converted length.
+          1. If the Array is not extensible, or IsCompatiblePropertyDescriptor returns *false* for _descriptor_ and the current length descriptor, return *false* from the property definition, without computing defaults.
+          1. Record the Array's current backing contracts and fixed extent, if any.
+          1. Let _values_ be a new empty List.
+          1. For each integer _index_ from _oldLength_ (inclusive) to _newLength_ (exclusive), in ascending order, do
+            1. Let _type_ be the actual backing type of position _index_ at _newLength_, including every applicable conjoined contract.
+            1. Let _value_ be DefaultValueOf(_type_).
+            1. If _value_ is ~none~, throw a *TypeError* exception.
+            1. Append the value to be stored, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref>, to _values_.
+            1. If the Array's current length differs from _oldLength_, or its backing contracts or fixed extent differ from those recorded, throw a *TypeError* exception.
+          1. Recheck extensibility and compatibility with the current length descriptor as above. If either check fails, return *false*.
+          1. Without executing user code between these checks and publication, create an own data property for each new position, with its corresponding prepared value and [[Writable]], [[Enumerable]] and [[Configurable]] all *true*, and apply _descriptor_ to *"length"*.
+          1. Retain the current capacity if it suffices for _newLength_. Otherwise grow the allocation to sufficient capacity and invalidate references according to <emu-xref href="#sec-reference-liveness"></emu-xref>.
+          1. Return *true*.
+        </emu-alg>
+        <p>Preparation does not publish the requested elements, length, capacity or relocation. Its failure does not roll back independent effects of default computation, including independent mutations, reservations or changes to property attributes. Such effects are not retried. Existing element value changes alone do not change the backing contract. A failed outer preparation does not itself invalidate references. A successful increase within capacity preserves references to existing elements.</p>
+        <p>The new properties are present even when the default is *undefined*. Their creation invokes no inherited setter and does not repeat a conversion already performed by DefaultValueOf. A type without a default is not replaced by an untyped zero or *undefined*. This rule initializes an explicit length increase; it does not require defaults for insertions whose values are supplied by a caller or moved by an intrinsic.</p>
+      </emu-clause>
 
       <p>A method that writes a position takes its value at that position's type: `with` at the type of the position its index selects, and `fill`, `push` and `unshift` at the type of each position they reach, which is why they are refused on a tuple whose positions differ. A method that would MOVE a value between positions of different types throws a *TypeError* exception - `reverse`, `sort`, `copyWithin` and `splice` on such a tuple - because the Array would otherwise hold values its own type does not admit. Their copying forms are the way to do it and carry the shape the operation produced: `toReversed` answers the positions in reverse, `slice` the window it took, `with` the shape it was given, and `toSorted` the shape it was given where every position is the same type. Where the operation determines no shape - a comparator-driven sort of positions that differ, or any of these over a tuple with a rest - the result is an ordinary Array carrying no element type.</p>
 
