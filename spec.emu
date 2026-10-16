@@ -6512,6 +6512,21 @@ class C implements I {
       <p>Indexed stores, permitted length changes, intrinsic movement checks, search and reference liveness use the complete domain. Surviving indices must retain their contracts across resizing. A finite domain uses the existing bounded positional copying rules; the presence of a written finite rest does not turn it into an unbounded copy. Established literal lengths and singleton indexed-read proofs use its exact positional map and bounds. This does not establish the output of a replaceable iterator or broaden unknown-spread contextual typing.</p>
     </emu-clause>
 
+    <emu-clause id="sec-sequence-conversion-observations">
+      <h1>Source Observations During Sequence Conversion</h1>
+      <p>A concrete ~array~ or ~tuple~ receiving operation retains its own source observations across membership and subsequent elementwise conversion, for both implicit and explicit conversion. A failed membership result discards speculative admission evidence under the existing rules, but does not discard the source values already obtained by that operation. This rule concerns the sequence's own length and indexed properties; it does not combine separate candidate, member or child receiving operations.</p>
+      <p>Associate an initially empty observation record with the source Object and this concrete operation. It has a retained length value, initially ~unobserved~, an optional completed length conversion, and indexed entries. To obtain the sequence's length or an indexed value:</p>
+      <emu-alg>
+        1. If this observation record already has a value for the requested property, return that value.
+        1. Let _value_ be ? Get(the source Object, the requested property key).
+        1. Retain _value_ in the corresponding entry of the observation record.
+        1. Return _value_.
+      </emu-alg>
+      <p>Use this operation at the sequence-read points of membership and conversion. Retain actual *undefined* as a value; it is not ~unobserved~. Where the receiving operation converts the retained length to a count, retain that completed conversion as well and reuse it if needed again. A later source mutation does not replace a retained value or count. An abrupt Get or length conversion propagates immediately. This does not change the accepted length values, the existing count conversion, or the order of shape checks.</p>
+      <p>Observation is lazy: retention performs no additional source Get. For a homogeneous array or an established positional tuple domain, membership visits indices in increasing order and stops at its first failed position. For general tuple rest matching, obtain the supplied indexed values in order before the assignment search and reuse those values for its alternatives. Conversion reuses the observations that membership obtained, then obtains any remaining supplied values in increasing order as their conversions are reached. An earlier abrupt conversion prevents later Gets that membership has not already performed. Preserve the existing impossible-length checks before indexed Gets.</p>
+      <p>Each independent or reentrant receiving operation owns a new observation record. A standalone membership test does not provide observations to a later conversion. Retained Object values preserve identity; they are not deep snapshots. Observation establishes no storage contract, descriptor stability, reference permission or liveness fact. Successful admission and produced-result publication retain their existing complete-backing rules. Failure preserves ordinary earlier effects, including independently completed nested receiving boundaries, without publishing the failed sequence's speculative backing.</p>
+    </emu-clause>
+
     <emu-clause id="sec-array-membership">
       <h1>Membership</h1>
       <p>For an ~array~ Type Record _t_, a value _v_ is of the type _t_ when _v_ is an Object, _v_'s length is _t_.[[Extent]] where that is not ~dynamic~, and every element of _v_ is of the type _t_.[[Element]].</p>
