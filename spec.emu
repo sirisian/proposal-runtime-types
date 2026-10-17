@@ -3964,6 +3964,8 @@ new C().m()();</code></pre>
         </table>
       </emu-table>
 
+      <p>The one-parameter inbound form is called with *undefined* as its receiver. Check its parameter initializers and body with `this` having the `undefined` type. Lexical arrows retain that receiver context. A nested ordinary function, method or class uses its own applicable receiver rule, and leaving it restores the enclosing context. This inbound rule applies independently of a `static` modifier, class heritage, or generic parameters; declaration names and captured type and value parameters still resolve in their declaration context. The parameterless source form retains the source receiver. A conversion's result remains subject to its declared result contract.</p>
+
       <p>When both a converting constructor and a declared conversion could apply to the same pair, the constructor is preferred. It is a type error if two conversions of the same form apply and neither is more specific.</p>
 
       <emu-note>
