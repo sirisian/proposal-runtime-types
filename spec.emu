@@ -7806,9 +7806,10 @@ outer.&lt;string&gt;("ok");</code></pre>
           1. If _p_.[[Variadic]] is *false*, then
             1. If _supplied_ is empty, then
               1. If _p_.[[Default]] is ~none~, throw a *TypeError* exception.
-              1. Let _v_ be ? the Type Record the |Type| of _p_.[[Default]] denotes, evaluated over _bindings_.
+              1. Let _v_ be ? the Type Record the |Type| of _p_.[[Default]] denotes, evaluated over _bindings_, using the declaration role of <emu-xref href="#sec-higher-kinded-parameters"></emu-xref> if _p_.[[Arity]] is greater than 0.
             1. Else,
-              1. Let _v_ be ? the Type Record _supplied_[0] denotes: its [[Type]] where that is not ~none~, and the type its [[Node]] denotes otherwise.
+              1. Let _v_ be ? the Type Record _supplied_[0] denotes: its [[Type]] where that is not ~none~, and the type its [[Node]] denotes otherwise, using the declaration role of <emu-xref href="#sec-higher-kinded-parameters"></emu-xref> if _p_.[[Arity]] is greater than 0.
+            1. If _p_.[[Arity]] is greater than 0 and _v_ does not denote an unapplied declaration or higher-kinded parameter of that arity as required by <emu-xref href="#sec-higher-kinded-parameters"></emu-xref>, throw a *TypeError* exception.
             1. If _p_.[[Kind]] is ~value~ and _v_.[[Kind]] is ~literal~, set _v_ to the literal type of _v_.[[Value]] converted to _constraint_ as <emu-xref href="#sec-computed-constraints"></emu-xref> binds a literal argument; if the conversion fails, throw a *TypeError* exception.
             1. Else if _p_.[[Kind]] is ~value~ and _v_.[[Kind]] is not ~parameter~, throw a *TypeError* exception.
           1. Else,
@@ -8073,6 +8074,9 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
         <li>An argument that is not a generic declaration at all is a type error naming the argument and stating that the parameter expects a declaration taking arguments.</li>
         <li>An argument that is a generic declaration of the wrong parameter count is a type error naming both counts.</li>
       </ul>
+
+      <p>Determine a written argument's role from the receiving parameter after spread expansion and argument assignment. In a higher-kinded slot, a bare generic name denotes the unapplied declaration, preserving its declaration identity and captured environment. It does not apply that declaration to an empty argument List, select its defaults, or expand its body merely to obtain the constructor. A selected higher-kinded default has the same declaration role, evaluated in its prescribed declaring context. Names in written arguments retain their caller context. These rules apply equally to local, imported, qualified and forwarded declarations; unresolved receiver information retains an application obligation rather than selecting an ordinary type role speculatively.</p>
+      <p>An already-applied type is not an unapplied declaration and cannot satisfy a higher-kinded parameter by discarding its arguments. Defaulted parameters still count toward a declaration's arity. An ordinary parameter of arity zero retains the empty-application meaning of a bare generic name. Selecting a declaration creates no initialization or reference-liveness evidence and does not discharge the domains and bounds of a later application of that declaration.</p>
 
       <p>Specialization (<emu-xref href="#sec-generic-specialization"></emu-xref>) substitutes a bound declaration for the parameter and then applies it, so a specialized type contains no higher-kinded parameter and the resulting application is an ordinary one. Two applications binding different declarations are distinct types on the same terms as any other pair of applications, and interning follows from that with no rule of its own.</p>
 
