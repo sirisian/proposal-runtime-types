@@ -6073,6 +6073,8 @@ class C implements I {
 
       <p><ins>In particular the copy is NOT taken at a type boundary. A boundary is a check site (<emu-xref href="#table-check-sites"></emu-xref>), and a check may be skipped where the source provably satisfies the target: a skipped check is nothing, while a skipped copy is an alias. An implementation that copies only where a check runs will alias exactly where a program is most explicit about its types, which is the opposite of what this clause requires.</ins></p>
 
+      <p>Copying a storage-backed value retains the source location's liveness requirements before reading its layout, including when no field read is needed. An abrupt completion while obtaining a field propagates from the copy operation; it does not publish a partially initialized copy as the destination's value. Earlier ordinary effects remain. Copying the layout includes nested value fields and does not retain a view into their original storage. It does not copy the identity of an ordinary reference-class value.</p>
+
       <p><ins>A `ref` binding (<emu-xref href="#sec-reference-liveness"></emu-xref>) is the opt-out: it names a storage location rather than taking a value, so no copy and no allocation occurs, which is how a program passes a large value type without paying for it.</ins></p>
       <p><ins>A method's *this* value is the receiver's STORAGE and not a copy of it, so a method that writes to *this* writes through to the receiver, whether the receiver is a binding, a field, or an array element.</ins></p>
       <emu-note>
@@ -7383,6 +7385,10 @@ class C implements I {
       </emu-note>
 
       <p>The liveness rules of <emu-xref href="#sec-reference-liveness"></emu-xref> apply to such a reference however it was taken. The `SoA` is the container in this specification that relocates, so a borrow into one is invalidated when growth moves the columns, and a use through an invalidated borrow is a *TypeError* exception; a borrow of an element that has since been removed is invalidated in the same way; and within a reference `for`-`of` over an `SoA`, an operation that changes its length is a *TypeError* exception at that operation.</p>
+
+      <p>Validate the original element location before a reference read, whole-element write, value copy or decay; gathering from the current index does not discharge that check. An ordinary call that returns a Reference Value applies the decay rule at its call boundary unless it is in a location-consuming context (<emu-xref href="#sec-location-consuming-contexts"></emu-xref>). The gathered value, including nested value fields, is detached from the columns. An access through a reference binding or an explicit Reference Value continues to reach the original location, and a nested view retains that location's liveness requirements.</p>
+      <p>A write through a borrowed element retains that borrow while obtaining source fields and performing conversions. Recheck its liveness after those effects and before each resulting storage write. If an earlier source operation completes abruptly, propagate that completion before attempting the subsequent write. Earlier successful column writes and ordinary effects remain visible when a later operation fails; the scatter is not a transaction.</p>
+      <p>Removal permanently invalidates the removed element's identity. Regrowth at the same index does not revive an old reference. A replacement value preserves the element's identity, and removal of a different element preserves a surviving reference unless allocation relocation independently invalidates it. These requirements do not require discovering or counting live references.</p>
     </emu-clause>
 
     <emu-clause id="sec-reference-liveness">
