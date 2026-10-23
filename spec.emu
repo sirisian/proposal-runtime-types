@@ -3545,6 +3545,25 @@ function unused() {
         </emu-example>
       </emu-clause>
 
+      <emu-clause id="sec-getter-contribution-receivers">
+        <h1>Class Getter Contribution Receivers</h1>
+        <p>Apply <emu-xref href="#sec-method-contribution-receivers"></emu-xref> to a class getter's result contributions. A property read that requires an unfinished getter result has that inference dependency even though no call expression is written. Complete dependencies between getters and methods in their respective declaring instance or static receiver environments, including private members, inherited members and established imported class contracts.</p>
+        <p>An unannotated getter has no parameter annotation to establish participation. Publish its inferred result only under the existing anchored-contribution rules. The effective getter's completed result supplies the property's read contract; the setter's independent write contract is unchanged. Apply the existing accessor-pair and override obligations after the required result completes. Effective descriptor replacement and field precedence still determine the member selected by lookup; inference does not restore a displaced getter or setter. An explicit result annotation retains precedence.</p>
+        <p>A getter result that depends on a class parameter retains that parameter's declaration through member lookup and specialization. A same-spelled parameter of a consuming method does not bind it. A local class retained in an inferred result also retains the free generic inputs needed by its member template. Applying an enclosing declaration closes those inputs while preserving the class's own binders and the binders of its members. Do not equate different member-query environments merely because their nominal descriptions name the same source class. This context requirement does not replace evaluated class-family identity under <emu-xref href="#sec-class-family-identity"></emu-xref>.</p>
+        <p>When an inferred union result contains such local class contributions, an independently admitted producer result may complete a matching contribution's declaration-activation dependency. Match the source declaration, type arguments and retained free inputs before using that evidence. A captured value parameter uses its own declared domain representation, as does a direct class argument; an exact numeric value is not a different capture solely because its checking-time description precedes that representation. The receiving boundary must still admit the actual value at the completed arm. This does not complete an unexecuted alternative's family, acquire evidence from an arbitrary candidate value, or authorize omitting the result check. If no contribution matches, the ordinary unresolved-dependency and admission rules remain applicable.</p>
+        <p>These judgments execute no getter, field initializer, constructor or method to discover a type. Preserve ordinary evaluation order, temporal-dead-zone behaviour, getter effects, receiver binding, reference permission and reference liveness. Computing a getter's contract does not bind a reflected getter function to an instance or infer a receiver for an otherwise uncontextualized object method.</p>
+        <emu-example>
+          <pre><code class="javascript">class Entry {
+  get value() { return this.text; }
+  text: string = "ok";
+}
+function unused() {
+  const wrong: boolean = new Entry().value;
+}</code></pre>
+          <p>The getter publishes String, so the initializer is a type error before the Script body begins, whether or not `unused` is called. Replacing Boolean with String removes this incompatibility. Replacing the getter body with only `return "ok";` removes the annotation-derived contribution and does not publish a result merely because a class receiver is available.</p>
+        </emu-example>
+      </emu-clause>
+
       <emu-clause id="sec-object-callable-contributions">
         <h1>Object Callable Contributions</h1>
         <p>An object literal's static contribution preserves the contracts of its methods and property values. Determine these contracts without invoking a method, getter, iterator, or initializer to obtain a result:</p>
