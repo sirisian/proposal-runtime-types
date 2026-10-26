@@ -10813,7 +10813,8 @@ g([1, 2]); // U is [2].&lt;uint8&gt;, determined before this call.</pre>
       </ul>
 
       <emu-clause id="sec-composite-arg">
-        <h1>Composite ( _source_ )</h1>
+        <h1>Composite ( _source_: `object` )</h1>
+        <p>The parameter is a declared contract (<emu-xref href="#sec-type-errors"></emu-xref>): `Composite` is a global this specification introduces, so the contract applies everywhere, and a call whose argument's Static Type is participating (<emu-xref href="#sec-unary-operators-for-typed-values"></emu-xref>) and holds no Object is a type error. An argument of the `any` type, or one whose type is unknown, is checked by step 1. Arrays are Objects, so both composite kinds pass the contract; the Symbol-key rule of step 6.b.i remains the dynamic check, since the own enumerable keys of a value are not a static fact of an open object type.</p>
         <p>This function performs the following steps when called:</p>
         <emu-alg>
           1. If _source_ is not an Object, throw a *TypeError* exception.
