@@ -893,7 +893,7 @@
       "specification": [
         "sec-typed-classes"
       ],
-      "explanation": "The implements target or implementing callable shape is invalid.",
+      "explanation": "The implements target is invalid, or an implemented member is missing or does not satisfy the target's member contract.",
       "arguments": {
         "type": "array",
         "items": {
