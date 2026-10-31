@@ -4751,6 +4751,7 @@ const n: uint32 = g();
     <emu-clause id="sec-type-alias-declarations">
       <h1>Type Alias Declarations</h1>
       <p>A type alias declaration names a type. It is added to the declaration forms.</p>
+      <p>A type alias declaration's binding is immutable, as a `const` declaration's is, so that the value its name holds can never disagree with the type its name denotes: an assignment to it throws a *TypeError*. An alias a previously evaluated Script published is known before a later Script is parsed, and it is judged in that later Script's static phase as an alias of the same Script is, a generic alias applied to arguments included.</p>
 
       <emu-grammar type="definition">
         Declaration[Yield, Await] :
