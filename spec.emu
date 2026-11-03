@@ -432,7 +432,7 @@ contributors: Sirisian
           1. If _t_.[[Kind]] is ~literal~, return the Type Record { [[Kind]]: ~literal~, [[Value]]: _t_.[[Value]], [[Base]]: CanonicalizeType(_t_.[[Base]]) }.
           1. If _t_.[[Kind]] is ~parameterized~, then
             1. Let _base_ be CanonicalizeType(_t_.[[Base]]).
-            1. If _base_ is `never`, return `never`.
+            1. If _base_ is `never` and _t_.[[Metadata]] has no own property keyed by the String *"where"*, return `never`.
             1. Return the Type Record { [[Kind]]: ~parameterized~, [[Base]]: _base_, [[Metadata]]: _t_.[[Metadata]] }.
           1. If _t_.[[Kind]] is ~deferred~, then
             1. Let _args_ be a new empty List.
@@ -850,11 +850,11 @@ f();</code></pre>
             1. If no replaced position is a reference position, throw a *TypeError* exception.
             1. If _context_ is not ~none~, set _context_ to the Type Record obtained from _context_ by the corresponding placeholder replacement, preserving its binder declarations and captured inputs.
             1. Set _value_ to GetTypeObject(_final_).
-          1. Record _value_ and _context_ in the evaluation memo for _key_.
+          1. If reusing _value_ preserves every retained function identity, captured input, and logical budget charge of this evaluation, record _value_ and _context_ in the evaluation memo for _key_.
           1. Return a normal completion containing _value_ and retaining _context_.
         </emu-alg>
 
-        <p>The <dfn id="evaluation-memo">evaluation memo</dfn> is a specification-level map from canonical ~deferred~ Type Records to successful results, retaining both their Type Objects and their type-result contexts (<emu-xref href="#sec-contextual-types"></emu-xref>), and the in-flight List tracks the keys under evaluation. Each distinct key evaluates once per program; every later occurrence, in any module, yields the same interned Type Object and selected context. Reuse requires the same determining declaration and captured inputs; equal result Type Objects alone do not identify a reusable context. An implementation may realize both devices in any way that yields these results. An in-flight placeholder supplies no completed context. When fixpoint completion resolves placeholder edges in the result, resolve corresponding edges in its retained context consistently, preserving its binder declarations and captured inputs; no incomplete context is published on failure.</p>
+        <p>The <dfn id="evaluation-memo">evaluation memo</dfn> is a specification-level map from canonical ~deferred~ Type Records to successful results, retaining both their Type Objects and their type-result contexts (<emu-xref href="#sec-contextual-types"></emu-xref>), and the in-flight List tracks the keys under evaluation. Each memo-eligible key evaluates once per program; every later occurrence, in any module, yields the same interned Type Object and selected context. An evaluation that creates a fresh retained predicate is not memo-eligible: a later invocation creates a different function identity, even with equal arguments. A predicate supplied as an argument or retained from the same stable environment may be reused only when its identity and dependencies are preserved. Memo lookup is permitted only while the entry's admission evidence remains valid and its recorded logical evaluation cost is charged to the current budget. Reuse requires the same determining declaration and captured inputs; equal result Type Objects alone do not identify a reusable context. An implementation may realize both devices in any way that yields these results. An in-flight placeholder supplies no completed context. When fixpoint completion resolves placeholder edges in the result, resolve corresponding edges in its retained context consistently, preserving its binder declarations and captured inputs; no incomplete context is published on failure.</p>
 
         <p>Evaluation of the body of _f_ uses _f_'s ordinary function environment and the applicable parameter binding, generic specialization, receiver and return contracts. Permission to evaluate a function during checking does not remove any of these contracts. An imported name that denotes _f_ denotes that same function for this operation; importing it does not instantiate a new function in the importer's environment. A failed contract or a result that is not a Type Object fails the containing type computation under <emu-xref href="#sec-type-errors"></emu-xref>. Reuse of a memoized result must preserve these requirements and the accounting rules of <emu-xref href="#sec-type-evaluation-accounting"></emu-xref>.</p>
 
@@ -4945,7 +4945,7 @@ const n: uint32 = g();
         <h1>
           DefaultValueOf (
             _t_: a Type Record,
-          ): either a value of the type _t_ or ~none~
+          ): either a normal completion containing either an ECMAScript language value or ~none~, or a throw completion
         </h1>
         <dl class="header">
           <dt>description</dt>
@@ -4970,7 +4970,7 @@ const n: uint32 = g();
             1. If _t_.[[Extent]] is 0, return a new empty array of the type _t_.
             1. Let _values_ be a new empty List.
             1. Repeat _t_.[[Extent]] times:
-              1. Let _d_ be DefaultValueOf(_t_.[[Element]]).
+              1. Let _d_ be ? DefaultValueOf(_t_.[[Element]]).
               1. If _d_ is ~none~, return ~none~.
               1. Append _d_ to _values_.
             1. Return a new array of the type _t_ whose elements, in order, are _values_, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref>.
@@ -4978,23 +4978,24 @@ const n: uint32 = g();
             1. If _t_ has an established tuple sequence domain involving finite or nested rest expansion (<emu-xref href="#sec-required-tuple-sequence-domain"></emu-xref>), then
               1. Let _values_ be a new empty List.
               1. For each fixed position of that domain, with any unbounded run empty, in order, do
-                1. Let _d_ be the position's formed declared default if present, and DefaultValueOf(the position's type) otherwise.
+                1. Let _d_ be the position's formed declared default if present, and ? DefaultValueOf(the position's type) otherwise.
                 1. If _d_ is ~none~, return ~none~.
                 1. Append _d_ to _values_.
               1. Return a new tuple of the type _t_ whose elements, in order, are _values_, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref> and its complete positional storage domain.
             1. Let _values_ be a new empty List.
             1. For each element _e_ of _t_.[[Elements]] whose [[Rest]] is *false*, in order, do
               1. Let _d_ be ~none~.
-              1. If _e_.[[Initial]] is ~none~, set _d_ to DefaultValueOf(_e_.[[Type]]).
+              1. If _e_.[[Initial]] is ~none~, set _d_ to ? DefaultValueOf(_e_.[[Type]]).
               1. Otherwise, set _d_ to its [[Initial]] converted at the position's type by <emu-xref href="#table-check-sites"></emu-xref>.
               1. If _d_ is ~none~, return ~none~.
               1. Append _d_ to _values_.
             1. Return a new tuple of the type _t_ whose elements, in order, are _values_, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref>.
           1. If _t_.[[Kind]] is ~parameterized~, then
-            1. Let _d_ be DefaultValueOf(_t_.[[Base]]).
+            1. Let _d_ be ? DefaultValueOf(_t_.[[Base]]).
             1. If _d_ is ~none~, return ~none~.
             1. Let _e_ be a new empty Object, which is the metadata of a value of _t_.[[Base]] that carries none.
             1. Let _crossed_ be Completion(ConvertParameterization(_d_, _e_, _t_.[[Metadata]])).
+            1. If _crossed_ is an abrupt completion originating in EvaluateWherePredicate, return ? _crossed_.
             1. If _crossed_ is an abrupt completion, return ~none~.
             1. Return _crossed_.[[Value]].
           1. If _t_.[[Kind]] is ~literal~, return _t_.[[Value]].
@@ -5010,6 +5011,7 @@ const n: uint32 = g();
         <p><ins>A PRIVATE field is filled like a public one. Its participation is the same as its participation in the layout &mdash; "private fields participate in the memory layout exactly as public fields do, which is why the value type rule counts both" &mdash; so a class whose only field is private has a default, and only the absence of a TYPE disqualifies a field, never the kind of its name.</ins></p>
         <p><ins>For a GENERIC class the field types are those of the APPLICATION, not of the declaration. `G`&lt;`4`&gt; whose field is declared `[`_N_`].<`uint8`>` has a field of type `[4].<`uint8`>`, so its default is a four-element zero-filled array; the declaration's own field type, whose extent is still the parameter, has no default and would otherwise leave every application of every such class without one.</ins></p>
 
+      <p>For a `where` portion, crossing from an unconstrained base performs validation: a false predicate means that the base default is not a default of the refinement. An exception evaluating the predicate is an abrupt completion, not absence of a default. Evaluate each base default and each needed crossing once; do not probe for availability by running the predicate and then run it again to construct the same default. A `where` portion does not grant an implicit cast for unrelated metadata portions.</p>
       <p>A parameterization's default is its base's zero having crossed into it, by the same conversion an initializer of the base's type crosses (<emu-xref href="#sec-metadata-conversion"></emu-xref>), so that `let _x_: _T_;` and `let _x_: _T_ = 0;` succeed together and fail together. Three consequences follow from the crossing rather than from a rule of its own. A meta type whose `validate` refuses the base's zero leaves the parameterization with no default, since the crossing throws and the step reports ~none~: `float64.&lt;{ min: 1 }&gt;` has no zero because 0 is not one of its values. A brand for which no cast is declared has no default either, being "reachable only by construction" and a declaration without an initializer not being one. And a parameterization whose base declares a cast has the crossed zero, which is what keeps a unit type zero-fillable: `Velocity` is a `float64` whose dimensions meta type defines no `validate`, so the cast admits the zero and `let _v_: Velocity;` holds 0 m/s.</p>
 
       <p>The meta types and casts declared in the surrounding realm are those declared as of the operation's application, as they are for the <emu-xref href="#metadata-subtype-judgment">metadata subtype judgment</emu-xref> and for the same reason: a parameterization may be written above the declarations that govern it, so the checking pass processes a source text's `meta` declarations and its `primitive` blocks' implicit cast operators before applying this operation (<emu-xref href="#sec-type-errors"></emu-xref>), and whether a declaration needs an initializer is answered against those. Two call sites fix the realm rather than taking the current one, because in each the value is produced for a program that is not the one asking. An unwritten ThreadLocal read (<emu-xref href="#sec-threading"></emu-xref>) takes the default in the realm in which the ThreadLocal was created, so that two agents reading one storage read one value. `Reflect.defineProperty` with a `type` and no `value` (<emu-xref href="#sec-reflection-and-declared-types"></emu-xref>) takes it in the realm of the Type Object it was given, which is the only call site at which a program chooses the moment.</p>
@@ -6765,6 +6767,7 @@ class C implements I {
     <emu-clause id="sec-reflect-maketype">
       <h1>Reflect.makeType ( _node_ )</h1>
       <p>The validity judgment includes every nested tuple rest operand: after canonicalization it must denote an array or tuple, subject to the same deferred requirement for dependent operands as <emu-xref href="#sec-array-and-tuple-types"></emu-xref>. A violation throws a *TypeError* here; a required compile-time builder invocation is rejected by the checking pass.</p>
+      <p>A *"parameterized"* node snapshots its metadata using the ordered admission rules of <emu-xref href="#table-metadata-values"></emu-xref>. The top-level *"where"* value is validated even when the base is `void` or `never`. A valid callback need not accept any value; the constructor performs no satisfiability search and does not replace a predicate-bearing parameterization by `never`. Reflection returns the same callback, so reconstruction retains the original function identity and environment.</p>
       <p>The input is structural: any object matching a node's shape in <emu-xref href="#table-reflection-nodes"></emu-xref> describes that node. A Type Object or associated class constructor used as the input, or in a type-valued position within it, contributes the Type Record obtained by ResolveReflectedType. This function performs the following steps when called:</p>
       <emu-alg>
         1. If _node_ is neither a Type Object, a class constructor with an associated Type Object, nor an Object matching a node's shape in <emu-xref href="#table-reflection-nodes"></emu-xref>, throw a *TypeError* exception.
@@ -7175,7 +7178,7 @@ class C implements I {
           1. Let _values_ be a new empty List.
           1. For each integer _index_ from _oldLength_ (inclusive) to _newLength_ (exclusive), in ascending order, do
             1. Let _type_ be the actual backing type of position _index_ at _newLength_, including every applicable conjoined contract.
-            1. Let _value_ be DefaultValueOf(_type_).
+            1. Let _value_ be ? DefaultValueOf(_type_).
             1. If _value_ is ~none~, throw a *TypeError* exception.
             1. Append the value to be stored, with value-type copying as required by <emu-xref href="#sec-value-type-copying"></emu-xref>, to _values_.
             1. If the Array's current length differs from _oldLength_, or its backing contracts or fixed extent differ from those recorded, throw a *TypeError* exception.
@@ -8581,10 +8584,50 @@ const value: V = new W();</code></pre>
 
       <p>The conditional form's |AssignmentExpression| decides a branch and a `match` predicate's patterns are pattern positions, so both are judged at the declaration as they are in a statement, reading `this` as the value under test (<emu-xref href="#sec-narrowfrom"></emu-xref>, <emu-xref href="#sec-pattern-static-semantics"></emu-xref>). The implicit `default` spares a `match` predicate the exhaustiveness judgment and nothing else. A branch's predicate is judged under the facts its branch establishes, and the explicit constants stay legal there, since `else { false }` is how a chain forbids a case.</p>
 
-      <p>`type` _N_ `=` _T_ `where` _P_ `;` binds _N_ to the Type Record { [[Kind]]: ~parameterized~, [[Base]]: the Type Record _T_ denotes, [[Metadata]]: OrdinaryObjectCreate with a `where` property whose value is _P_ as a function of `this` }. Each further clause refines the type the clauses before it produced, so `_T_ where _A_ where _B_` is the refinement by _B_ of the refinement by _A_ of _T_, and conjunction, subtyping, and membership follow from that nesting rather than from a rule of their own.</p>
+      <p>`type` _N_ `=` _T_ `where` _P_ `;` binds _N_ to the Type Record { [[Kind]]: ~parameterized~, [[Base]]: the Type Record _T_ denotes, [[Metadata]]: a metadata record with a *"where"* property whose value is the declaration-bound unary predicate described below }. Each further clause refines the type the clauses before it produced, so `_T_ where _A_ where _B_` is the refinement by _B_ of the refinement by _A_ of _T_, and conjunction, subtyping, and membership follow from that nesting rather than from a rule of their own.</p>
 
-      <p>The `where` meta type (<emu-xref href="#sec-primitive-metadata"></emu-xref>) claims the `where` key. Its `validate` of a value against a constraint is the evaluation of the constraint's `where` with `this` bound to that value; its `subtype` holds where the required constraint is unconstrained, so a predicate is shed, or where both carry the same predicate; its `default` is the unconstrained constraint, and it defines no other hook. A dependent record type therefore admits a value of its base only where every predicate holds of it, is a subtype of its base and sheds its predicates upward freely, and is reached from its base only by a crossing that runs them.</p>
+      <p>The `where` meta type (<emu-xref href="#sec-primitive-metadata"></emu-xref>) claims the `where` key. Its `validate` of a value against a constraint is EvaluateWherePredicate of the constraint's *"where"* and that value; its `subtype` holds where the required constraint is unconstrained, so a predicate is shed, or where both carry the same predicate; its `default` is the empty metadata record, and it defines no other hook. Absence of *"where"* is unconstrained; a present *undefined* is not absence and is invalid. A dependent record type therefore admits a value of its base only where every predicate holds of it, is a subtype of its base and sheds its predicates upward freely, and is reached from its base only by a crossing that runs them.</p>
 
+      <p>A source clause creates a unary predicate whose sole argument supplies the value denoted by the clause's `this`. The clause retains its declaration's lexical and private environments and the converted generic bindings of its application. Calling a source predicate uses the tested value itself, including a primitive, without boxing it. Evaluation of a source predicate retains the conditional-refinement rules and the implicit false default of a `where match`. Each declaration activation and generic binding tuple has its own predicate identity; repeated resolution within that activation and binding tuple reuses that identity. Identical source text in another activation is not evidence of identity.</p>
+
+      <emu-clause id="sec-admit-where-predicate" type="abstract operation">
+        <h1>
+          AdmitWherePredicate (
+            _predicate_: an ECMAScript language value,
+          ): either a normal completion containing a function or a throw completion
+        </h1>
+        <dl class="header"><dt>description</dt><dd>It validates a retained refinement callback without calling it or searching for an inhabitant.</dd></dl>
+        <emu-alg>
+          1. If _predicate_ is not a source predicate created by this clause and is not an ordinary synchronous ECMAScript function with exactly one non-rest, non-reference formal parameter, throw a *TypeError* exception.
+          1. If _predicate_ is a class constructor, async, a generator, a bound function, a Proxy, or an opaque host callable, throw a *TypeError* exception.
+          1. If the body, parameter initialization, or captured dependencies of _predicate_ do not satisfy the compile-time-evaluable fragment and the admission requirements below, throw a *TypeError* exception.
+          1. If _predicate_ has previously been admitted and a retained dependency has changed, throw a *TypeError* exception.
+          1. Retain the admission evidence for _predicate_, without changing its properties, prototype, strictness, or lexical environment.
+          1. Return _predicate_.
+        </emu-alg>
+        <p>Arity is determined from formal parameters, never by reading the mutable public *"length"* property. A default parameter or destructuring parameter is one parameter and retains ordinary parameter-initialization semantics. Admission does not read a candidate, invoke the predicate, invoke metadata getters again, freeze the function, or replace it with a wrapper. The predicate is an opaque leaf of the metadata snapshot.</p>
+        <p>The admitted call graph reads parameters, local bindings, stable primitive or Type Object captures, and other admitted functions. A mutable lexical capture, captured mutable record, dynamic evaluation, suspension, ambient receiver or arguments object, write outside local bindings, reference alias, read of an arbitrary mutable global or mutable property of a captured function or Type Object, unknown callable, or nondeterministic library operation is refused. A captured constant's initializer must itself satisfy this admission judgment; a constant initialized by a nondeterministic call does not become admissible merely because its resulting value is primitive. An imported capture is checked at its exporting binding; an immutable import of a mutable primitive binding is refused. A source clause's explicitly supplied `this` is its candidate, not ambient state. Deterministic library admission is by the intrinsic function's identity, not its spelling: a replaced `Math.abs` is not the original operation. String operations that invoke no callbacks and a fresh regular-expression literal's test may be guarded by that identity at invocation. An arbitrary candidate method, including a higher-order Array callback, is not thereby admitted. Ordinary candidate property observations and their abrupt completions remain observable.</p>
+        <p>Retained closure cells and library dependencies must still denote the admitted inputs whenever used, including after argument or getter effects. A changed dependency throws a *TypeError* rather than running unproved code or silently changing an existing type's meaning. Re-admitting the same function must not replace the evidence protecting types that already retain it. The semantic type-evaluation budget applies to admission and every invocation, including recursion and nested checks; exhaustion cannot be hidden by a caught exception or by memoization.</p>
+      </emu-clause>
+
+      <emu-clause id="sec-evaluate-where-predicate" type="abstract operation">
+        <h1>
+          EvaluateWherePredicate (
+            _predicate_: a function,
+            _value_: an ECMAScript language value,
+          ): either a normal completion containing a Boolean or a throw completion
+        </h1>
+        <dl class="header"><dt>description</dt><dd>It checks an admitted refinement after the base has admitted or converted the candidate.</dd></dl>
+        <emu-alg>
+          1. Verify the retained admission evidence for _predicate_, throwing a *TypeError* exception if a dependency has changed.
+          1. Let _result_ be ? Call(_predicate_, *undefined*, &laquo; _value_ &raquo;), evaluated in the compile-time-evaluable fragment under the current type-evaluation budget.
+          1. Verify the retained admission evidence again.
+          1. Return ToBoolean(_result_).
+        </emu-alg>
+        <p>The original callback's ordinary receiver rules apply to the *undefined* this-argument; no strictness is imposed on a supplied function. A false result is ordinary rejection. An abrupt completion is propagated unchanged, including through `is` and default construction. No result is cached solely by candidate object identity: an object may have changed since a previous check. Nested refinements check their base first and short-circuit in that order. A rejected base does not run an outer predicate.</p>
+      </emu-clause>
+
+      <p>When forming a recursive alias, recursive edges denote the completed refinement, including its predicate, rather than only its bare shape. Refinement wrappers supply no representation of their own: a cycle consisting solely of alias forwarding and refinement bases remains unproductive and is rejected. This rule applies before interning or computing a layout.</p>
       <p>A generic alias whose clause reads `this` declares a generic dependent record type. Each application of it to arguments denotes the refinement of its applied Type with the alias's type parameters bound to those arguments, carrying the clause evaluated under the same bindings with `this` bound to the value under test; its identity is the declaration's predicate together with the arguments. The clause is judged once, at the declaration, reading each type parameter through its bound (<emu-xref href="#sec-narrowfrom"></emu-xref>), and every boundary and `is` enforce it at each application, as for a non-generic refinement. A generic alias's clause that does not read `this` remains a specialization predicate (<emu-xref href="#sec-generic-where"></emu-xref>).</p>
       <p>A refinement admits exactly the values of its base that satisfy its predicate, so an `is` test of a value of its base against it settles neither half of an impossible test (<emu-xref href="#sec-narrowfrom"></emu-xref>): the test can never succeed only where the value's type shares no value with the base, and can never fail only where that type is the refinement or a subtype of it. A test that passes narrows the value to the refinement.</p>
 
@@ -8595,7 +8638,7 @@ const value: V = new W();</code></pre>
 
       <emu-note>
         <p>The refinement is <emu-xref href="#sec-parameterized-types"></emu-xref>'s, not a kind of its own, which is why nothing here restates layout, defaults, or the relations: a predicate changes no representation, and the branding rule of that clause is already the rule this one wants, that a `Payment` is usable wherever its bare object type is and that going the other way is a check. The design writes a postal code's pattern as `string.&lt;{ pattern: &hellip; }&gt;` in the same document that writes a payment's cross-field rule as `where`, and the two are one mechanism over two bases.</p>
-        <p>Because a predicate is a function, the structural equivalence of <emu-xref href="#sec-deferred-applications"></emu-xref> compares it by SameValue, so a dependent record type's identity is its declaration's identity: two modules that write the same `where` text declare two types, where two that write `stringPattern(/^[0-9]{5}$/)` declare one. That asymmetry is deliberate and is not an accident of the encoding. A predicate is code and may close over its scope, so `where this.total &lt; LIMIT` in two modules means two things whenever their `LIMIT` differs; comparing predicate source would make those one type and would be unsound. A regular expression is data and carries no scope, so comparing it structurally is safe. A program that wants one dependent record type across modules declares it once and imports it, as it would a class.</p>
+        <p>Because a predicate is a function, the structural equivalence of <emu-xref href="#sec-deferred-applications"></emu-xref> compares it by SameValue, so a dependent record type's identity includes its declaration activation and captured generic bindings: two modules that write the same `where` text declare two types, where two that write `stringPattern(/^[0-9]{5}$/)` declare one. That asymmetry is deliberate and is not an accident of the encoding. A predicate is code and may close over its scope, so `where this.total &lt; LIMIT` in two modules means two things whenever their `LIMIT` differs; comparing predicate source would make those one type and would be unsound. A regular expression is data and carries no scope, so comparing it structurally is safe. A program that wants one dependent record type across modules declares it once and imports it, as it would a class.</p>
         <p>Conjunction by nesting also gives the diagnostics: a value failing `_T_ where _A_ where _B_` fails at the innermost refinement whose predicate is false, so the clause that rejected it is the clause named.</p>
       </emu-note>
     </emu-clause>
@@ -8714,7 +8757,7 @@ const value: V = new W();</code></pre>
             <tr><td>A record of metadata values</td><td>The same keys, and equivalent values at each, without regard to order.</td></tr>
             <tr><td>A list of metadata values</td><td>The same length, and equivalent values at each index, in order.</td></tr>
             <tr><td>A range, of one of the four shapes of <emu-xref href="#sec-ranges"></emu-xref></td><td>The same shape, the same bound at each endpoint the shape has, and SameValue at each endpoint's value.</td></tr>
-            <tr><td>A `where` predicate, a function, under the `where` key alone (<emu-xref href="#sec-where-clauses"></emu-xref>)</td><td>SameValue: two predicates are equivalent only when they are one function.</td></tr>
+            <tr><td>An admitted `where` predicate, under the actual top-level String key *"where"* of type metadata alone (<emu-xref href="#sec-where-clauses"></emu-xref>)</td><td>SameValue: two predicates are equivalent only when they are one function.</td></tr>
           </tbody>
         </table>
       </emu-table>
@@ -8723,6 +8766,7 @@ const value: V = new W();</code></pre>
       <p>Admission precedes any copying that could erase the input's kind. Recognize supported numeric atoms, patterns and ranges by their actual kind, not by public tag properties or a user coercion. A record input is an ordinary Object with ordinary property access, without construction identity, private elements or additional opaque payload slots. Its prototype contributes no fields. Functions, class instances, boxed primitives, collection objects, typed-array objects and Proxies are not record inputs, even after a prototype change. Snapshot all metadata origins under these same admission rules before their completed values are normalized, interned or published.</p>
       <p>Composite record and tuple values and Span values are not metadata record or list inputs. Their admission does not depend on whether an implementation represents their special kind or backing state using object slots, value tags or side tables. Reject these kinds before entry reads, including empty values and values whose prototype has changed. A program may explicitly project contents to an ordinary record or Array before supplying metadata; that new input and every nested value still undergo the same admission checks. Typed owning Arrays remain list inputs.</p>
       <p>For a record snapshot, obtain its own key list once, and in that order inspect each key's current own descriptor. For each enumerable property, perform Get once and complete the resulting value's snapshot before proceeding to the next key. For a list input, capture the Array's length once and perform Get at each index from zero through that length minus one, in order, completing each element before reading the next. Index enumerability does not change list membership; named properties do not become elements. An indexed read yielding *undefined*, including an unfilled hole, fails admission. An inherited indexed value is the result of the ordinary Get. Getter effects and abrupt completions obey the existing type-position fragment rules; validation must not add a separate preliminary traversal that duplicates these reads.</p>
+      <p>During this one traversal of type metadata, when the current enumerable property is the outer record's actual String key *"where"*, apply AdmitWherePredicate immediately to that property's value and retain the resulting function. Continue to the next key only after admission succeeds. A nested record's *"where"*, a list element, a range endpoint, and a Symbol whose description is *"where"* receive no exception to the ordinary metadata value language. Function identity is compared by SameValue and ordered by a per-agent identity ordinal; neither comparison nor diagnostic display inspects a function's properties, source, or environment.</p>
       <p>Record keys are String or Symbol property keys. Preserve their identity through every metadata origin, normalization, constraint-shape lookup, key claiming, default completion, capture, hook portion, computed result and reflected description. Distinct Symbols with the same description are distinct keys; no String spelling substitutes for a Symbol. Enumerable Symbol properties participate in record snapshotting in the own-key order described above, with the same reads and admission checks as String properties. Symbol properties of a list are not indexed elements. Record equivalence compares actual key sets and corresponding values without regard to insertion order. Canonical ordering distinguishes Symbol identities by the existing per-agent first-interning order, for both keys and Symbol values. Materialization exposes the original property keys.</p>
       <p>A cycle along the active record/list containment path is not a metadata value. Repeated references to an acyclic child are distinct snapshot occurrences, with the prescribed reads performed for each occurrence. An implementation may use an explicit worklist rather than host recursion. Snapshotting joins the surrounding type-evaluation budget, or begins one where none is active, and charges one logical step for each value visit and each container advance or completion. Getter and helper work also pays its existing charges. An exhausted or failed snapshot produces no completed metadata value and does not publish a declaration; earlier ordinary effects and completed declarations are preserved as specified above.</p>
       <p>When metadata reaches a hook or a reflected type description, materialize lists as Arrays, patterns as RegExp values, and ranges as Range values of their stored shapes. Ordinary records retain their ordinary member names: a property named `__range` or `__pattern` is not authority to create a different metadata kind. Reconstructing a reflected description uses the same admission rules and preserves the required Type Object identity.</p>
@@ -10664,6 +10708,7 @@ const value: V = new W();</code></pre>
     <h1>The Expansion Artifact</h1>
     <p>Because evaluation is deterministic and its results are interned canonical forms, they may be computed once and shipped. An <dfn id="expansion-artifact">expansion artifact</dfn> is a serialization of the interning table for the concrete types a module graph's public surface produces, every closed application among them pre-evaluated, keyed by a hash of the module graph that produced it. A consumer verifies the hash and reads the types out of it rather than evaluating them; on a mismatch it evaluates, and determinism is what makes the two agree.</p>
 
+    <p>A predicate-bearing export, including one nested in an otherwise structural type, is omitted unless the artifact can resolve exactly the original function identity and its captured environment. The current table format provides no such reference. Never serialize a closure's source as its identity, omit its `where` field, or substitute its base. Record the omitted export and the reason even when no encodable export remains; the consumer evaluates that export normally. Nominal entries are resolved by their declared identity, and the table traverses their encoded arguments rather than implementation-only constructor or private-structure graphs.</p>
     <p>An artifact contains no open application. `partial(T)` inside an exported generic evaluates against the consumer's `T`, at the consumer, so the evaluator is not removed by the artifact and cannot be: what the artifact removes is the common path, a dependency's concrete surface, which is the part that would otherwise be recomputed by every tool on every build. An artifact is an optimization and never a semantics: a consumer that ignores every artifact computes the same types, and one that reads a stale artifact detects it by the hash rather than by disagreeing. More generally it carries no UNBOUND TYPE PARAMETER, wherever one stands: an
       exported generic signature is unbound for the same reason `partial(T)` is, since what
       takes the parameter's place is the consumer's type. A name whose type carries one is
