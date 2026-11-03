@@ -10253,11 +10253,11 @@ const value: V = new W();</code></pre>
         OperatorDefinitionList[?Yield, ?Await] OperatorDefinition[?Yield, ?Await]
 
       OperatorDefinition[Yield, Await] :
-        `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
-        `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? `;`
-        `operator` Type[?Yield, ?Await] `(` `)` TypeAnnotation[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
-        `*` `operator` `...` `(` `)` TypeAnnotation[?Yield, ?Await]? `{` GeneratorBody `}`
-        `*` `operator` `...` `(` `)` TypeAnnotation[?Yield, ?Await]? `;`
+        `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? WhereClauses[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
+        `static`? `operator` OperatorName OperatorTypeParameters[?Yield, ?Await]? `(` FormalParameters[~Yield, ~Await] `)` TypeAnnotation[?Yield, ?Await]? WhereClauses[?Yield, ?Await]? `;`
+        `operator` Type[?Yield, ?Await] `(` `)` TypeAnnotation[?Yield, ?Await]? WhereClauses[?Yield, ?Await]? `{` FunctionBody[~Yield, ~Await] `}`
+        `*` `operator` `...` `(` `)` TypeAnnotation[?Yield, ?Await]? WhereClauses[?Yield, ?Await]? `{` GeneratorBody `}`
+        `*` `operator` `...` `(` `)` TypeAnnotation[?Yield, ?Await]? WhereClauses[?Yield, ?Await]? `;`
 
       OperatorTypeParameters[Yield, Await] :
         `.&lt;` GenericEntryList[?Yield, ?Await] `,`? `&gt;`
@@ -10265,6 +10265,7 @@ const value: V = new W();</code></pre>
       OperatorName :: one of
         `+` `-` `*` `/` `%` `**` `==` `&lt;` `&gt;` `&lt;=` `&gt;=` `&amp;` `|` `^` `~` `&lt;&lt;` `&gt;&gt;` `&gt;&gt;&gt;`</ins>
     </emu-grammar>
+    <p>An |OperatorDefinition| takes `where` clauses as a method does (<emu-xref href="#sec-generic-where"></emu-xref>): over its operands, its receiver and its result, judged at the declaration and checked at each application.</p>
     <p><ins>An |OperatorTypeParameters| is classified and checked as the |TypeParameters| of a method definition is (<emu-xref href="#sec-type-parameters-static-semantics-early-errors"></emu-xref>): `operator+.&lt;T: type&gt;(rhs: T)` declares a parameter, `operator+.&lt;uint32&gt;(rhs: uint32)` fixes the argument, and a mix of the two is a selector-prefixed overload. The leading `.` stays because the operator token may itself end in `&lt;` or `&gt;`.</ins></p>
 
     <p>A |PrimitiveOperatorDeclaration| is a |Declaration|; <emu-xref href="#sec-meta-declarations"></emu-xref> restates that production with it added. An |OperatorDefinition| is a |ClassElement|, restated below, and an interface member, so a class declares operators among its methods and an interface declares the operators a type must have, which is what makes an operator expressible as a constraint. The form without a body is the declaration-only one an interface and a metadata-only definition take. The cast production is the implicit cast operator of <emu-xref href="#sec-primitive-operator-blocks"></emu-xref>.</p>
