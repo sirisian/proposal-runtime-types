@@ -11823,6 +11823,7 @@ const value: V = new W();</code></pre>
           1. If _subject_ is not a value of a type ordered with the element type of _r_, return *false*.
           1. Return ? the result of the containment test the range's `contains` performs on _subject_ (<emu-xref href="#sec-ranges"></emu-xref>), which is at most two comparisons.
         </emu-alg>
+        <p>A range pattern's endpoints are of an ordered type, in the order <emu-xref href="#sec-narrowing-flow"></emu-xref> gives it: a numeric type, `bigint`, an enum's enumerators, or a class declaring `&lt;`. Boolean is not ordered, so a range pattern over Boolean endpoints is refused, as a range literal over them is, rather than read as matching the two values it names.</p>
       </emu-clause>
 
       <emu-clause id="sec-matchregexp" type="abstract operation">
