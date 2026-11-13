@@ -906,6 +906,31 @@
       ]
     },
     {
+      "code": "RT_INTERFACE_HERITAGE",
+      "rule": "rt-interface-heritage",
+      "status": "provisional",
+      "applicability": "always",
+      "phases": [
+        "static",
+        "pre-evaluation"
+      ],
+      "errorClass": "StaticTypeError",
+      "specification": [
+        "sec-interface-declaration-identity"
+      ],
+      "explanation": "An interface's extends list names a base that cannot be extended, repeats a base or closes a cycle of bases, or a member of the interface or of two of its bases does not satisfy the member it inherits.",
+      "arguments": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "relatedLocations": [
+        "declaration",
+        "origin"
+      ]
+    },
+    {
       "code": "RT_GENERIC_ARGUMENT",
       "rule": "rt-generic-argument",
       "status": "provisional",
