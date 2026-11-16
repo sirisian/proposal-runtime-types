@@ -2883,6 +2883,31 @@
         "declaration",
         "origin"
       ]
+    },
+    {
+      "code": "RT_STORE_TO_COPY",
+      "rule": "rt-store-to-copy",
+      "status": "provisional",
+      "applicability": "checked",
+      "phases": [
+        "static",
+        "pre-evaluation"
+      ],
+      "errorClass": "StaticTypeError",
+      "specification": [
+        "sec-store-to-a-copy"
+      ],
+      "explanation": "The store is to a binding that holds a copy, and no read of the binding can follow it.",
+      "arguments": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "relatedLocations": [
+        "declaration",
+        "origin"
+      ]
     }
   ]
 }
