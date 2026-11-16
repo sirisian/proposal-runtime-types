@@ -540,9 +540,10 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-typed-storage"
+        "sec-typed-storage",
+        "sec-readonly-inline-values"
       ],
-      "explanation": "The operation writes a declared readonly member.",
+      "explanation": "The operation writes a declared readonly member, or a part of the value of a value type that such a member holds.",
       "arguments": {
         "type": "array",
         "items": {
@@ -2897,7 +2898,7 @@
       "specification": [
         "sec-store-to-a-copy"
       ],
-      "explanation": "The store is to a binding that holds a copy, and no read of the binding can follow it.",
+      "explanation": "The store is to a copy that nothing reads afterwards: a binding that holds one, or the result of a call or of a getter.",
       "arguments": {
         "type": "array",
         "items": {
