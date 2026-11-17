@@ -842,9 +842,10 @@
       "errorClass": "StaticTypeError",
       "specification": [
         "sec-memory-layout",
-        "sec-recursive-declaration-validation"
+        "sec-recursive-declaration-validation",
+        "sec-layout-control"
       ],
-      "explanation": "The declared storage cannot have the required finite layout.",
+      "explanation": "The declared storage cannot have the required finite layout, or a layout control is written where it has nothing to place.",
       "arguments": {
         "type": "array",
         "items": {
