@@ -2909,6 +2909,31 @@
         "declaration",
         "origin"
       ]
+    },
+    {
+      "code": "RT_VALUE_CLASS",
+      "rule": "rt-value-class",
+      "status": "provisional",
+      "applicability": "always",
+      "phases": [
+        "static",
+        "pre-evaluation"
+      ],
+      "errorClass": "StaticTypeError",
+      "specification": [
+        "sec-value-classes"
+      ],
+      "explanation": "A class declared `value` has a field with no type or with a type that is not a value type, or a base that is not a value class; or a class that extends a value class is not declared one.",
+      "arguments": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "relatedLocations": [
+        "declaration",
+        "origin"
+      ]
     }
   ]
 }

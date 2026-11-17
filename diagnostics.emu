@@ -121,6 +121,7 @@
       <tr><td><dfn id="rt-proposal-construction">rt-proposal-construction</dfn></td><td><code>RT_CONSTRUCTOR_REQUIRED</code> (provisional)</td><td>Everywhere</td><td>The established target cannot be constructed. <emu-xref href="#sec-type-errors"></emu-xref></td></tr>
       <tr><td><dfn id="rt-declared-call">rt-declared-call</dfn></td><td><code>RT_NOT_CALLABLE</code> (provisional)</td><td>Everywhere</td><td>The established callee is not callable. <emu-xref href="#sec-type-errors"></emu-xref></td></tr>
       <tr><td><dfn id="rt-store-to-copy">rt-store-to-copy</dfn></td><td><code>RT_STORE_TO_COPY</code> (provisional)</td><td>Checked code</td><td>The store is to a copy that nothing reads afterwards: a binding that holds one, or the result of a call or of a getter. <emu-xref href="#sec-store-to-a-copy"></emu-xref></td></tr>
+      <tr><td><dfn id="rt-value-class">rt-value-class</dfn></td><td><code>RT_VALUE_CLASS</code> (provisional)</td><td>Everywhere</td><td>A class declared `value` has a field with no type or with a type that is not a value type, or a base that is not a value class; or a class that extends a value class is not declared one. <emu-xref href="#sec-value-classes"></emu-xref></td></tr>
     </tbody>
   </table></emu-table>
 </emu-clause>
