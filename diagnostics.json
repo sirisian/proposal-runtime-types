@@ -290,9 +290,10 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-default-values"
+        "sec-default-values",
+        "sec-array-and-tuple-types"
       ],
-      "explanation": "The declaration needs an initializer because its type has no default.",
+      "explanation": "A declaration needs an initializer, or the construction of an array its source, because the type has no default.",
       "arguments": {
         "type": "array",
         "items": {
@@ -1018,7 +1019,8 @@
       ],
       "errorClass": "StaticTypeError",
       "specification": [
-        "sec-static-iteration-contribution"
+        "sec-static-iteration-contribution",
+        "sec-array-and-tuple-types"
       ],
       "explanation": "The required iterable operation is impossible for the established source.",
       "arguments": {
