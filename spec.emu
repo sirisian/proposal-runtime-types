@@ -6275,7 +6275,7 @@ value class C implements I {
 
       <emu-note>
         <p>Given `function f(): uint32` and `function f(): string`, the call `f()` alone is an error, `const a: string = f();` selects the second, and `g(f())` selects the first where `g` takes a `uint32`, because the parameter supplies the contextual type. `h(f())` is an error where `h` is itself overloaded on `uint8` and `string`, since an argument of a call with more than one applicable signature has no contextual type. The circularity is real and is resolved by rejecting the call rather than by guessing.</p>
-        <p>Return-type overloading exists for the operators. A SIMD comparison returns either a vector of lane results or a compact mask, which Intel's intrinsics distinguish by name and which real types cannot: `operator&lt;(v: int32x4): int32x4` and `operator&lt;(v: int32x4): boolean8` are the same signature but for the return. `const a: int32x4 = x == y;` and `const b: boolean8 = x == y;` select between them, and the comparison written with no contextual type is an error rather than a default.</p>
+        <p>Return-type overloading exists for the operators. A SIMD comparison returns either a vector of lane results or a compact mask, which Intel's intrinsics distinguish by name and which real types cannot: `operator&lt;(v: int32x4): int32x4` and `operator&lt;(v: int32x4): vector.&lt;boolean1, 4&gt;` are the same signature but for the return. `const a: int32x4 = x == y;` and `const b: vector.&lt;boolean1, 4&gt; = x == y;` select between them, and the comparison written with no contextual type is an error rather than a default.</p>
       </emu-note>
     </emu-clause>
 
